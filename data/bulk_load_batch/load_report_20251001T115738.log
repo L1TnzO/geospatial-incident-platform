@@ -1,0 +1,139 @@
+=== Bulk Load Session 2025-10-01T11:57:38-03:00 ===
+Database URL: postgres://gis_dev:gis_dev_password@*** (hostname hidden)
+Data directory: /home/enzo/University/ICC752/Firesight/geospatial-incident-platform/data/bulk_load_batch
+--- Running staging_schema.sql ---
+psql:tools/bulk_load/staging_schema.sql:2: NOTICE:  schema "staging" does not exist, skipping
+DROP SCHEMA
+CREATE SCHEMA
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+--- Copying CSV files into staging schema ---
+COPY 40
+COPY 20000
+COPY 39794
+COPY 24263
+COPY 28064
+--- Running load_pipeline.sql ---
+--- Beginning transactional bulk load ---
+BEGIN
+psql:tools/bulk_load/load_pipeline.sql:10: NOTICE:  truncate cascades to table "incident_daily_metrics"
+TRUNCATE TABLE
+ ?column? 
+----------
+        1
+(1 row)
+
+SELECT 40
+ ?column? 
+----------
+        1
+(1 row)
+
+SELECT 20000
+INSERT 0 39794
+INSERT 0 24263
+INSERT 0 28064
+COMMIT
+ANALYZE
+ANALYZE
+ANALYZE
+ANALYZE
+ANALYZE
+--- Load summary ---
+   table_name    | row_count 
+-----------------+-----------
+ incident_assets |     24263
+ incident_notes  |     28064
+ incidents       |     20000
+ incident_units  |     39794
+ stations        |        40
+(5 rows)
+
+Load duration: 3 seconds
+--- Running validation.sql ---
+--- Row count comparison (production vs staging) ---
+   table_name    | production_count | staging_count 
+-----------------+------------------+---------------
+ incident_assets |            24263 |         24263
+ incident_notes  |            28064 |         28064
+ incidents       |            20000 |         20000
+ incident_units  |            39794 |         39794
+ stations        |               40 |            40
+
+
+--- Referential integrity spot checks ---
+ incidents_missing_station 
+---------------------------
+                         0
+
+ units_missing_station 
+-----------------------
+                     0
+
+ units_missing_incident 
+------------------------
+                      0
+
+ assets_missing_incident 
+-------------------------
+                       0
+
+ notes_missing_incident 
+------------------------
+                      0
+
+
+--- Geometry validation ---
+ invalid_station_geometries 
+----------------------------
+                          0
+
+ invalid_incident_geometries 
+-----------------------------
+                           0
+
+ station_incorrect_srid 
+------------------------
+                      0
+
+ incident_incorrect_srid 
+-------------------------
+                       0
+
+
+--- Incident severity distribution ---
+ severity_code | incident_count 
+---------------+----------------
+ CRITICAL      |           3988
+ HIGH          |           4021
+ LOW           |           4043
+ MODERATE      |           3990
+ SEVERE        |           3958
+
+
+--- Incident type distribution ---
+   type_code    | incident_count 
+----------------+----------------
+ FIRE_STRUCTURE |           3880
+ FIRE_WILDLAND  |           3981
+ HAZMAT         |           4090
+ MEDICAL        |           4025
+ RESCUE         |           4024
+
+
+--- Temporal window ---
+       first_occurrence       |       last_occurrence        
+------------------------------+------------------------------
+ 2025-07-03 14:45:31.05868+00 | 2025-10-01 14:37:03.05868+00
+
+
+--- Active vs inactive incidents ---
+ is_active | count 
+-----------+-------
+ t         | 12036
+ f         |  7964
+
+=== Bulk Load Completed 2025-10-01T11:57:41-03:00 ===

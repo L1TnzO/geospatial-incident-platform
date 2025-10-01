@@ -1,0 +1,4 @@
+Faker==24.11.0
+pandas==2.2.3
+pygeohash==1.2.0
+tqdm==4.66.4

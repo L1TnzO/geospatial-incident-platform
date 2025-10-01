@@ -11,8 +11,6 @@ This package contains the Express + TypeScript backend for the Geospatial Incide
 - `tests/` – Jest test suites (Supertest-powered integration tests)
 - `config/` – environment examples (`.env.example`) and future configuration files
 
-> **First time here?** Follow the root [`docs/setup.md`](../docs/setup.md) guide for repository-wide prerequisites before diving into the backend service specifics below.
-
 ## Getting Started
 
 ### Prerequisites
@@ -78,5 +76,3 @@ make compose-up
 ```
 
 The Compose definition mounts this directory into the `backend` service container, installs dependencies automatically, and executes `npm run dev`. Update environment files under `infra/docker/` to customize container settings.
-
-Need contribution standards or CI expectations? See [`docs/contributing.md`](../docs/contributing.md).
