@@ -2,6 +2,8 @@
 
 Task 2.3 introduces a Python-based CLI for crafting synthetic datasets that align with the PostGIS schema defined in `docs/sql/initial_schema.sql`. Use this tooling to create stations, incidents, and supporting records that downstream tasks (2.4–2.6) can load directly into the database.
 
+> Need a holistic view of the schema and pipelines? See [`docs/data-model/README.md`](./data-model/README.md).
+
 ## Project Layout
 
 ```

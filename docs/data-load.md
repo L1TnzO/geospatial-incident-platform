@@ -2,6 +2,8 @@
 
 Task 2.4 introduces a repeatable workflow for moving synthetic CSV datasets into the PostGIS schema and validating the results. The tooling lives under `tools/bulk_load/` and automates staging, transformation, loading, and verification.
 
+> For schema context, lookup references, and performance guidance, review [`docs/data-model/README.md`](./data-model/README.md).
+
 ## Prerequisites
 
 - PostGIS container running locally: `docker compose up db -d`

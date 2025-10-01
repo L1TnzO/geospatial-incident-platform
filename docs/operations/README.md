@@ -6,6 +6,7 @@ Operational runbooks, onboarding guides, and environment setup instructions for 
 
 - [Setup Guide](../setup.md) — Environment prerequisites, dependency bootstrapping, and Compose workflow.
 - [Contributing Guide](../contributing.md) — Branching strategy, commit conventions, and CI expectations.
+- [Data Model & Pipeline Guide](../data-model/README.md) — Schema overview, migrations, synthetic data, and benchmarking workflow.
 - [Continuous Integration](./ci.md) — CI workflow overview, troubleshooting steps, and local reproduction tips.
 - [Synthetic Data Generation](../data-generation.md) — Python CLI for producing incidents/stations datasets used in Phase 2.
 - [Bulk Data Load](../data-load.md) — Staging, loading, and validation workflow for synthetic CSV batches.
