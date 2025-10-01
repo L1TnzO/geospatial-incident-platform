@@ -1,5 +1,6 @@
 import type { Knex } from 'knex';
 import { closeDb, getDb, IncidentRepository, StationRepository } from '../../src/db';
+import { getLookupId, iso, pointWkt, polygonWkt, purgeTestRecords } from './testUtils';
 
 const TEST_PREFIX = 'TEST_TASK_2_5';
 
@@ -15,55 +16,8 @@ const testContext: {
   dbReady: true,
 };
 
-const polygonWkt =
-  'MULTIPOLYGON(((-122.52 37.70, -122.35 37.70, -122.35 37.83, -122.52 37.83, -122.52 37.70)))';
-
-const pointWkt = (lng: number, lat: number): string => `POINT(${lng} ${lat})`;
-
-const iso = (input: string | Date): string => {
-  const date = input instanceof Date ? input : new Date(input);
-  return date.toISOString();
-};
-
-const getLookupId = async (
-  db: Knex,
-  table: string,
-  codeColumn: string,
-  code: string
-): Promise<number> => {
-  const row = await db(table).where(codeColumn, code).first<{ id: number }>('id');
-  if (!row) {
-    throw new Error(`Missing lookup value ${code} in ${table}`);
-  }
-  return row.id;
-};
-
-const purgeTestData = async (db: Knex): Promise<void> => {
-  await db('incident_notes')
-    .whereIn(
-      'incident_id',
-      db('incidents').select('id').where('incident_number', 'like', `${TEST_PREFIX}%`)
-    )
-    .del();
-  await db('incident_assets')
-    .whereIn(
-      'incident_id',
-      db('incidents').select('id').where('incident_number', 'like', `${TEST_PREFIX}%`)
-    )
-    .del();
-  await db('incident_units')
-    .whereIn(
-      'incident_id',
-      db('incidents').select('id').where('incident_number', 'like', `${TEST_PREFIX}%`)
-    )
-    .del();
-  await db('incidents').where('incident_number', 'like', `${TEST_PREFIX}%`).del();
-  await db('stations').where('station_code', 'like', `${TEST_PREFIX}%`).del();
-  await db('response_zones').where('zone_code', 'like', `${TEST_PREFIX}%`).del();
-};
-
 const seedTestData = async (db: Knex): Promise<void> => {
-  await purgeTestData(db);
+  await purgeTestRecords(db, TEST_PREFIX);
 
   const suffix = Date.now().toString(36);
 
@@ -261,7 +215,7 @@ describe('Data Access Repositories', () => {
 
   afterAll(async () => {
     if (testContext.dbReady) {
-      await purgeTestData(db);
+      await purgeTestRecords(db, TEST_PREFIX);
     }
     await closeDb();
   });

@@ -65,11 +65,11 @@ cd server
 DATABASE_URL=postgres://gis_dev:gis_dev_password@localhost:5432/gis_test npm run test:db
 ```
 
-The tests (best run against a dedicated database such as `gis_test`):
+The tests (best run against a dedicated database such as `gis_test`) now cover:
 
-1. Apply migrations and seeds against the database referenced by `DATABASE_URL`.
-2. Insert lightweight fixtures (incidents, stations, response zones) for repeatable assertions.
-3. Validate pagination/filtering, detail queries, and station listings.
+1. Migration/seed smoke checks confirming lookup codes and PostGIS extension availability.
+2. Repository regression suites that insert fixtures and a higher-volume synthetic batch for pagination, detail joins, and geometry serialization.
+3. Referential integrity and geometry validation queries adapted from the bulk-load pipeline (ensuring SRID, validity, and relationship constraints).
 
 If the database connection fails, the suite will log a warning and skip assertions instead of hard failing.
 

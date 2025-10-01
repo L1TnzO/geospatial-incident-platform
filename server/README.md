@@ -88,6 +88,12 @@ Set `DATABASE_URL` (or rely on the Docker Compose defaults) before executing the
 DATABASE_URL=postgres://gis_dev:gis_dev_password@localhost:5432/gis_test npm run test:db
 ```
 
+The database suite now performs:
+
+- Migration/seed smoke checks verifying lookup codes and required extensions
+- Repository regression tests across seeded fixtures and a larger synthetic batch (pagination, detail joins, geometry serialization)
+- Referential integrity and geometry validation queries adapted from the bulk-load pipeline
+
 ### Build & Production Start
 
 ```bash
