@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Initial schema migration aligned with docs/sql/initial_schema.sql
  */
