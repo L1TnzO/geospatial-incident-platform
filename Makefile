@@ -21,9 +21,11 @@ VERBOSE ?= true
 LOAD_DATA_DIR ?= data/bulk_load_batch
 DATABASE_URL ?= postgres://gis_dev:gis_dev_password@localhost:5432/gis
 SKIP_VALIDATION ?= false
+BENCHMARK_SCRIPT ?= tools/performance/benchmark.sql
+INCIDENT_NUMBER ?=
 
 .PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
-.PHONY: db-load-data
+.PHONY: db-load-data db-benchmark
 
 compose-up:
 	$(COMPOSE) up --build -d
@@ -83,3 +85,8 @@ db-load-data:
 		--data-dir $(LOAD_DATA_DIR) \
 		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),) \
 		$(if $(filter $(SKIP_VALIDATION),true),--skip-validation,)
+
+db-benchmark:
+	psql $(DATABASE_URL) \
+		$(if $(INCIDENT_NUMBER),-v incident_number='$(INCIDENT_NUMBER)',) \
+		-f $(BENCHMARK_SCRIPT)
