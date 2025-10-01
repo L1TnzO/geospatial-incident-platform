@@ -8,7 +8,9 @@ This package contains the Express + TypeScript backend for the Geospatial Incide
   - `config/` – environment and configuration helpers
   - `routes/` – HTTP routing modules (`/healthz` already implemented)
   - `middleware/` – shared Express middleware placeholders
-- `tests/` – Jest test suites (Supertest-powered integration tests)
+- `db/` – Knex migrations, seeds, and future database utilities
+- `src/db/` – TypeScript data-access layer (repositories, shared types)
+- `tests/` – Jest test suites (HTTP + repository integration tests)
 - `config/` – environment examples (`.env.example`) and future configuration files
 
 > **First time here?** Follow the root [`docs/setup.md`](../docs/setup.md) guide for repository-wide prerequisites before diving into the backend service specifics below.
@@ -52,13 +54,39 @@ npm run lint
 
 ESLint (flat config) is pre-wired with TypeScript and Prettier compatibility.
 
+### Database Migrations & Seeds
+
+```bash
+npm run migrate:latest
+npm run db:seed
+```
+
+Use `npm run db:reset` to rollback everything and rebuild from scratch. Commands honour the same `DATABASE_URL` resolution as the main service (see `knexfile.js`).
+
+For an isolated integration-test database, create a separate PostGIS database (for example `gis_test`) and point `DATABASE_URL` at it when running migrations or seeds:
+
+```bash
+DATABASE_URL=postgres://gis_dev:gis_dev_password@localhost:5432/gis_test npm run migrate:latest
+DATABASE_URL=postgres://gis_dev:gis_dev_password@localhost:5432/gis_test npm run db:seed
+```
+
 ### Testing
 
 ```bash
 npm test
 ```
 
-Jest with Supertest validates the `/healthz` route metadata.
+Jest with Supertest validates the HTTP surface. For repository/data-access coverage (requires a PostGIS database with migrations applied), run:
+
+```bash
+npm run test:db
+```
+
+Set `DATABASE_URL` (or rely on the Docker Compose defaults) before executing the database-focused suite.
+
+```bash
+DATABASE_URL=postgres://gis_dev:gis_dev_password@localhost:5432/gis_test npm run test:db
+```
 
 ### Build & Production Start
 
@@ -77,6 +105,15 @@ From the repository root you can bring up the full stack (PostGIS + backend + op
 make compose-up
 ```
 
-The Compose definition mounts this directory into the `backend` service container, installs dependencies automatically, and executes `npm run dev`. Update environment files under `infra/docker/` to customize container settings.
+The Compose definition mounts this directory into the `backend` service container, installs dependencies automatically, and executes `npm run dev`. Update environment files under `infra/docker/` to customize container settings. Use `make compose-down` to stop the stack and `make db-load-data` to rerun bulk data loads if you are syncing synthetic datasets.
+
+## Data Access Layer
+
+The TypeScript repositories under `src/db/` expose backend-ready query helpers for incidents and stations. Key entry points:
+
+- `IncidentRepository` (`incidentRepository` singleton) – pagination/filter helpers, detail fetches, and related units/assets/notes.
+- `StationRepository` (`stationRepository` singleton) – station listings with optional activity filters and response-zone GeoJSON.
+
+Each repository returns GeoJSON `Feature` objects for geometry columns and surfaces lookup metadata (types, severities, statuses, geohashes) as plain objects. See [`../docs/backend-data-access.md`](../docs/backend-data-access.md) for method-level documentation and usage patterns.
 
 Need contribution standards or CI expectations? See [`docs/contributing.md`](../docs/contributing.md).

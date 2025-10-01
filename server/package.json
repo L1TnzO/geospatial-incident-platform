@@ -4,25 +4,35 @@
   "description": "Backend services and APIs for the Geospatial Incident Platform. Organize feature modules under `src/` and keep configuration artifacts in `config/`. Add automated and integration tests in `tests/`.",
   "main": "dist/index.js",
   "scripts": {
-    "test": "jest",
+    "test": "jest --testPathIgnorePatterns tests/db",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/index.js",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "migrate:up": "knex migrate:latest",
+    "migrate:latest": "knex migrate:latest",
+    "migrate:rollback": "knex migrate:rollback",
+    "db:seed": "knex seed:run",
+    "db:reset": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
+    "test:db": "NODE_ENV=test jest --runInBand tests/db"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "dotenv": "^17.2.3",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "knex": "^3.1.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.36.0",
     "@types/express": "^5.0.3",
+    "@types/geojson": "^7946.0.16",
     "@types/jest": "^29.5.12",
     "@types/node": "^24.6.1",
+    "@types/pg": "^8.15.5",
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.45.0",
     "@typescript-eslint/parser": "^8.45.0",
