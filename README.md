@@ -14,11 +14,23 @@ The Geospatial Incident Platform is a monorepo that unifies backend services, fr
 | `infra/`   | Infrastructure-as-code definitions, deployment tooling, and container orchestrations. |
 | `.vscode/` | Workspace settings aligned with TypeScript + Prettier conventions.                    |
 
-## Getting Started
+## Quickstart
 
-1. Install the recommended VS Code extensions for TypeScript and Prettier formatting.
-2. Familiarize yourself with the directory-specific README files for contribution expectations.
-3. Backend and frontend packages will be bootstrapped in subsequent tasks – follow the forthcoming setup guides under `docs/`.
+| Goal                     | Command             | Reference                                                               |
+| ------------------------ | ------------------- | ----------------------------------------------------------------------- |
+| Install all dependencies | `npm install`       | [Setup Guide](./docs/setup.md)                                          |
+| Run repository-wide lint | `npm run lint`      | [Frontend docs](./client/README.md), [Backend docs](./server/README.md) |
+| Execute all tests        | `npm test`          | [Contributing Guide](./docs/contributing.md)                            |
+| Bring up Docker stack    | `make compose-up`   | [Setup Guide](./docs/setup.md)                                          |
+| Tear down Docker stack   | `make compose-down` | [Setup Guide](./docs/setup.md)                                          |
+
+Need the full onboarding sequence, environment templates, or editor setup tips? Start with [`docs/setup.md`](./docs/setup.md) for a step-by-step walkthrough.
+
+## Contributor Workflow
+
+- Review the [Contributing Guide](./docs/contributing.md) for branching strategy, commit conventions, and CI expectations.
+- Package-level details live in [`server/README.md`](./server/README.md) and [`client/README.md`](./client/README.md).
+- Check `docs/operations/ci.md` for an overview of the CI pipeline and troubleshooting steps.
 
 ## Local Development Stack
 
@@ -36,15 +48,7 @@ Use `make compose-down` to stop and clean up when finished.
 
 ## Quality Automation
 
-Install dependencies at the repository root to enable linting, formatting, and testing automation:
-
-```
-npm install
-```
-
-Pre-commit hooks are managed by Husky. After running `npm install`, Husky automatically installs the hooks; if you need to reinstall manually, run `npm run prepare`. The `pre-commit` hook formats staged files via `lint-staged`, then runs `npm run lint` and `npm run test` to guard against regressions before commits land.
-
-See `docs/operations/ci.md` for CI pipeline details, troubleshooting tips, and guidance on replacing `OWNER/REPOSITORY` in the badge URL with your GitHub namespace.
+The root `npm install` step bootstraps dependencies for the backend and frontend workspaces. Husky + lint-staged wire pre-commit checks automatically; rerun `npm run prepare` if the hooks ever go missing. See [`docs/contributing.md`](./docs/contributing.md) for the full checklist before opening a pull request.
 
 ## Upcoming Documentation
 

@@ -2,6 +2,8 @@
 
 Vite + React + TypeScript client that powers the Geospatial Incident Platform UI. The initial scaffold includes routing, global state via Zustand, Leaflet map integration, and a testing setup with Vitest and React Testing Library.
 
+> **New contributor?** Review the repository-wide [`docs/setup.md`](../docs/setup.md) first, then return here for frontend-specific workflows.
+
 ## Prerequisites
 
 - Node.js 20+
@@ -37,6 +39,8 @@ npm run test:watch # Run Vitest in watch mode
 The root `docker-compose.yml` defines a `frontend` service that mounts this directory and exposes port `5173`. After installing dependencies locally, running `docker compose up frontend` will start the Vite dev server inside the container using the same scripts described above.
 
 Environment variables can be configured through the shared `.env.example` (copied to `.env`) and `.env.frontend.example` files at the repository root. Vite automatically loads `.env.local`/`.env` prefixed with `VITE_`.
+
+See [`docs/contributing.md`](../docs/contributing.md) for commit conventions, linting expectations, and CI requirements before opening a pull request.
 
 ## Map placeholder roadmap
 

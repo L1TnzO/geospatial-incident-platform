@@ -4,4 +4,6 @@ Operational runbooks, onboarding guides, and environment setup instructions for 
 
 ## Available guides
 
-- [Continuous Integration](./ci.md) &mdash; CI workflow overview, troubleshooting steps, and local reproduction tips.
+- [Setup Guide](../setup.md) — Environment prerequisites, dependency bootstrapping, and Compose workflow.
+- [Contributing Guide](../contributing.md) — Branching strategy, commit conventions, and CI expectations.
+- [Continuous Integration](./ci.md) — CI workflow overview, troubleshooting steps, and local reproduction tips.

@@ -1,0 +1,155 @@
+@startuml
+!theme blueprint
+hide circle
+hide methods
+
+entity "incident_types" as incident_types {
+  * id : serial
+  --
+  type_code : text
+  name : text
+  description : text
+}
+
+entity "incident_severities" as incident_severities {
+  * id : serial
+  --
+  severity_code : text
+  name : text
+  priority : smallint
+  color_hex : char(7)
+}
+
+entity "incident_statuses" as incident_statuses {
+  * id : serial
+  --
+  status_code : text
+  name : text
+  is_terminal : boolean
+}
+
+entity "incident_sources" as incident_sources {
+  * id : serial
+  --
+  source_code : text
+  name : text
+}
+
+entity "weather_conditions" as weather_conditions {
+  * id : serial
+  --
+  condition_code : text
+  name : text
+}
+
+entity "response_zones" as response_zones {
+  * id : serial
+  --
+  zone_code : text
+  name : text
+  boundary : geometry(MultiPolygon,4326)
+}
+
+entity "stations" as stations {
+  * id : bigserial
+  --
+  station_code : text
+  name : text
+  battalion : text
+  address_line_1 : text
+  city : text
+  response_zone_id : int
+  location : geometry(Point,4326)
+  coverage_radius_meters : integer
+  is_active : boolean
+}
+
+entity "incidents" as incidents {
+  * id : bigserial
+  --
+  incident_number : text
+  title : text
+  type_id : int
+  severity_id : int
+  status_id : int
+  source_id : int
+  weather_condition_id : int
+  primary_station_id : bigint
+  occurrence_at : timestamptz
+  reported_at : timestamptz
+  dispatch_at : timestamptz
+  arrival_at : timestamptz
+  resolved_at : timestamptz
+  location : geometry(Point,4326)
+  location_geohash : text
+  metadata : jsonb
+  casualty_count : smallint
+  responder_injuries : smallint
+  estimated_damage_amount : numeric
+  is_active : boolean
+}
+
+entity "incident_units" as incident_units {
+  * id : bigserial
+  --
+  incident_id : bigint
+  station_id : bigint
+  assignment_role : text
+  dispatched_at : timestamptz
+  cleared_at : timestamptz
+}
+
+entity "incident_assets" as incident_assets {
+  * id : bigserial
+  --
+  incident_id : bigint
+  asset_identifier : text
+  asset_type : text
+  status : text
+}
+
+entity "incident_notes" as incident_notes {
+  * id : bigserial
+  --
+  incident_id : bigint
+  author : text
+  note : text
+}
+
+entity "incident_daily_metrics" as incident_daily_metrics {
+  * id : bigserial
+  --
+  metric_date : date
+  type_id : int
+  severity_id : int
+  station_id : bigint
+  incident_count : integer
+  average_response_minutes : numeric
+  average_resolution_minutes : numeric
+}
+
+entity "incident_geohash_tiles" as incident_geohash_tiles {
+  * geohash : text
+  --
+  resolution : smallint
+  centroid : geometry(Point,4326)
+  boundary : geometry(Polygon,4326)
+  incident_count : integer
+}
+
+response_zones ||..o{ stations : "response_zone_id"
+stations ||..o{ incidents : "primary_station_id"
+incident_types ||..o{ incidents : "type_id"
+incident_severities ||..o{ incidents : "severity_id"
+incident_statuses ||..o{ incidents : "status_id"
+incident_sources ||..o{ incidents : "source_id"
+weather_conditions ||..o{ incidents : "weather_condition_id"
+incidents ||--o{ incident_units : "incident_id"
+stations ||--o{ incident_units : "station_id"
+incidents ||--o{ incident_assets : "incident_id"
+incidents ||--o{ incident_notes : "incident_id"
+incident_types ||..o{ incident_daily_metrics : "type_id"
+incident_severities ||..o{ incident_daily_metrics : "severity_id"
+stations ||..o{ incident_daily_metrics : "station_id"
+
+@enduml
