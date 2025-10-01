@@ -4,13 +4,13 @@ The Geospatial Incident Platform is a monorepo that unifies backend services, fr
 
 ## Repository Structure
 
-| Path | Description |
-| --- | --- |
-| `server/` | Node.js/TypeScript backend services, shared APIs, and supporting tests/configuration. |
-| `client/` | React-based frontend applications, shared UI libraries, and test suites. |
-| `docs/` | Architecture, API, and operational documentation references. |
-| `infra/` | Infrastructure-as-code definitions, deployment tooling, and container orchestrations. |
-| `.vscode/` | Workspace settings aligned with TypeScript + Prettier conventions. |
+| Path       | Description                                                                           |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `server/`  | Node.js/TypeScript backend services, shared APIs, and supporting tests/configuration. |
+| `client/`  | React-based frontend applications, shared UI libraries, and test suites.              |
+| `docs/`    | Architecture, API, and operational documentation references.                          |
+| `infra/`   | Infrastructure-as-code definitions, deployment tooling, and container orchestrations. |
+| `.vscode/` | Workspace settings aligned with TypeScript + Prettier conventions.                    |
 
 ## Getting Started
 
@@ -25,12 +25,26 @@ Docker Compose definitions live at the repository root and spin up PostGIS, back
 1. Copy `.env.example` to `.env` and adjust the environment file paths if you duplicate any of the templates in `infra/docker/`.
 2. Copy each `infra/docker/.env.*.example` to a matching `.env.*` file and update secrets/tokens.
 3. Run `make compose-up` (or `docker compose up --build`) to start the stack, then visit:
-	- PostGIS: `localhost:5432`
-	- Backend placeholder: `localhost:4000`
-	- Frontend placeholder: `localhost:5173`
-	- pgAdmin (optional profile): `localhost:5050`
+   - PostGIS: `localhost:5432`
+   - Backend placeholder: `localhost:4000`
+   - Frontend placeholder: `localhost:5173`
+   - pgAdmin (optional profile): `localhost:5050`
 
 Use `make compose-down` to stop and clean up when finished.
+
+## Quality Automation
+
+Install dependencies at the repository root to enable linting, formatting, and testing automation:
+
+```
+npm install
+```
+
+- `npm run lint` &mdash; Runs ESLint across `client/` and `server/` using the shared flat config in `eslint.config.mjs`.
+- `npm run test` &mdash; Executes backend Jest suites and frontend Vitest suites sequentially.
+- `npm run format` / `npm run format:write` &mdash; Checks or applies Prettier formatting to TypeScript, JavaScript, JSON, Markdown, and stylesheet files.
+
+Pre-commit hooks are managed by Husky. After running `npm install`, Husky automatically installs the hooks; if you need to reinstall manually, run `npm run prepare`. The `pre-commit` hook formats staged files via `lint-staged`, then runs `npm run lint` and `npm run test -- --runInBand` to guard against regressions before commits land.
 
 ## Upcoming Documentation
 
