@@ -1,5 +1,7 @@
 # Geospatial Incident Platform
 
+[![CI](https://github.com/OWNER/REPOSITORY/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPOSITORY/actions/workflows/ci.yml)
+
 The Geospatial Incident Platform is a monorepo that unifies backend services, frontend applications, documentation, and infrastructure automation for tracking and responding to geospatial incidents.
 
 ## Repository Structure
@@ -40,11 +42,9 @@ Install dependencies at the repository root to enable linting, formatting, and t
 npm install
 ```
 
-- `npm run lint` &mdash; Runs ESLint across `client/` and `server/` using the shared flat config in `eslint.config.mjs`.
-- `npm run test` &mdash; Executes backend Jest suites and frontend Vitest suites sequentially.
-- `npm run format` / `npm run format:write` &mdash; Checks or applies Prettier formatting to TypeScript, JavaScript, JSON, Markdown, and stylesheet files.
+Pre-commit hooks are managed by Husky. After running `npm install`, Husky automatically installs the hooks; if you need to reinstall manually, run `npm run prepare`. The `pre-commit` hook formats staged files via `lint-staged`, then runs `npm run lint` and `npm run test` to guard against regressions before commits land.
 
-Pre-commit hooks are managed by Husky. After running `npm install`, Husky automatically installs the hooks; if you need to reinstall manually, run `npm run prepare`. The `pre-commit` hook formats staged files via `lint-staged`, then runs `npm run lint` and `npm run test -- --runInBand` to guard against regressions before commits land.
+See `docs/operations/ci.md` for CI pipeline details, troubleshooting tips, and guidance on replacing `OWNER/REPOSITORY` in the badge URL with your GitHub namespace.
 
 ## Upcoming Documentation
 
