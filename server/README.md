@@ -94,6 +94,7 @@ The database suite now performs:
 - Repository regression tests across seeded fixtures and a larger synthetic batch (pagination, detail joins, geometry serialization)
 - Referential integrity and geometry validation queries adapted from the bulk-load pipeline
 - HTTP integration tests for `/api/incidents` list/detail endpoints (pagination, filtering, error handling)
+- HTTP integration tests for `/api/stations` list endpoint (metadata, geometry, boolean filters)
 
 ### Build & Production Start
 
@@ -166,3 +167,30 @@ Response shape:
 ### `GET /api/incidents/:incidentNumber`
 
 Returns the full incident record (including units, assets, notes, metadata) for the specified incident number. Responds with `404` if the incident does not exist and `400` for malformed identifiers.
+
+### `GET /api/stations`
+
+Returns fire station metadata plus GeoJSON point geometry and optional response-zone boundaries.
+
+Query parameters:
+
+- `isActive` – optional boolean flag (`true|false|1|0`) restricting the list to active/inactive stations.
+
+Response shape:
+
+```json
+{
+  "data": [
+    {
+      "stationCode": "STN-001",
+      "name": "Station 1",
+      "isActive": true,
+      "location": { "type": "Feature", "geometry": { "type": "Point", ... } },
+      "responseZone": {
+        "zoneCode": "RZ-01",
+        "boundary": { "type": "Feature", "geometry": { "type": "MultiPolygon", ... } }
+      }
+    }
+  ]
+}
+```
