@@ -1,0 +1,90 @@
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    container_name: gip-postgis
+    restart: unless-stopped
+    env_file:
+      - ${POSTGIS_ENV_FILE:-infra/docker/.env.postgis.example}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+
+  backend:
+    image: node:20-alpine
+    container_name: gip-backend
+    restart: unless-stopped
+    working_dir: /workspace
+    command: >-
+      sh -c "if [ -f package.json ]; then npm install && npm run dev; else echo 'No package.json; keeping container alive.'; tail -f /dev/null; fi"
+    env_file:
+      - ${BACKEND_ENV_FILE:-infra/docker/.env.backend.example}
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./server:/workspace
+      - node_modules_backend:/workspace/node_modules
+    networks:
+      - internal
+
+  frontend:
+    image: node:20-alpine
+    container_name: gip-frontend
+    restart: unless-stopped
+    working_dir: /workspace
+    command: >-
+      sh -c "if [ -f package.json ]; then npm install && npm run dev -- --host 0.0.0.0; else echo 'No package.json; keeping container alive.'; tail -f /dev/null; fi"
+    env_file:
+      - ${FRONTEND_ENV_FILE:-infra/docker/.env.frontend.example}
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/workspace
+      - node_modules_frontend:/workspace/node_modules
+    networks:
+      - internal
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: gip-pgadmin
+    restart: unless-stopped
+    profiles:
+      - dev-tools
+    env_file:
+      - ${PGADMIN_ENV_FILE:-infra/docker/.env.pgadmin.example}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - internal
+
+volumes:
+  db_data:
+  pgadmin_data:
+  node_modules_backend:
+  node_modules_frontend:
+
+networks:
+  internal:
+    driver: bridge
