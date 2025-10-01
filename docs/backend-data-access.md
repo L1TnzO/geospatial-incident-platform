@@ -49,6 +49,17 @@ Features:
 - Includes contact/address fields, coverage radius, and GeoJSON `Feature<Point>` locations.
 - Joins response zones, returning GeoJSON `Feature<MultiPolygon>` boundaries when available.
 
+## Services
+
+### IncidentService
+
+Located at `server/src/services/incidentsService.ts`, the service layer wraps `IncidentRepository` to centralize pagination defaults, filter parsing, and response shaping. It:
+
+- Normalizes Express query parameters (page/pageSize cap, boolean parsing, ISO date validation).
+- Enforces the 5 000-record maximum window prior to calling the repository.
+- Returns controller-friendly DTOs (`{ data, pagination }`) with totals clamped for map consumers.
+- Provides `getIncidentDetail` with built-in 400/404 handling so controllers remain slim.
+
 ## Geometry Helpers
 
 - `parseGeometry` – safely converts PostGIS outputs (from `ST_AsGeoJSON`) into typed GeoJSON geometries.

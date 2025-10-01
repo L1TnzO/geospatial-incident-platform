@@ -124,6 +124,10 @@ The TypeScript repositories under `src/db/` expose backend-ready query helpers f
 
 Each repository returns GeoJSON `Feature` objects for geometry columns and surfaces lookup metadata (types, severities, statuses, geohashes) as plain objects. See [`../docs/backend-data-access.md`](../docs/backend-data-access.md) for method-level documentation and usage patterns.
 
+### Service Layer
+
+- `IncidentService` (`src/services/incidentsService.ts`) centralizes pagination defaults, filter parsing, and payload shaping for `/api/incidents`. Controllers hand raw query params to the service, which enforces the 5 000-record window and converts repository results into response DTOs.
+
 Need contribution standards or CI expectations? See [`docs/contributing.md`](../docs/contributing.md).
 
 ## HTTP API
