@@ -93,6 +93,7 @@ The database suite now performs:
 - Migration/seed smoke checks verifying lookup codes and required extensions
 - Repository regression tests across seeded fixtures and a larger synthetic batch (pagination, detail joins, geometry serialization)
 - Referential integrity and geometry validation queries adapted from the bulk-load pipeline
+- HTTP integration tests for `/api/incidents` list/detail endpoints (pagination, filtering, error handling)
 
 ### Build & Production Start
 
@@ -123,3 +124,45 @@ The TypeScript repositories under `src/db/` expose backend-ready query helpers f
 Each repository returns GeoJSON `Feature` objects for geometry columns and surfaces lookup metadata (types, severities, statuses, geohashes) as plain objects. See [`../docs/backend-data-access.md`](../docs/backend-data-access.md) for method-level documentation and usage patterns.
 
 Need contribution standards or CI expectations? See [`docs/contributing.md`](../docs/contributing.md).
+
+## HTTP API
+
+### `GET /api/incidents`
+
+Returns a paginated list of incident summaries ordered by newest `reportedAt` first.
+
+Query parameters:
+
+- `page` (default `1`) – 1-based index; requests beyond the first 5,000 records are rejected.
+- `pageSize` (default `25`, max `100`) – number of incidents per page.
+- `typeCodes`, `severityCodes`, `statusCodes` – comma-separated (or repeated) filter lists.
+- `startDate`, `endDate` – ISO-8601 range filters applied to `occurrenceAt`.
+- `isActive` – boolean flag (`true|false|1|0`).
+
+Response shape:
+
+```json
+{
+  "data": [
+    {
+      "incidentNumber": "...",
+      "title": "...",
+      "occurrenceAt": "...",
+      "location": { "type": "Feature", "geometry": { "type": "Point", ... } },
+      "type": { "code": "FIRE_STRUCTURE", "name": "Structure Fire" },
+      "severity": { "code": "CRITICAL", "priority": 4, "colorHex": "#F57C00" },
+      "status": { "code": "ON_SCENE", "isTerminal": false },
+      "primaryStation": { "stationCode": "STN-001", "name": "Station 1" }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 25,
+    "total": 128
+  }
+}
+```
+
+### `GET /api/incidents/:incidentNumber`
+
+Returns the full incident record (including units, assets, notes, metadata) for the specified incident number. Responds with `404` if the incident does not exist and `400` for malformed identifiers.

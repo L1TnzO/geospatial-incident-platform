@@ -1,1 +1,2 @@
-// Shared middleware will be exported from this module as the project evolves.
+export { errorHandler } from './errorHandler';
+export { notFoundHandler } from './notFoundHandler';
