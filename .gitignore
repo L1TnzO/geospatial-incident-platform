@@ -9,6 +9,8 @@ coverage/
 # Environment files
 .env
 .env.*
+server/.env
+server/.env.*
 
 # Logs
 npm-debug.log*

@@ -1,0 +1,39 @@
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background-color: var(--color-surface);
+}
+
+.app-main {
+  padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 2.5rem;
+}
+
+.dashboard-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.dashboard-page__intro {
+  max-width: 720px;
+}
+
+.map-card {
+  background-color: var(--color-elevated);
+  border-radius: 0.75rem;
+  box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.map-container {
+  width: 100%;
+  height: min(50vh, 520px);
+}
+
+.not-found {
+  display: grid;
+  gap: 1rem;
+  text-align: center;
+  margin-top: 3rem;
+}
