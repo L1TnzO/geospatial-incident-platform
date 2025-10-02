@@ -30,6 +30,45 @@
   position: relative;
 }
 
+.map-card__toolbar {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 600;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  box-shadow: 0 0.75rem 1.75rem rgba(15, 23, 42, 0.18);
+}
+
+.map-card__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.map-card__toggle input[type='checkbox'] {
+  accent-color: rgba(59, 130, 246, 1);
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.map-card__helper {
+  font-size: 0.75rem;
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.map-card__helper--error {
+  color: #dc2626;
+}
+
 .map-card__cap-indicator {
   position: absolute;
   top: 1rem;
@@ -288,6 +327,52 @@
   display: block;
   padding: 0 0.5rem;
   font-size: 0.95rem;
+}
+
+.station-marker {
+  background: rgba(244, 114, 182, 0.95);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 1.1rem;
+  border: 3px solid #fff;
+  box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.2);
+}
+
+.station-popup {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.station-popup__title {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.station-popup__meta {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.station-popup__meta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.station-popup__meta dt {
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.station-popup__meta dd {
+  margin: 0;
+  font-weight: 600;
 }
 
 .not-found {

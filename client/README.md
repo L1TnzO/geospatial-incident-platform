@@ -30,7 +30,7 @@ npm run test:watch # Run Vitest in watch mode
 
 - React Router with a shell layout (`src/layouts/AppLayout.tsx`) and dashboard route
 - Zustand store (`src/store/useMapStore.ts`) for map view state
-- Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, and exposes a "View details" trigger wired through `useIncidentDetailStore`
+- Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through `useIncidentDetailStore`, and overlays toggleable fire station markers fetched from `/api/stations`
 - Responsive layout styling via global CSS (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -49,5 +49,6 @@ The map now displays live incident markers with clustering and a visible cap bad
 - Adding filter controls and legend components
 - Wiring in station overlays and severity-based styling
 - Hydrating the incident detail modal with `/api/incidents/{id}` data and coordinating selection with the incidents table/dashboard metrics
+- Layering station metadata (coverage zones, contact actions) once the modal is hydrated and coordinating filters between station/incident overlays
 
 Refer to `src/components/MapView.tsx`, `src/components/IncidentClusterLayer.tsx`, and `src/hooks/useIncidents.ts` for the current implementation.
