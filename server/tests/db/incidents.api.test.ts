@@ -298,7 +298,10 @@ const seedIncidents = async (db: Knex): Promise<SeededIncident[]> => {
 
   for (let i = 0; i < INCIDENT_COUNT; i += 1) {
     const severityCode = severityCodes[i % severityCodes.length];
-    const statusCode = statusCodes[i % statusCodes.length];
+    let statusCode = statusCodes[i % statusCodes.length];
+    if (severityCode === 'CRITICAL') {
+      statusCode = 'ON_SCENE';
+    }
     const typeCode = typeCodes[i % typeCodes.length];
     const station = stations[i % stations.length];
     const isActive = statusCode !== 'RESOLVED';
