@@ -5,6 +5,8 @@ import Supercluster from 'supercluster';
 import type { ClusterFeature, PointFeature } from 'supercluster';
 import type { Feature as GeoJsonFeature, Point as GeoJsonPoint } from 'geojson';
 import type { IncidentListItem } from '@/types/incidents';
+import { useIncidentDetailStore } from '@/store/useIncidentDetailStore';
+import IncidentPopup from './IncidentPopup';
 
 interface IncidentClusterLayerProps {
   incidents: IncidentListItem[];
@@ -56,6 +58,7 @@ const IncidentClusterLayer = ({ incidents }: IncidentClusterLayerProps) => {
   const map = useMap();
   const [bounds, setBounds] = useState<[number, number, number, number] | null>(null);
   const [zoom, setZoom] = useState(() => Math.round(map.getZoom()));
+  const openIncident = useIncidentDetailStore((state) => state.openIncident);
 
   const points = useMemo(() => {
     return incidents
@@ -135,23 +138,7 @@ const IncidentClusterLayer = ({ incidents }: IncidentClusterLayerProps) => {
       return (
         <Marker key={incident.incidentNumber} position={{ lat, lng }}>
           <Popup>
-            <div className="map-popup">
-              <p className="map-popup__title">{incident.title}</p>
-              <dl className="map-popup__details">
-                <div>
-                  <dt>Incident</dt>
-                  <dd>{incident.incidentNumber}</dd>
-                </div>
-                <div>
-                  <dt>Severity</dt>
-                  <dd>{incident.severity.name}</dd>
-                </div>
-                <div>
-                  <dt>Status</dt>
-                  <dd>{incident.status.name}</dd>
-                </div>
-              </dl>
-            </div>
+            <IncidentPopup incident={incident} onViewDetails={openIncident} />
           </Popup>
         </Marker>
       );

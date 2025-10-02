@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import type { IncidentListItem } from '@/types/incidents';
 import IncidentClusterLayer from './IncidentClusterLayer';
+import { resetIncidentDetailStore, useIncidentDetailStore } from '@/store/useIncidentDetailStore';
 
 const loadMock = vi.fn();
 const getClustersMock = vi.fn();
@@ -104,6 +105,9 @@ describe('IncidentClusterLayer', () => {
     setViewMock.mockClear();
     mapStub.on.mockClear();
     mapStub.off.mockClear();
+    act(() => {
+      resetIncidentDetailStore();
+    });
   });
 
   afterEach(() => {
@@ -126,7 +130,7 @@ describe('IncidentClusterLayer', () => {
     const markers = screen.getAllByTestId('marker');
     expect(markers).toHaveLength(1);
     expect(markers[0]).toHaveAttribute('data-has-icon', 'false');
-    expect(screen.getByText('Incident')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /view details/i })).toBeInTheDocument();
   });
 
   it('renders cluster markers and zooms on click', () => {
@@ -164,5 +168,25 @@ describe('IncidentClusterLayer', () => {
     const [center, zoom] = setViewMock.mock.calls[0];
     expect(center).toMatchObject({ lat: 40.75, lng: -73.9 });
     expect(zoom).toBeGreaterThan(5);
+  });
+
+  it('dispatches detail trigger when view details clicked', () => {
+    const incident = buildIncident();
+
+    getClustersMock.mockReturnValue([
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: incident.location.geometry.coordinates },
+        properties: { type: 'incident', incident },
+      },
+    ]);
+
+    render(<IncidentClusterLayer incidents={[incident]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /view details/i }));
+
+    const state = useIncidentDetailStore.getState();
+    expect(state.selectedIncident?.incidentNumber).toBe(incident.incidentNumber);
+    expect(state.isOpen).toBe(true);
   });
 });

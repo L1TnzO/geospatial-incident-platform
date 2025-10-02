@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseIncidentsResult } from '@/hooks/useIncidents';
 import MapView from './MapView';
+import { resetIncidentDetailStore } from '@/store/useIncidentDetailStore';
 
 type PartialIncident = UseIncidentsResult['incidents'][number];
 
@@ -29,6 +30,12 @@ vi.mock('./IncidentClusterLayer', () => ({
 describe('MapView', () => {
   afterEach(() => {
     mockedUseIncidents.mockReset();
+  });
+
+  beforeEach(() => {
+    act(() => {
+      resetIncidentDetailStore();
+    });
   });
 
   it('renders markers when incidents are available', async () => {
