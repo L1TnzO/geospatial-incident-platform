@@ -28,9 +28,11 @@ describe('IncidentService', () => {
       expect(options.page).toBe(1);
       expect(options.pageSize).toBe(25);
       expect(options.typeCodes).toBeUndefined();
+      expect(options.sortBy).toBe('reportedAt');
+      expect(options.sortDirection).toBe('desc');
     });
 
-    it('parses filters and validates pagination caps', () => {
+    it('parses filters, sorting, and validates pagination caps', () => {
       const { service } = createService();
       const options = service.buildListOptions({
         page: '2',
@@ -39,6 +41,8 @@ describe('IncidentService', () => {
         severityCodes: ['CRITICAL', 'HIGH'],
         isActive: 'true',
         startDate: '2025-09-01T00:00:00Z',
+        sortBy: 'severityPriority',
+        sortDirection: 'asc',
       });
 
       expect(options.page).toBe(2);
@@ -47,18 +51,8 @@ describe('IncidentService', () => {
       expect(options.severityCodes).toEqual(['CRITICAL', 'HIGH']);
       expect(options.isActive).toBe(true);
       expect(options.startDate).toBe('2025-09-01T00:00:00.000Z');
-    });
-
-    it('allows requesting up to 5,000 incidents in a single page', () => {
-      const { service } = createService();
-
-      const options = service.buildListOptions({
-        page: '1',
-        pageSize: '5000',
-      });
-
-      expect(options.page).toBe(1);
-      expect(options.pageSize).toBe(5000);
+      expect(options.sortBy).toBe('severityPriority');
+      expect(options.sortDirection).toBe('asc');
     });
 
     it('throws when page exceeds the 5,000 record window', () => {
@@ -66,8 +60,39 @@ describe('IncidentService', () => {
 
       expect(() =>
         service.buildListOptions({
-          page: '2',
-          pageSize: '5000',
+          page: '51',
+          pageSize: '100',
+        })
+      ).toThrow(HttpError);
+    });
+
+    it('enforces maximum page size of 100', () => {
+      const { service } = createService();
+
+      expect(() =>
+        service.buildListOptions({
+          page: '1',
+          pageSize: '5001',
+        })
+      ).toThrow(HttpError);
+    });
+
+    it('rejects invalid sort field', () => {
+      const { service } = createService();
+
+      expect(() =>
+        service.buildListOptions({
+          sortBy: 'foobar',
+        })
+      ).toThrow(HttpError);
+    });
+
+    it('rejects invalid sort direction', () => {
+      const { service } = createService();
+
+      expect(() =>
+        service.buildListOptions({
+          sortDirection: 'sideways',
         })
       ).toThrow(HttpError);
     });
@@ -79,14 +104,59 @@ describe('IncidentService', () => {
       repository.listIncidents.mockResolvedValue({
         data: [] as IncidentListItem[],
         page: 1,
-        pageSize: 5000,
+        pageSize: 100,
         total: 6000,
+        totalPages: 60,
+        hasNext: true,
+        hasPrevious: false,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
       });
 
-      const response = await service.listIncidents({ page: 1, pageSize: 5000 });
+      const response = await service.listIncidents({
+        page: 1,
+        pageSize: 100,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      });
 
       expect(response.pagination.total).toBe(5000);
-      expect(repository.listIncidents).toHaveBeenCalledWith({ page: 1, pageSize: 5000 });
+      expect(response.pagination.totalPages).toBe(50);
+      expect(response.pagination.hasNext).toBe(true);
+      expect(response.pagination.hasPrevious).toBe(false);
+      expect(repository.listIncidents).toHaveBeenCalledWith({
+        page: 1,
+        pageSize: 100,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      });
+    });
+
+    it('handles empty result sets', async () => {
+      const { service, repository } = createService();
+      repository.listIncidents.mockResolvedValue({
+        data: [] as IncidentListItem[],
+        page: 1,
+        pageSize: 25,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrevious: false,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      });
+
+      const response = await service.listIncidents({
+        page: 1,
+        pageSize: 25,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      });
+
+      expect(response.data).toHaveLength(0);
+      expect(response.pagination.totalPages).toBe(0);
+      expect(response.pagination.hasNext).toBe(false);
+      expect(response.pagination.hasPrevious).toBe(false);
     });
   });
 

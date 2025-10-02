@@ -2,10 +2,17 @@ import type { Feature, Point } from 'geojson';
 
 export type GeoJsonPoint = Feature<Point>;
 
+export type IncidentSortField = 'reportedAt' | 'occurrenceAt' | 'severityPriority';
+
 export interface PaginationMeta {
   page: number;
   pageSize: number;
   total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  sortBy: IncidentSortField;
+  sortDirection: 'asc' | 'desc';
 }
 
 export interface IncidentLookupValue {

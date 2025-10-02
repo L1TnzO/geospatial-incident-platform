@@ -105,7 +105,16 @@ const buildIncidentResponse = (): IncidentListResponse => ({
       primaryStation: { stationCode: 'ST-901', name: 'Station 901' },
     },
   ],
-  pagination: { page: 1, pageSize: 25, total: 1 },
+  pagination: {
+    page: 1,
+    pageSize: 25,
+    total: 1,
+    totalPages: 1,
+    hasNext: false,
+    hasPrevious: false,
+    sortBy: 'reportedAt',
+    sortDirection: 'desc',
+  },
 });
 
 const buildStationResponse = (): StationListResponse => ({

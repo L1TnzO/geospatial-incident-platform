@@ -1,13 +1,8 @@
 import request from 'supertest';
 import type { Knex } from 'knex';
 import createApp from '../../src/app';
-import {
-  closeDb,
-  getDb,
-  type IncidentDetail,
-  type IncidentListItem,
-  type PaginationMeta,
-} from '../../src/db';
+import { closeDb, getDb, type IncidentDetail, type IncidentListItem } from '../../src/db';
+import { type IncidentListResponse } from '../../src/services/incidentsService';
 import { getLookupId, iso, pointWkt, purgeTestRecords } from './testUtils';
 
 const TEST_PREFIX = 'TEST_TASK_3_1';
@@ -18,11 +13,6 @@ interface SeededIncident {
   occurrenceAt: Date;
   severityCode: string;
   isActive: boolean;
-}
-
-interface IncidentsListResponse {
-  data: IncidentListItem[];
-  pagination: PaginationMeta;
 }
 
 interface ErrorResponse {
@@ -78,7 +68,7 @@ describe('Incidents API', () => {
     const response = await request(app).get('/api/incidents');
 
     expect(response.status).toBe(200);
-    const body = response.body as IncidentsListResponse;
+    const body = response.body as IncidentListResponse;
     expect(body).toHaveProperty('data');
     expect(body).toHaveProperty('pagination');
 
@@ -88,6 +78,11 @@ describe('Incidents API', () => {
     expect(pagination.page).toBe(1);
     expect(pagination.pageSize).toBeGreaterThanOrEqual(seededIncidents.length);
     expect(pagination.total).toBeGreaterThanOrEqual(seededIncidents.length);
+    expect(pagination.totalPages).toBe(1);
+    expect(pagination.hasNext).toBe(false);
+    expect(pagination.hasPrevious).toBe(false);
+    expect(pagination.sortBy).toBe('reportedAt');
+    expect(pagination.sortDirection).toBe('desc');
 
     const sortedIncidents = [...seededIncidents].sort(
       (a, b) => b.occurrenceAt.getTime() - a.occurrenceAt.getTime()
@@ -102,18 +97,64 @@ describe('Incidents API', () => {
     }
     const response = await request(app)
       .get('/api/incidents')
-      .query({ page: 2, pageSize: 5, severityCodes: 'CRITICAL', isActive: true });
+      .query({ page: 1, pageSize: 5, severityCodes: 'CRITICAL', isActive: true });
 
     expect(response.status).toBe(200);
-
-    const { data, pagination } = response.body as IncidentsListResponse;
-    expect(pagination.page).toBe(2);
+    const { data, pagination } = response.body as IncidentListResponse;
+    expect(pagination.page).toBe(1);
     expect(pagination.pageSize).toBe(5);
+    expect(pagination.hasNext).toBe(false);
+    expect(pagination.hasPrevious).toBe(false);
     expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBeGreaterThan(0);
     data.forEach((item: IncidentListItem) => {
       expect(item.severity.code).toBe('CRITICAL');
       expect(item.isActive).toBe(true);
     });
+  });
+
+  test('supports combined filters and severity priority sorting', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app).get('/api/incidents').query({
+      pageSize: 10,
+      sortBy: 'severityPriority',
+      sortDirection: 'asc',
+      typeCodes: 'FIRE_STRUCTURE',
+      startDate: '2025-09-01T00:00:00Z',
+      endDate: '2025-09-02T00:00:00Z',
+    });
+
+    expect(response.status).toBe(200);
+    const { data, pagination } = response.body as IncidentListResponse;
+
+    expect(pagination.sortBy).toBe('severityPriority');
+    expect(pagination.sortDirection).toBe('asc');
+
+    const priorities = data.map((item) => item.severity.priority);
+    const sortedPriorities = [...priorities].sort((a, b) => a - b);
+    expect(priorities).toEqual(sortedPriorities);
+    data.forEach((item) => {
+      expect(item.type.code).toBe('FIRE_STRUCTURE');
+    });
+  });
+
+  test('supports occurrence date sorting descending', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/incidents')
+      .query({ sortBy: 'occurrenceAt', sortDirection: 'desc', pageSize: 5 });
+
+    expect(response.status).toBe(200);
+    const { data } = response.body as IncidentListResponse;
+    const occurrences = data.map((item) => new Date(item.occurrenceAt).getTime());
+    const sorted = [...occurrences].sort((a, b) => b - a);
+    expect(occurrences).toEqual(sorted);
   });
 
   test('rejects requests exceeding the 5,000 record window', async () => {
@@ -158,7 +199,21 @@ describe('Incidents API', () => {
     if (!requireDb()) {
       return;
     }
-    const response = await request(app).get('/api/incidents').query({ page: 'abc' });
+    const response = await request(app)
+      .get('/api/incidents')
+      .query({ page: 'abc', sortBy: 'unknown' });
+
+    expect(response.status).toBe(400);
+    const body = response.body as ErrorResponse;
+    expect(body.error.code).toBe('BAD_REQUEST');
+  });
+
+  test('rejects invalid sort direction', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app).get('/api/incidents').query({ sortDirection: 'upwards' });
 
     expect(response.status).toBe(400);
     const body = response.body as ErrorResponse;

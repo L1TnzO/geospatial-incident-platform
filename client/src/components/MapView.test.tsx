@@ -119,7 +119,16 @@ describe('MapView', () => {
       totalCount: 1,
       renderedCount: 1,
       remainder: 0,
-      pagination: { page: 1, pageSize: 1, total: 1 },
+      pagination: {
+        page: 1,
+        pageSize: 1,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrevious: false,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      },
     });
 
     mockedUseStations.mockReturnValue({
@@ -216,7 +225,16 @@ describe('MapView', () => {
       totalCount: 6000,
       renderedCount: 5000,
       remainder: 1000,
-      pagination: { page: 1, pageSize: 5000, total: 6000 },
+      pagination: {
+        page: 1,
+        pageSize: 5000,
+        total: 6000,
+        totalPages: 60,
+        hasNext: true,
+        hasPrevious: false,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      },
     });
 
     mockedUseStations.mockReturnValue({

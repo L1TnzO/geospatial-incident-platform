@@ -12,16 +12,18 @@ Returns a paginated collection of incident summaries suitable for list views and
 
 ### Query Parameters
 
-| Name            | Type                                           | Description                                                                      |
-| --------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
-| `page`          | integer ≥ 1 (default `1`)                      | Zero-offset pagination is not supported.                                         |
-| `pageSize`      | integer between 1 and 5 000 (default `25`)     | Results are capped to a maximum window of 5 000 records.                         |
-| `typeCodes`     | comma-separated string or repeated query value | Filters by incident type codes (e.g., `typeCodes=FIRE_STRUCTURE,FIRE_WILDLAND`). |
-| `severityCodes` | comma-separated string or repeated query value | Filters by severity codes.                                                       |
-| `statusCodes`   | comma-separated string or repeated query value | Filters by incident status codes.                                                |
-| `startDate`     | ISO-8601 timestamp                             | Returns incidents with `occurrence_at >= startDate`.                             |
-| `endDate`       | ISO-8601 timestamp                             | Returns incidents with `occurrence_at <= endDate`.                               |
-| `isActive`      | boolean (`true`/`false`, `1`/`0`)              | Filters by active status (defaults to both active/inactive).                     |
+| Name            | Type                                             | Description                                                                                                           |
+| --------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `page`          | integer ≥ 1 (default `1`)                        | Zero-offset pagination is not supported.                                                                              |
+| `pageSize`      | integer between 1 and 100 (default `25`)         | Individual page responses are limited to 100 records; the overall window remains limited to 5 000 matching incidents. |
+| `typeCodes`     | comma-separated string or repeated query value   | Filters by incident type codes (e.g., `typeCodes=FIRE_STRUCTURE,FIRE_WILDLAND`).                                      |
+| `severityCodes` | comma-separated string or repeated query value   | Filters by severity codes.                                                                                            |
+| `statusCodes`   | comma-separated string or repeated query value   | Filters by incident status codes.                                                                                     |
+| `startDate`     | ISO-8601 timestamp                               | Returns incidents with `occurrence_at >= startDate`.                                                                  |
+| `endDate`       | ISO-8601 timestamp                               | Returns incidents with `occurrence_at <= endDate`.                                                                    |
+| `isActive`      | boolean (`true`/`false`, `1`/`0`)                | Filters by active status (defaults to both active/inactive).                                                          |
+| `sortBy`        | `reportedAt`, `occurrenceAt`, `severityPriority` | Sort field applied after filtering; defaults to `reportedAt`.                                                         |
+| `sortDirection` | `asc` or `desc`                                  | Sort direction for the chosen field (default `desc`).                                                                 |
 
 Invalid parameter types trigger a `400 BAD_REQUEST` response with a descriptive message (see [Error Handling](#error-handling)). Requests exceeding the 5 000 record window also return `400 BAD_REQUEST`.
 
@@ -80,7 +82,12 @@ Invalid parameter types trigger a `400 BAD_REQUEST` response with a descriptive 
   "pagination": {
     "page": 1,
     "pageSize": 25,
-    "total": 4872
+    "total": 4872,
+    "totalPages": 195,
+    "hasNext": true,
+    "hasPrevious": false,
+    "sortBy": "reportedAt",
+    "sortDirection": "desc"
   }
 }
 ```
@@ -91,7 +98,7 @@ Invalid parameter types trigger a `400 BAD_REQUEST` response with a descriptive 
 ### Typical Use Cases
 
 - Map data fetch (frontend `useIncidents` hook) with `pageSize=5000` to retrieve as many incidents as the UI can safely render.
-- Filtered list endpoints for dashboards (`typeCodes`, `severityCodes`, `isActive=false`, etc.).
+- Filtered list endpoints for dashboards (`typeCodes`, `severityCodes`, `isActive=false`, etc.). Combine with sorting metadata to drive table headers and column sort controls.
 
 ## `GET /api/incidents/{incidentNumber}`
 

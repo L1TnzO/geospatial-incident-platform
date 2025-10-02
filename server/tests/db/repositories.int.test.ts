@@ -266,6 +266,30 @@ describe('Data Access Repositories', () => {
         (incident) => incident.incidentNumber === testContext.incidents[1]?.incidentNumber
       )
     ).toBe(false);
+
+    const severitySorted = await repo.listIncidents({
+      page: 1,
+      pageSize: 10,
+      sortBy: 'severityPriority',
+      sortDirection: 'asc',
+    });
+
+    const priorities = severitySorted.data.map((incident) => incident.severity.priority);
+    const sortedPriorities = [...priorities].sort((a, b) => a - b);
+    expect(priorities).toEqual(sortedPriorities);
+
+    const occurrenceSortedDesc = await repo.listIncidents({
+      page: 1,
+      pageSize: 10,
+      sortBy: 'occurrenceAt',
+      sortDirection: 'desc',
+    });
+
+    const occurrenceTimes = occurrenceSortedDesc.data.map((incident) =>
+      new Date(incident.occurrenceAt).getTime()
+    );
+    const sortedTimes = [...occurrenceTimes].sort((a, b) => b - a);
+    expect(occurrenceTimes).toEqual(sortedTimes);
   });
 
   test('fetches incident detail with related collections', async () => {

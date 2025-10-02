@@ -3,6 +3,7 @@ import type {
   IncidentDetail,
   IncidentListFilters,
   IncidentListItem,
+  IncidentSortField,
   PaginatedResult,
   PaginationMeta,
 } from '../db';
@@ -10,20 +11,29 @@ import { HttpError } from '../errors/httpError';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 5000;
+const MAX_PAGE_SIZE = 100;
 const MAX_TOTAL_RESULTS = 5000;
+
+const SORTABLE_FIELDS: readonly IncidentSortField[] = [
+  'reportedAt',
+  'occurrenceAt',
+  'severityPriority',
+];
+type SortableField = IncidentSortField;
+
+type QueryValue = string | string[] | undefined;
 
 export interface IncidentListOptions extends IncidentListFilters {
   page: number;
   pageSize: number;
+  sortBy: SortableField;
+  sortDirection: 'asc' | 'desc';
 }
 
 export interface IncidentListResponse {
   data: IncidentListItem[];
   pagination: PaginationMeta;
 }
-
-type QueryValue = string | string[] | undefined;
 
 const normalizeValue = (value: QueryValue): string | undefined => {
   if (value === undefined) {
@@ -126,14 +136,58 @@ const parseIsoDate = (value: QueryValue, field: string): string | undefined => {
   return new Date(timestamp).toISOString();
 };
 
-const clampTotal = (result: PaginatedResult<IncidentListItem>): IncidentListResponse => ({
-  data: result.data,
-  pagination: {
-    page: result.page,
-    pageSize: result.pageSize,
-    total: Math.min(result.total, MAX_TOTAL_RESULTS),
-  },
-});
+const parseSortBy = (value: QueryValue): SortableField => {
+  const raw = normalizeValue(value);
+  if (!raw) {
+    return 'reportedAt';
+  }
+
+  if ((SORTABLE_FIELDS as readonly string[]).includes(raw)) {
+    return raw as SortableField;
+  }
+
+  throw HttpError.badRequest(
+    "Query parameter 'sortBy' must be one of: reportedAt, occurrenceAt, severityPriority."
+  );
+};
+
+const parseSortDirection = (value: QueryValue): 'asc' | 'desc' => {
+  const raw = normalizeValue(value)?.toLowerCase();
+  if (!raw) {
+    return 'desc';
+  }
+
+  if (raw === 'asc' || raw === 'desc') {
+    return raw;
+  }
+
+  throw HttpError.badRequest("Query parameter 'sortDirection' must be 'asc' or 'desc'.");
+};
+
+const buildPaginationMeta = (
+  result: PaginatedResult<IncidentListItem>,
+  sortBy: SortableField,
+  sortDirection: 'asc' | 'desc'
+): IncidentListResponse => {
+  const total = Math.min(result.total, MAX_TOTAL_RESULTS);
+  const totalPages = total === 0 ? 0 : Math.ceil(total / result.pageSize);
+  const hasNext = totalPages > 0 && result.page < totalPages;
+  const hasPrevious = result.page > 1;
+
+  return {
+    data: result.data,
+    pagination: {
+      page: result.page,
+      pageSize: result.pageSize,
+      total,
+      totalPages,
+      hasNext,
+      hasPrevious,
+      sortBy,
+      sortDirection,
+    },
+  };
+};
 
 interface IncidentRepositoryLike {
   listIncidents(filters: IncidentListOptions): Promise<PaginatedResult<IncidentListItem>>;
@@ -160,6 +214,8 @@ export class IncidentService {
     const statusCodes = parseStringList(query.statusCodes);
     const startDate = parseIsoDate(query.startDate, 'startDate');
     const endDate = parseIsoDate(query.endDate, 'endDate');
+    const sortBy = parseSortBy(query.sortBy);
+    const sortDirection = parseSortDirection(query.sortDirection);
 
     let isActive: boolean | undefined;
     if (query.isActive !== undefined) {
@@ -175,12 +231,14 @@ export class IncidentService {
       startDate,
       endDate,
       isActive,
+      sortBy,
+      sortDirection,
     };
   }
 
   public async listIncidents(options: IncidentListOptions): Promise<IncidentListResponse> {
     const result = await this.repository.listIncidents(options);
-    return clampTotal(result);
+    return buildPaginationMeta(result, options.sortBy, options.sortDirection);
   }
 
   public async getIncidentDetail(incidentNumber: string | undefined): Promise<IncidentDetail> {

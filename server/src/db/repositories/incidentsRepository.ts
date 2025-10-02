@@ -22,10 +22,12 @@ export interface IncidentListFilters {
   startDate?: string;
   endDate?: string;
   isActive?: boolean;
+  sortBy?: 'reportedAt' | 'occurrenceAt' | 'severityPriority';
+  sortDirection?: 'asc' | 'desc';
 }
 
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 5000;
+const MAX_PAGE_SIZE = 100;
 
 interface IncidentRowBase {
   incidentId: number | string;
@@ -242,6 +244,21 @@ export class IncidentRepository {
 
     const total = Number(totalRow[0]?.total ?? 0);
 
+    const sortBy = filters.sortBy ?? 'reportedAt';
+    const sortDirection = filters.sortDirection ?? 'desc';
+
+    const sortColumn = (() => {
+      switch (sortBy) {
+        case 'occurrenceAt':
+          return 'i.occurrence_at';
+        case 'severityPriority':
+          return 'isv.priority';
+        case 'reportedAt':
+        default:
+          return 'i.reported_at';
+      }
+    })();
+
     const rows = (await baseQuery
       .clone()
       .select([
@@ -281,17 +298,27 @@ export class IncidentRepository {
         'ps.name as primaryStationName',
       ])
       .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
-      .orderBy('i.reported_at', 'desc')
+      .orderBy(sortColumn, sortDirection)
+      .orderBy('i.id', sortDirection)
       .limit(pageSize)
       .offset((page - 1) * pageSize)) as IncidentRowBase[];
 
     const data = rows.map((row) => mapIncidentRow(row));
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const hasNext = totalPages > 0 && page < totalPages;
+    const hasPrevious = page > 1;
 
     return {
       data,
       page,
       pageSize,
       total,
+      totalPages,
+      hasNext,
+      hasPrevious,
+      sortBy,
+      sortDirection,
     };
   }
 

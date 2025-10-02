@@ -55,9 +55,10 @@ Features:
 
 Located at `server/src/services/incidentsService.ts`, the service layer wraps `IncidentRepository` to centralize pagination defaults, filter parsing, and response shaping. It:
 
-- Normalizes Express query parameters (page/pageSize cap, boolean parsing, ISO date validation).
+- Normalizes Express query parameters (page/pageSize cap ≤ 100, boolean parsing, ISO date validation).
 - Enforces the 5 000-record maximum window prior to calling the repository.
-- Returns controller-friendly DTOs (`{ data, pagination }`) with totals clamped for map consumers.
+- Adds sorting support for `reportedAt`, `occurrenceAt`, and `severityPriority`, guarding sort direction values.
+- Returns controller-friendly DTOs (`{ data, pagination }`) with totals clamped for map consumers plus derived metadata (`totalPages`, `hasNext`, `hasPrevious`, `sortBy`, `sortDirection`).
 - Provides `getIncidentDetail` with built-in 400/404 handling so controllers remain slim.
 
 ## Geometry Helpers

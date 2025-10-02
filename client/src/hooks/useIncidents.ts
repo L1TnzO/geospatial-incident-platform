@@ -3,6 +3,7 @@ import type { IncidentListItem, PaginationMeta } from '@/types/incidents';
 import { fetchIncidents } from '@/services/incidentsService';
 
 const INCIDENT_RENDER_CAP = 5000;
+const INCIDENT_FETCH_PAGE_SIZE = 100;
 
 export interface UseIncidentsResult {
   incidents: IncidentListItem[];
@@ -37,19 +38,44 @@ export const useIncidents = (): UseIncidentsResult => {
       setError(undefined);
 
       try {
-        const result = await fetchIncidents({
-          signal: abortController.signal,
-          pageSize: INCIDENT_RENDER_CAP,
-        });
-        if (!isSubscribed) {
-          return;
+        const aggregated: IncidentListItem[] = [];
+        let nextPage = 1;
+        let lastResponse: Awaited<ReturnType<typeof fetchIncidents>> | undefined;
+
+        while (aggregated.length < INCIDENT_RENDER_CAP) {
+          const response = await fetchIncidents({
+            signal: abortController.signal,
+            page: nextPage,
+            pageSize: INCIDENT_FETCH_PAGE_SIZE,
+          });
+
+          if (!isSubscribed) {
+            return;
+          }
+
+          aggregated.push(...response.data);
+          lastResponse = response;
+
+          if (response.data.length === 0) {
+            break;
+          }
+
+          if (!response.pagination.hasNext || aggregated.length >= INCIDENT_RENDER_CAP) {
+            break;
+          }
+
+          nextPage += 1;
         }
-        const capped = result.data.slice(0, INCIDENT_RENDER_CAP);
+
+        const paginationMeta = lastResponse?.pagination;
+        const total = paginationMeta?.total ?? aggregated.length;
+        const capped = aggregated.slice(0, INCIDENT_RENDER_CAP);
+
         setIncidents(capped);
-        setPagination(result.pagination);
-        setTotalCount(result.pagination.total);
+        setPagination(paginationMeta);
+        setTotalCount(total);
         setRenderedCount(capped.length);
-        setRemainder(Math.max(result.pagination.total - capped.length, 0));
+        setRemainder(Math.max(total - capped.length, 0));
         lastUpdatedRef.current = new Date();
       } catch (err) {
         if (!isSubscribed || abortController.signal.aborted) {
