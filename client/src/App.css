@@ -30,6 +30,20 @@
   position: relative;
 }
 
+.map-card__cap-indicator {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 500;
+  background: rgba(15, 23, 42, 0.9);
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.25);
+}
+
 .map-container {
   width: 100%;
   height: min(50vh, 520px);
@@ -114,6 +128,23 @@
 .map-popup__details dd {
   margin: 0;
   font-weight: 600;
+}
+
+.map-cluster-icon {
+  background: rgba(59, 130, 246, 0.95);
+  border-radius: 50%;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  border: 3px solid white;
+  box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.2);
+}
+
+.map-cluster-icon span {
+  display: block;
+  padding: 0 0.5rem;
+  font-size: 0.95rem;
 }
 
 .not-found {

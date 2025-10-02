@@ -1,32 +1,33 @@
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer } from 'react-leaflet';
 import '@/lib/leaflet';
 import { useIncidents } from '@/hooks/useIncidents';
 import { useMapStore } from '@/store/useMapStore';
-
-const getLatLng = (incident: ReturnType<typeof useIncidents>['incidents'][number]) => {
-  const coords = incident.location.geometry?.coordinates;
-  if (!coords || coords.length < 2) {
-    return undefined;
-  }
-
-  const [lng, lat] = coords;
-
-  if (typeof lat !== 'number' || typeof lng !== 'number') {
-    return undefined;
-  }
-
-  return { lat, lng };
-};
+import IncidentClusterLayer from './IncidentClusterLayer';
 
 const MapView = () => {
   const { center, zoom } = useMapStore();
-  const { incidents, isLoading, isError, error, refresh, lastUpdated } = useIncidents();
-
-  const hasIncidents = incidents.length > 0;
+  const {
+    incidents,
+    isLoading,
+    isError,
+    error,
+    refresh,
+    lastUpdated,
+    totalCount,
+    renderedCount,
+    remainder,
+  } = useIncidents();
+  const hasIncidents = renderedCount > 0;
+  const showCapIndicator = remainder > 0 && totalCount > 0;
 
   return (
     <section className="map-card" aria-label="Incident map">
       <div className="map-card__container">
+        {showCapIndicator && (
+          <div className="map-card__cap-indicator" role="status" aria-live="polite">
+            Showing {renderedCount.toLocaleString()} of {totalCount.toLocaleString()} incidents.
+          </div>
+        )}
         <MapContainer
           center={center}
           zoom={zoom}
@@ -37,36 +38,7 @@ const MapView = () => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {incidents.map((incident) => {
-            const position = getLatLng(incident);
-            if (!position) {
-              return null;
-            }
-
-            return (
-              <Marker key={incident.incidentNumber} position={position}>
-                <Popup>
-                  <div className="map-popup">
-                    <p className="map-popup__title">{incident.title}</p>
-                    <dl className="map-popup__details">
-                      <div>
-                        <dt>Incident</dt>
-                        <dd>{incident.incidentNumber}</dd>
-                      </div>
-                      <div>
-                        <dt>Severity</dt>
-                        <dd>{incident.severity.name}</dd>
-                      </div>
-                      <div>
-                        <dt>Status</dt>
-                        <dd>{incident.status.name}</dd>
-                      </div>
-                    </dl>
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
+          <IncidentClusterLayer incidents={incidents} />
         </MapContainer>
 
         {(isLoading || isError || !hasIncidents) && (

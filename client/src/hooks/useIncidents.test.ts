@@ -63,8 +63,14 @@ describe('useIncidents', () => {
 
     expect(result.current.isError).toBe(false);
     expect(result.current.incidents).toHaveLength(1);
+    expect(result.current.renderedCount).toBe(1);
+    expect(result.current.totalCount).toBe(1);
+    expect(result.current.remainder).toBe(0);
+    expect(result.current.pagination).toEqual(mockResponse.pagination);
     expect(result.current.lastUpdated).toBeInstanceOf(Date);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    const fetchCalls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(String(fetchCalls[0]?.[0])).toContain('pageSize=5000');
   });
 
   it('handles fetch errors and exposes retry handler', async () => {
@@ -85,6 +91,9 @@ describe('useIncidents', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isError).toBe(true);
     expect(result.current.incidents).toHaveLength(0);
+    expect(result.current.renderedCount).toBe(0);
+    expect(result.current.totalCount).toBe(0);
+    expect(result.current.remainder).toBe(0);
     expect(result.current.error).toBeDefined();
 
     await act(async () => {
@@ -94,6 +103,33 @@ describe('useIncidents', () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     await waitFor(() => expect(result.current.isError).toBe(false));
     expect(result.current.incidents).toHaveLength(1);
+    expect(result.current.remainder).toBe(0);
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    const retryCalls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(String(retryCalls[0]?.[0])).toContain('pageSize=5000');
+    expect(String(retryCalls[1]?.[0])).toContain('pageSize=5000');
+  });
+
+  it('caps incidents at 5,000 and reports remainder', async () => {
+    const mockResponse: IncidentListResponse = {
+      data: Array.from({ length: 5100 }, (_, index) =>
+        buildIncident({ incidentNumber: `INC-${index.toString().padStart(4, '0')}` })
+      ),
+      pagination: { page: 1, pageSize: 5100, total: 5200 },
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useIncidents());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.incidents).toHaveLength(5000);
+    expect(result.current.renderedCount).toBe(5000);
+    expect(result.current.totalCount).toBe(5200);
+    expect(result.current.remainder).toBe(200);
   });
 });

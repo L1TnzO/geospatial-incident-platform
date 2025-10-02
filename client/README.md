@@ -30,7 +30,7 @@ npm run test:watch # Run Vitest in watch mode
 
 - React Router with a shell layout (`src/layouts/AppLayout.tsx`) and dashboard route
 - Zustand store (`src/store/useMapStore.ts`) for map view state
-- Leaflet map placeholder component (`src/components/MapView.tsx`) configured with OpenStreetMap tiles and icon assets
+- Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), and surfaces a cap indicator when additional records are available
 - Responsive layout styling via global CSS (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -42,12 +42,12 @@ Environment variables can be configured through the shared `.env.example` (copie
 
 See [`docs/contributing.md`](../docs/contributing.md) for commit conventions, linting expectations, and CI requirements before opening a pull request.
 
-## Map placeholder roadmap
+## Map roadmap
 
-The current map renders a centered OpenStreetMap view focused on New York City. Future work will include:
+The map now displays live incident markers with clustering and a visible cap badge when the dataset exceeds 5,000 records. Upcoming enhancements include:
 
-- Connecting to the backend health/data endpoints
-- Rendering incident markers with dynamic layers
 - Adding filter controls and legend components
+- Wiring in station overlays and severity-based styling
+- Coordinating map selection with the incidents table and dashboard metrics
 
-Refer to `src/components/MapView.tsx` and `src/store/useMapStore.ts` for the starting point of these enhancements.
+Refer to `src/components/MapView.tsx`, `src/components/IncidentClusterLayer.tsx`, and `src/hooks/useIncidents.ts` for the current implementation.
