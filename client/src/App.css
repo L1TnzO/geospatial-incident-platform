@@ -26,9 +26,94 @@
   overflow: hidden;
 }
 
+.map-card__container {
+  position: relative;
+}
+
 .map-container {
   width: 100%;
   height: min(50vh, 520px);
+}
+
+.map-card__overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.45));
+  color: white;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.map-card__message {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.map-card__button {
+  justify-self: center;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: none;
+  background: white;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.map-card__button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.15);
+}
+
+.map-card__button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.8);
+  outline-offset: 2px;
+}
+
+.map-card__meta {
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.65);
+  padding: 0.75rem 1rem 1rem;
+}
+
+.map-popup {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 180px;
+}
+
+.map-popup__title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.map-popup__details {
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.map-popup__details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.map-popup__details dt {
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.map-popup__details dd {
+  margin: 0;
+  font-weight: 600;
 }
 
 .not-found {

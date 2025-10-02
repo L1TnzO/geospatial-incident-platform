@@ -49,13 +49,25 @@ describe('IncidentService', () => {
       expect(options.startDate).toBe('2025-09-01T00:00:00.000Z');
     });
 
+    it('allows requesting up to 5,000 incidents in a single page', () => {
+      const { service } = createService();
+
+      const options = service.buildListOptions({
+        page: '1',
+        pageSize: '5000',
+      });
+
+      expect(options.page).toBe(1);
+      expect(options.pageSize).toBe(5000);
+    });
+
     it('throws when page exceeds the 5,000 record window', () => {
       const { service } = createService();
 
       expect(() =>
         service.buildListOptions({
-          page: '51',
-          pageSize: '100',
+          page: '2',
+          pageSize: '5000',
         })
       ).toThrow(HttpError);
     });
@@ -67,14 +79,14 @@ describe('IncidentService', () => {
       repository.listIncidents.mockResolvedValue({
         data: [] as IncidentListItem[],
         page: 1,
-        pageSize: 100,
+        pageSize: 5000,
         total: 6000,
       });
 
-      const response = await service.listIncidents({ page: 1, pageSize: 100 });
+      const response = await service.listIncidents({ page: 1, pageSize: 5000 });
 
       expect(response.pagination.total).toBe(5000);
-      expect(repository.listIncidents).toHaveBeenCalledWith({ page: 1, pageSize: 100 });
+      expect(repository.listIncidents).toHaveBeenCalledWith({ page: 1, pageSize: 5000 });
     });
   });
 

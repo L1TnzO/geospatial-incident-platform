@@ -25,7 +25,7 @@ export interface IncidentListFilters {
 }
 
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 5000;
 
 interface IncidentRowBase {
   incidentId: number | string;

@@ -10,7 +10,7 @@ import { HttpError } from '../errors/httpError';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 5000;
 const MAX_TOTAL_RESULTS = 5000;
 
 export interface IncidentListOptions extends IncidentListFilters {
