@@ -34,6 +34,12 @@ npm run test:watch # Run Vitest in watch mode
 - Responsive layout styling via global CSS (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
+## Documentation & testing resources
+
+- [Map Experience Guide](../docs/frontend/map.md) — Interaction walkthrough, state/data flow, troubleshooting tips.
+- [Incidents & Stations API Reference](../docs/api/incidents-and-stations.md) — REST payloads consumed by the map and supporting dashboards.
+- [Testing & Quality Gates](../docs/operations/testing.md) — Commands for running lint/unit/integration suites, including `MapView.integration.test.tsx`.
+
 ## Docker Compose integration
 
 The root `docker-compose.yml` defines a `frontend` service that mounts this directory and exposes port `5173`. After installing dependencies locally, running `docker compose up frontend` will start the Vite dev server inside the container using the same scripts described above.

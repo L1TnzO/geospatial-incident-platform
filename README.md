@@ -16,14 +16,16 @@ The Geospatial Incident Platform is a monorepo that unifies backend services, fr
 
 ## Quickstart
 
-| Goal                     | Command             | Reference                                                               |
-| ------------------------ | ------------------- | ----------------------------------------------------------------------- |
-| Install all dependencies | `npm install`       | [Setup Guide](./docs/setup.md)                                          |
-| Run repository-wide lint | `npm run lint`      | [Frontend docs](./client/README.md), [Backend docs](./server/README.md) |
-| Execute all tests        | `npm test`          | [Contributing Guide](./docs/contributing.md)                            |
-| Bring up Docker stack    | `make compose-up`   | [Setup Guide](./docs/setup.md)                                          |
-| Tear down Docker stack   | `make compose-down` | [Setup Guide](./docs/setup.md)                                          |
-| Understand data model    | —                   | [Data Model Guide](./docs/data-model/README.md)                         |
+| Goal                     | Command             | Reference                                                                  |
+| ------------------------ | ------------------- | -------------------------------------------------------------------------- |
+| Install all dependencies | `npm install`       | [Setup Guide](./docs/setup.md)                                             |
+| Run repository-wide lint | `npm run lint`      | [Frontend docs](./client/README.md), [Backend docs](./server/README.md)    |
+| Execute all tests        | `npm test`          | [Contributing Guide](./docs/contributing.md)                               |
+| Bring up Docker stack    | `make compose-up`   | [Setup Guide](./docs/setup.md)                                             |
+| Tear down Docker stack   | `make compose-down` | [Setup Guide](./docs/setup.md)                                             |
+| Understand data model    | —                   | [Data Model Guide](./docs/data-model/README.md)                            |
+| Review API contracts     | —                   | [Incidents & Stations API Reference](./docs/api/incidents-and-stations.md) |
+| Explore map UX           | —                   | [Map Experience Guide](./docs/frontend/map.md)                             |
 
 Need the full onboarding sequence, environment templates, or editor setup tips? Start with [`docs/setup.md`](./docs/setup.md) for a step-by-step walkthrough.
 
@@ -31,6 +33,7 @@ Need the full onboarding sequence, environment templates, or editor setup tips? 
 
 - Review the [Contributing Guide](./docs/contributing.md) for branching strategy, commit conventions, and CI expectations.
 - Learn the schema and pipelines via the [Data Model Guide](./docs/data-model/README.md).
+- Familiarize yourself with API payloads and map behavior using the [Incidents & Stations API Reference](./docs/api/incidents-and-stations.md) and the [Map Experience Guide](./docs/frontend/map.md).
 - Package-level details live in [`server/README.md`](./server/README.md) and [`client/README.md`](./client/README.md).
 - Check `docs/operations/ci.md` for an overview of the CI pipeline and troubleshooting steps.
 - Consult `docs/operations/testing.md` for running lint/unit/integration suites and database prerequisites.

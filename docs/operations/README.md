@@ -7,6 +7,8 @@ Operational runbooks, onboarding guides, and environment setup instructions for 
 - [Setup Guide](../setup.md) — Environment prerequisites, dependency bootstrapping, and Compose workflow.
 - [Contributing Guide](../contributing.md) — Branching strategy, commit conventions, and CI expectations.
 - [Data Model & Pipeline Guide](../data-model/README.md) — Schema overview, migrations, synthetic data, and benchmarking workflow.
+- [Incidents & Stations API Reference](../api/incidents-and-stations.md) — REST contracts, sample payloads, and error handling.
+- [Map Experience Guide](../frontend/map.md) — Frontend clustering, station overlay, and modal workflow documentation.
 - [Continuous Integration](./ci.md) — CI workflow overview, troubleshooting steps, and local reproduction tips.
 - [Testing & Quality Gates](./testing.md) — Commands, prerequisites, and troubleshooting for lint/unit/integration suites.
 - [Synthetic Data Generation](../data-generation.md) — Python CLI for producing incidents/stations datasets used in Phase 2.
