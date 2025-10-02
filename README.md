@@ -33,6 +33,7 @@ Need the full onboarding sequence, environment templates, or editor setup tips? 
 - Learn the schema and pipelines via the [Data Model Guide](./docs/data-model/README.md).
 - Package-level details live in [`server/README.md`](./server/README.md) and [`client/README.md`](./client/README.md).
 - Check `docs/operations/ci.md` for an overview of the CI pipeline and troubleshooting steps.
+- Consult `docs/operations/testing.md` for running lint/unit/integration suites and database prerequisites.
 
 ## Local Development Stack
 

@@ -8,6 +8,7 @@ Operational runbooks, onboarding guides, and environment setup instructions for 
 - [Contributing Guide](../contributing.md) — Branching strategy, commit conventions, and CI expectations.
 - [Data Model & Pipeline Guide](../data-model/README.md) — Schema overview, migrations, synthetic data, and benchmarking workflow.
 - [Continuous Integration](./ci.md) — CI workflow overview, troubleshooting steps, and local reproduction tips.
+- [Testing & Quality Gates](./testing.md) — Commands, prerequisites, and troubleshooting for lint/unit/integration suites.
 - [Synthetic Data Generation](../data-generation.md) — Python CLI for producing incidents/stations datasets used in Phase 2.
 - [Bulk Data Load](../data-load.md) — Staging, loading, and validation workflow for synthetic CSV batches.
 - [Performance Benchmarks](../performance/benchmarks.md) — Index tuning results, benchmark scripts, and monitoring guidance.

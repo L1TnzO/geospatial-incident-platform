@@ -21,6 +21,21 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_COLOR: '2'
+      DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/postgres'
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
