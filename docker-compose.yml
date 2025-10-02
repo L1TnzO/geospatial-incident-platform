@@ -37,6 +37,7 @@ services:
       - '4000:4000'
     volumes:
       - ./server:/workspace
+      - ./tsconfig.base.json:/tsconfig.base.json:ro
       - node_modules_backend:/workspace/node_modules
     networks:
       - internal
