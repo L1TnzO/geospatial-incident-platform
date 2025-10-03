@@ -38,9 +38,9 @@ The banner above the map displays **“Showing X of Y incidents”** when more i
 
 ## Detail Modal
 
-- `IncidentDetailModal` subscribes to `useIncidentDetailStore` to display the selected incident number.
-- The modal currently shows placeholder text noting that Task 4.x will hydrate it with `/api/incidents/{incidentNumber}` data.
-- Closing the modal resets state via `closeIncident()` and returns focus to the previous context (button-driven interactions already retain focus).
+- `IncidentDetailModal` subscribes to `useIncidentDetailStore`, which now prefetches `/api/incidents/{incidentNumber}` when the modal opens from either the map or the incidents table.
+- Responses are cached in-memory by incident number to prevent redundant requests; retry/loader states surface in the modal header when fetches are pending or fail.
+- Closing the modal resets selection via `closeIncident()` and aborts any in-flight detail fetch to keep the store consistent with user intent.
 
 ## Testing & Validation
 
@@ -67,7 +67,7 @@ npm --prefix client run test -- --run MapView.integration.test.tsx
 
 ## Roadmap Notes
 
-- **Incident detail modal**: will render API payloads (units, assets, narratives) when Task 4.x integrates the detail endpoint.
+- **Incident detail modal**: future polish will layer richer formatting (attachments, responder checklists) and orchestrate refresh cues with dashboard metrics.
 - **Response zones**: polygon overlays and analytics layers can consume the `responseZone.boundary` GeoJSON returned by `/api/stations`.
 - **Filters**: map controls for severity/type/date filtering will reuse `useIncidents` filtering options once the backend exposes query parameters.
 

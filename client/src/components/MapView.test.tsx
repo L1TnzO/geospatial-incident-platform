@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UseIncidentsResult } from '@/hooks/useIncidents';
 import type { UseStationsResult } from '@/hooks/useStations';
 import MapView from './MapView';
-import { resetIncidentDetailStore } from '@/store/useIncidentDetailStore';
+import { resetIncidentDetailStore, useIncidentDetailStore } from '@/store/useIncidentDetailStore';
 import { resetMapPreferencesStore } from '@/store/useMapPreferencesStore';
 
 type PartialIncident = UseIncidentsResult['incidents'][number];
@@ -60,13 +60,29 @@ vi.mock('./StationLayer', () => ({
 }));
 
 describe('MapView', () => {
+  const jsonResponse = (data: unknown, init: ResponseInit = {}): Response => {
+    const headers = new Headers(init.headers ?? {});
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    return new Response(JSON.stringify(data), {
+      ...init,
+      status: init.status ?? 200,
+      headers,
+    });
+  };
+
   afterEach(() => {
     mockedUseIncidents.mockReset();
     mockedUseStations.mockReset();
     stationLayerSpy.mockReset();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     act(() => {
       resetIncidentDetailStore();
       resetMapPreferencesStore();
@@ -79,6 +95,17 @@ describe('MapView', () => {
       refresh: vi.fn(),
       lastUpdated: undefined,
     }));
+
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : '';
+      if (url.includes('/api/incidents/')) {
+        const incident = useIncidentDetailStore.getState().selectedIncident;
+        return Promise.resolve(jsonResponse(incident));
+      }
+      return Promise.resolve(new Response('[]'));
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('renders markers when incidents are available', async () => {

@@ -64,3 +64,32 @@ export interface IncidentListResponse {
   data: IncidentListItem[];
   pagination: PaginationMeta;
 }
+
+export interface IncidentUnit {
+  stationCode: string;
+  stationName: string;
+  assignmentRole?: string | null;
+  dispatchedAt?: string | null;
+  clearedAt?: string | null;
+}
+
+export interface IncidentAsset {
+  assetIdentifier: string;
+  assetType: string;
+  status?: string | null;
+  notes?: string | null;
+}
+
+export interface IncidentNote {
+  author: string;
+  note: string;
+  createdAt: string;
+}
+
+export interface IncidentDetail extends IncidentListItem {
+  narrative?: string | null;
+  metadata: Record<string, unknown>;
+  units: IncidentUnit[];
+  assets: IncidentAsset[];
+  notes: IncidentNote[];
+}

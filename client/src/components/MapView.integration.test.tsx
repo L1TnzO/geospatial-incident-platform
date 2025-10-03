@@ -183,17 +183,29 @@ describe('MapView integration', () => {
       }
 
       if (url.includes('/api/incidents')) {
-        return {
-          ok: true,
-          json: async () => incidents,
-        } as Response;
+        if (/\/api\/incidents\/[A-Za-z0-9-]+/.test(url)) {
+          const detail = {
+            ...incidents.data[0],
+            narrative: null,
+            metadata: {},
+            units: [],
+            assets: [],
+            notes: [],
+          };
+          return new Response(JSON.stringify(detail), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        return new Response(JSON.stringify(incidents), {
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       if (url.includes('/api/stations')) {
-        return {
-          ok: true,
-          json: async () => stations,
-        } as Response;
+        return new Response(JSON.stringify(stations), {
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       throw new Error(`Unhandled fetch call: ${url}`);

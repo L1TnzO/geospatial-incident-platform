@@ -30,9 +30,10 @@ npm run test:watch # Run Vitest in watch mode
 
 - React Router with a shell layout (`src/layouts/AppLayout.tsx`) and dashboard route
 - Zustand store (`src/store/useMapStore.ts`) for map view state
-- Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through `useIncidentDetailStore`, and overlays toggleable fire station markers fetched from `/api/stations`
+- Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through the cached incident detail store, and overlays toggleable fire station markers fetched from `/api/stations`
 - Incidents table card (`src/components/IncidentTable.tsx`) that consumes the table data hook to render paginated rows with loading, error, and empty states alongside pagination controls, severity/status multi-selects, occurrence date range filters, and synchronized row highlighting driven by `useIncidentDetailStore`
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend `server/src/services/incidentsTableDataService.ts` cursor helpers for filterable pagination
+- Incident detail modal (`src/components/IncidentDetailModal.tsx`) backed by `useIncidentDetailStore`, which prefetches `/api/incidents/{incidentNumber}` payloads, caches responses per incident, and exposes retry/loading/error states shared between the map and table entry points
 - Responsive layout styling via global CSS (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -56,7 +57,7 @@ The map now displays live incident markers with clustering and a visible cap bad
 
 - Expanding filter controls with richer presets and legend components
 - Wiring in station overlays and severity-based styling
-- Hydrating the incident detail modal with `/api/incidents/{id}` data and coordinating selection with the incidents table/dashboard metrics
+- Expanding the incident detail modal with richer formatting (attachments, responder checklists) and coordinating detail refresh cues with dashboard metrics
 - Layering station metadata (coverage zones, contact actions) once the modal is hydrated and coordinating filters between station/incident overlays
 
 Refer to `src/components/MapView.tsx`, `src/components/IncidentClusterLayer.tsx`, and `src/hooks/useIncidents.ts` for the current implementation.

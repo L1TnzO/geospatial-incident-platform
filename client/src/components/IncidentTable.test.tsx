@@ -67,6 +67,15 @@ const buildIncident = (overrides: Partial<IncidentListItem> = {}): IncidentListI
   ...overrides,
 });
 
+const buildDetail = (incident: IncidentListItem) => ({
+  ...incident,
+  narrative: null,
+  metadata: {},
+  units: [],
+  assets: [],
+  notes: [],
+});
+
 const useIncidentTableDataMock = vi.fn(() => createState());
 
 vi.mock('@/hooks/useIncidentTableData', () => ({
@@ -84,14 +93,41 @@ describe('IncidentTable', () => {
   });
 
   beforeEach(() => {
-    resetIncidentDetailStore();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    act(() => {
+      resetIncidentDetailStore();
+    });
     useIncidentTableDataMock.mockReset();
     useIncidentTableDataMock.mockReturnValue(createState());
     scrollIntoViewMock.mockClear();
+
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      if (typeof input === 'string' && input.includes('/incidents/')) {
+        const incidentNumber = decodeURIComponent(input.split('/').pop() ?? '');
+        const incident = useIncidentDetailStore.getState().selectedIncident;
+        const detailIncident =
+          incident && incident.incidentNumber === incidentNumber
+            ? incident
+            : buildIncident({ incidentNumber });
+        return Promise.resolve(
+          new Response(JSON.stringify(buildDetail(detailIncident)), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+      }
+      return Promise.resolve(new Response('[]'));
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   afterEach(() => {
-    resetIncidentDetailStore();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    act(() => {
+      resetIncidentDetailStore();
+    });
   });
 
   it('renders loading state', () => {
@@ -278,15 +314,16 @@ describe('IncidentTable', () => {
     await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalled());
   });
 
-  it('opens the incident detail modal when a row is activated', () => {
+  it('opens the incident detail modal when a row is activated', async () => {
     const incident = buildIncident({ incidentNumber: 'INC-314', title: 'Activation Test' });
     useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
 
     render(<IncidentTable />);
 
     const row = screen.getByText('INC-314').closest('tr') as HTMLTableRowElement;
-    act(() => {
+    await act(async () => {
       fireEvent.click(row);
+      await Promise.resolve();
     });
 
     const state = useIncidentDetailStore.getState();
@@ -294,15 +331,16 @@ describe('IncidentTable', () => {
     expect(state.isOpen).toBe(true);
   });
 
-  it('opens the incident detail modal via keyboard activation', () => {
+  it('opens the incident detail modal via keyboard activation', async () => {
     const incident = buildIncident({ incidentNumber: 'INC-400', title: 'Keyboard Activation' });
     useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
 
     render(<IncidentTable />);
 
     const row = screen.getByText('INC-400').closest('tr') as HTMLTableRowElement;
-    act(() => {
+    await act(async () => {
       fireEvent.keyDown(row, { key: 'Enter' });
+      await Promise.resolve();
     });
 
     const state = useIncidentDetailStore.getState();
@@ -310,15 +348,16 @@ describe('IncidentTable', () => {
     expect(state.isOpen).toBe(true);
   });
 
-  it('opens the incident detail modal when clicking the view details button', () => {
+  it('opens the incident detail modal when clicking the view details button', async () => {
     const incident = buildIncident({ incidentNumber: 'INC-555', title: 'Button Activation' });
     useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
 
     render(<IncidentTable />);
 
     const button = screen.getByRole('button', { name: /view details/i });
-    act(() => {
+    await act(async () => {
       fireEvent.click(button);
+      await Promise.resolve();
     });
 
     const state = useIncidentDetailStore.getState();
