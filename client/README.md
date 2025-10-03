@@ -31,6 +31,7 @@ npm run test:watch # Run Vitest in watch mode
 - React Router with a shell layout (`src/layouts/AppLayout.tsx`) and dashboard route
 - Zustand store (`src/store/useMapStore.ts`) for map view state
 - Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through `useIncidentDetailStore`, and overlays toggleable fire station markers fetched from `/api/stations`
+- Incidents table card (`src/components/IncidentTable.tsx`) that consumes the table data hook to render paginated rows with loading, error, and empty states alongside pagination controls, severity/status multi-selects, and occurrence date range filters
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend `server/src/services/incidentsTableDataService.ts` cursor helpers for filterable pagination
 - Responsive layout styling via global CSS (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
@@ -53,7 +54,7 @@ See [`docs/contributing.md`](../docs/contributing.md) for commit conventions, li
 
 The map now displays live incident markers with clustering and a visible cap badge when the dataset exceeds 5,000 records. Upcoming enhancements include:
 
-- Adding filter controls and legend components
+- Expanding filter controls with richer presets and legend components
 - Wiring in station overlays and severity-based styling
 - Hydrating the incident detail modal with `/api/incidents/{id}` data and coordinating selection with the incidents table/dashboard metrics
 - Layering station metadata (coverage zones, contact actions) once the modal is hydrated and coordinating filters between station/incident overlays
@@ -64,4 +65,4 @@ Refer to `src/components/MapView.tsx`, `src/components/IncidentClusterLayer.tsx`
 
 Use the incidents table data service (`src/services/incidentsTableService.ts`) when wiring paginated table views. It forwards the table filters to `/api/incidents`, applies the same cursor math used on the backend helper (`server/src/services/incidentsTableDataService.ts`), and returns `{ rows, pagination }` with `nextPage`, `previousPage`, `remainder`, and `totalPages` metadata.
 
-The React hook (`src/hooks/useIncidentTableData.ts`) wraps that service with local state for filters, loading/error flags, and helper setters (`setPage`, `setPageSize`, `setFilters`, `refresh`). Components can subscribe to `rows`, `pagination`, and `filters` directly; updates trigger refetches via an internal `AbortController` to keep responses in sync with the latest params.
+The React hook (`src/hooks/useIncidentTableData.ts`) wraps that service with local state for filters, loading/error flags, and helper setters (`setPage`, `setPageSize`, `setFilters`, `refresh`). Components can subscribe to `rows`, `pagination`, and `filters` directly; updates trigger refetches via an internal `AbortController` to keep responses in sync with the latest params. The table UI card (`src/components/IncidentTable.tsx`) consumes the hook to provide the paginated incidents dashboard experience, wiring severity/status multi-selects and occurrence date range inputs into `setFilters` so server-side filtering stays in sync with pagination.

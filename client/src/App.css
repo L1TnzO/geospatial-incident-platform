@@ -381,3 +381,410 @@
   text-align: center;
   margin-top: 3rem;
 }
+
+.incident-table-card {
+  padding: 1.75rem clamp(1rem, 3vw, 2rem);
+  display: grid;
+  gap: 1.75rem;
+}
+
+.incident-table-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.incident-table-card__heading {
+  display: grid;
+  gap: 0.35rem;
+  max-width: clamp(22rem, 55vw, 32rem);
+}
+
+.incident-table-card__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.incident-table-card__subtitle {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.7);
+  font-size: 0.95rem;
+}
+
+.incident-table-card__meta {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.65);
+  text-align: right;
+  justify-items: end;
+}
+
+.incident-table-card__updated {
+  font-weight: 600;
+  color: rgba(59, 130, 246, 0.95);
+}
+
+.incident-table-card__content {
+  min-height: 12rem;
+}
+
+.incident-table-card__filters {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1rem;
+  border-radius: 0.9rem;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.incident-table-card__filter-groups {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.incident-table-card__filter-group {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.incident-table-card__filter-group > legend {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.incident-table-card__filter-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.incident-table-card__filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.incident-table-card__filter-option input[type='checkbox'] {
+  accent-color: rgba(59, 130, 246, 1);
+  width: 1rem;
+  height: 1rem;
+}
+
+.incident-table-card__filter-group--dates {
+  display: flex;
+  align-items: stretch;
+}
+
+.incident-table-card__date-fields {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.incident-table-card__date-fields input[type='date'] {
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: white;
+  color: #0f172a;
+}
+
+.incident-table-card__filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.incident-table-card__filter-summary {
+  min-height: 2rem;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.incident-table-card__chip-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.incident-table-card__chip {
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: rgba(30, 64, 175, 0.95);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.incident-table-card__filter-buttons {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.incident-table-card__filter-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.incident-table-card__filter-button-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.incident-table-card__filter-button {
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.65rem;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.incident-table-card__filter-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.incident-table-card__filter-button--primary {
+  background: rgba(37, 99, 235, 0.95);
+  color: #fff;
+}
+
+.incident-table-card__filter-button--primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.85rem 1.6rem rgba(37, 99, 235, 0.25);
+}
+
+.incident-table-card__filter-button--primary:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.6);
+  outline-offset: 2px;
+}
+
+.incident-table-card__filter-button--ghost {
+  background: rgba(148, 163, 184, 0.2);
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.incident-table-card__filter-button--ghost:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(148, 163, 184, 0.25);
+}
+
+.incident-table-card__filter-button--ghost:focus-visible {
+  outline: 3px solid rgba(148, 163, 184, 0.6);
+  outline-offset: 2px;
+}
+
+.incident-table-card__status {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: flex-start;
+  font-size: 0.95rem;
+}
+
+.incident-table-card__status--loading,
+.incident-table-card__status--empty {
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.incident-table-card__status--error {
+  color: #dc2626;
+}
+
+.incident-table-card__retry {
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  border: none;
+  background: rgba(59, 130, 246, 0.95);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.incident-table-card__retry:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(59, 130, 246, 0.25);
+}
+
+.incident-table-card__retry:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.75);
+  outline-offset: 2px;
+}
+
+.incident-table-card__table-wrapper {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.incident-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.incident-table th,
+.incident-table td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 0.95rem;
+}
+
+.incident-table th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+  color: rgba(15, 23, 42, 0.55);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.incident-table td {
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.incident-table__severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.incident-table-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.incident-table-card__pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.incident-table-card__page-button {
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.65rem;
+  border: none;
+  background: rgba(15, 23, 42, 0.9);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.incident-table-card__page-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.2);
+}
+
+.incident-table-card__page-button:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.7);
+  outline-offset: 2px;
+}
+
+.incident-table-card__page-button:disabled {
+  background: rgba(148, 163, 184, 0.55);
+  cursor: not-allowed;
+}
+
+.incident-table-card__page-indicator {
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.incident-table-card__page-size {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.incident-table-card__page-size select {
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: #fff;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.incident-table-card__page-size select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 960px) {
+  .incident-table-card__meta {
+    justify-items: flex-start;
+    text-align: left;
+  }
+
+  .incident-table-card__filter-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .incident-table-card__filter-button-row {
+    justify-content: stretch;
+  }
+
+  .incident-table-card__filter-button-row button {
+    flex: 1;
+  }
+
+  .incident-table-card__footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1.25rem;
+  }
+
+  .incident-table-card__pagination {
+    justify-content: space-between;
+  }
+
+  .incident-table-card__page-size {
+    justify-content: space-between;
+  }
+}

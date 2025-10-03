@@ -1,4 +1,5 @@
 import MapView from '@/components/MapView';
+import IncidentTable from '@/components/IncidentTable';
 
 const DashboardPage = () => (
   <div className="dashboard-page">
@@ -11,6 +12,7 @@ const DashboardPage = () => (
       </p>
     </section>
     <MapView />
+    <IncidentTable />
   </div>
 );
 
