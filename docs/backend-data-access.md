@@ -61,6 +61,32 @@ Located at `server/src/services/incidentsService.ts`, the service layer wraps `I
 - Returns controller-friendly DTOs (`{ data, pagination }`) with totals clamped for map consumers plus derived metadata (`totalPages`, `hasNext`, `hasPrevious`, `sortBy`, `sortDirection`).
 - Provides `getIncidentDetail` with built-in 400/404 handling so controllers remain slim.
 
+### IncidentsTableDataService
+
+Located at `server/src/services/incidentsTableDataService.ts`, this helper wraps `IncidentService` to expose a reusable incidents-table data client for backend consumers:
+
+- `fetchTableData(params)` – accepts typed filters (page, pageSize, sort, codes, date window, `isActive`) and returns `{ rows, pagination }`. Pagination metadata is embellished with `nextPage`, `previousPage`, and `remainder` so table renderers can drive pager controls without duplicating math.
+- `buildIncidentListQuery(params)` – normalizes table filters into the query payload that `IncidentService.buildListOptions` expects. This keeps the map, table, and any future jobs aligned on a single DTO.
+- `buildIncidentTablePagination(pagination)` – converts the base pagination meta into the enriched table summary; helpful when composing custom flows around existing service responses.
+
+Example:
+
+```ts
+import { incidentsTableDataService } from '../src/services/incidentsTableDataService';
+
+const { rows, pagination } = await incidentsTableDataService.fetchTableData({
+  page: 2,
+  pageSize: 25,
+  severityCodes: ['CRITICAL'],
+  sortBy: 'occurrenceAt',
+  sortDirection: 'desc',
+});
+
+if (pagination.nextPage) {
+  // prefetch the next page or update UI controls
+}
+```
+
 ## Geometry Helpers
 
 - `parseGeometry` – safely converts PostGIS outputs (from `ST_AsGeoJSON`) into typed GeoJSON geometries.
