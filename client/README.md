@@ -31,6 +31,7 @@ npm run test:watch # Run Vitest in watch mode
 - React Router with a shell layout (`src/layouts/AppLayout.tsx`) and dashboard route
 - Zustand store (`src/store/useMapStore.ts`) for map view state
 - Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through `useIncidentDetailStore`, and overlays toggleable fire station markers fetched from `/api/stations`
+- Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend `server/src/services/incidentsTableDataService.ts` cursor helpers for filterable pagination
 - Responsive layout styling via global CSS (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -58,3 +59,9 @@ The map now displays live incident markers with clustering and a visible cap bad
 - Layering station metadata (coverage zones, contact actions) once the modal is hydrated and coordinating filters between station/incident overlays
 
 Refer to `src/components/MapView.tsx`, `src/components/IncidentClusterLayer.tsx`, and `src/hooks/useIncidents.ts` for the current implementation.
+
+## Incidents table data hook
+
+Use the incidents table data service (`src/services/incidentsTableService.ts`) when wiring paginated table views. It forwards the table filters to `/api/incidents`, applies the same cursor math used on the backend helper (`server/src/services/incidentsTableDataService.ts`), and returns `{ rows, pagination }` with `nextPage`, `previousPage`, `remainder`, and `totalPages` metadata.
+
+The React hook (`src/hooks/useIncidentTableData.ts`) wraps that service with local state for filters, loading/error flags, and helper setters (`setPage`, `setPageSize`, `setFilters`, `refresh`). Components can subscribe to `rows`, `pagination`, and `filters` directly; updates trigger refetches via an internal `AbortController` to keep responses in sync with the latest params.
