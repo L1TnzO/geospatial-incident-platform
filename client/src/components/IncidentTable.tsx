@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { useIncidentTableData } from '@/hooks/useIncidentTableData';
+import { useIncidentDetailStore } from '@/store/useIncidentDetailStore';
+import type { IncidentListItem } from '@/types/incidents';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
@@ -121,6 +123,12 @@ const IncidentTable = () => {
     lastUpdated,
   } = useIncidentTableData();
 
+  const selectedIncident = useIncidentDetailStore((state) => state.selectedIncident);
+  const openIncident = useIncidentDetailStore((state) => state.openIncident);
+  const selectedIncidentNumber = selectedIncident?.incidentNumber ?? null;
+
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+
   const severityOptions = useMemo(() => {
     const map = new Map<string, string>();
     BASE_SEVERITY_OPTIONS.forEach((option) => map.set(option.code, option.label));
@@ -128,6 +136,16 @@ const IncidentTable = () => {
 
     return sortOptions(Array.from(map.entries()).map(([code, label]) => ({ code, label })));
   }, [rows]);
+
+  const handleRowKeyDown = (
+    incident: IncidentListItem,
+    event: KeyboardEvent<HTMLTableRowElement>
+  ): void => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openIncident(incident);
+    }
+  };
 
   const statusOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -146,6 +164,23 @@ const IncidentTable = () => {
     () => new Map(statusOptions.map((option) => [option.code, option.label])),
     [statusOptions]
   );
+
+  useEffect(() => {
+    if (!selectedIncidentNumber) {
+      return;
+    }
+
+    const targetRow = rowRefs.current.get(selectedIncidentNumber);
+    if (targetRow) {
+      if (typeof targetRow.scrollIntoView === 'function') {
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      if (typeof targetRow.focus === 'function') {
+        targetRow.focus({ preventScroll: true });
+      }
+    }
+  }, [selectedIncidentNumber, rows]);
 
   const [severityDraft, setSeverityDraft] = useState<string[]>(() => filters.severityCodes ?? []);
   const [statusDraft, setStatusDraft] = useState<string[]>(() => filters.statusCodes ?? []);
@@ -460,13 +495,36 @@ const IncidentTable = () => {
                   <th scope="col">Status</th>
                   <th scope="col">Reported</th>
                   <th scope="col">Primary Station</th>
+                  <th scope="col" className="incident-table__actions-header">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((incident) => {
                   const severityColor = incident.severity.colorHex || '#1f2937';
+                  const isSelected = selectedIncidentNumber === incident.incidentNumber;
+                  const rowClassName = `incident-table__row${
+                    isSelected ? ' incident-table__row--selected' : ''
+                  }`;
+
                   return (
-                    <tr key={incident.incidentNumber}>
+                    <tr
+                      key={incident.incidentNumber}
+                      ref={(node) => {
+                        if (node) {
+                          rowRefs.current.set(incident.incidentNumber, node);
+                        } else {
+                          rowRefs.current.delete(incident.incidentNumber);
+                        }
+                      }}
+                      className={rowClassName}
+                      tabIndex={0}
+                      role="row"
+                      aria-selected={isSelected}
+                      onClick={() => openIncident(incident)}
+                      onKeyDown={(event) => handleRowKeyDown(incident, event)}
+                    >
                       <td data-label="Incident #">{incident.incidentNumber}</td>
                       <td data-label="Title">{incident.title}</td>
                       <td data-label="Severity">
@@ -480,6 +538,18 @@ const IncidentTable = () => {
                       <td data-label="Status">{incident.status.name}</td>
                       <td data-label="Reported">{formatDateTime(incident.reportedAt)}</td>
                       <td data-label="Primary Station">{incident.primaryStation?.name ?? '—'}</td>
+                      <td data-label="Actions" className="incident-table__actions-cell">
+                        <button
+                          type="button"
+                          className="incident-table__details-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openIncident(incident);
+                          }}
+                        >
+                          View details
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

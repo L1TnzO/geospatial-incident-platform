@@ -685,6 +685,67 @@
   color: #fff;
 }
 
+.incident-table__row {
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.incident-table__row:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+.incident-table__row:focus-visible {
+  outline: 3px solid rgba(59, 130, 246, 0.5);
+  outline-offset: -3px;
+}
+
+.incident-table__row--selected {
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+.incident-table__row--selected td {
+  color: #0f172a;
+}
+
+.incident-table__actions-header {
+  text-align: right;
+}
+
+.incident-table__actions-cell {
+  text-align: right;
+}
+
+.incident-table__details-button {
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.6rem;
+  border: none;
+  background: rgba(37, 99, 235, 0.95);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.incident-table__details-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(37, 99, 235, 0.25);
+}
+
+.incident-table__details-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.65);
+  outline-offset: 2px;
+}
+
+.incident-table__details-button:active {
+  transform: translateY(0);
+}
+
 .incident-table-card__footer {
   display: flex;
   flex-wrap: wrap;

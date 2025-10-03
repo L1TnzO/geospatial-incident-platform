@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import IncidentTable from './IncidentTable';
 import type { UseIncidentTableDataState } from '@/hooks/useIncidentTableData';
 import type { IncidentListItem } from '@/types/incidents';
+import { resetIncidentDetailStore, useIncidentDetailStore } from '@/store/useIncidentDetailStore';
 
 const createState = (
   overrides: Partial<UseIncidentTableDataState> = {}
@@ -72,10 +73,25 @@ vi.mock('@/hooks/useIncidentTableData', () => ({
   useIncidentTableData: () => useIncidentTableDataMock(),
 }));
 
+const scrollIntoViewMock = vi.fn();
+
 describe('IncidentTable', () => {
+  beforeAll(() => {
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoViewMock,
+    });
+  });
+
   beforeEach(() => {
+    resetIncidentDetailStore();
     useIncidentTableDataMock.mockReset();
     useIncidentTableDataMock.mockReturnValue(createState());
+    scrollIntoViewMock.mockClear();
+  });
+
+  afterEach(() => {
+    resetIncidentDetailStore();
   });
 
   it('renders loading state', () => {
@@ -135,6 +151,7 @@ describe('IncidentTable', () => {
     expect(screen.getByText(/showing 26-26 of 40 incidents \(\+12 more\)/i)).toBeInTheDocument();
     expect(screen.getByText(/updated/i)).toBeInTheDocument();
     expect(screen.getByText(/no filters applied/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /view details/i })).toHaveLength(1);
 
     const nextButton = screen.getByRole('button', { name: /next/i });
     const prevButton = screen.getByRole('button', { name: /previous/i });
@@ -242,5 +259,70 @@ describe('IncidentTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /apply filters/i }));
     expect(setFilters).not.toHaveBeenCalled();
+  });
+
+  it('highlights the selected incident row from the detail store', async () => {
+    const incident = buildIncident({ incidentNumber: 'INC-777', title: 'Selected Incident' });
+    useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
+
+    render(<IncidentTable />);
+
+    act(() => {
+      useIncidentDetailStore.setState({ selectedIncident: incident, isOpen: true });
+    });
+
+    const selectedRow = await screen.findByRole('row', { selected: true });
+    expect(selectedRow).toHaveTextContent('INC-777');
+    expect(selectedRow).toHaveClass('incident-table__row--selected');
+
+    await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalled());
+  });
+
+  it('opens the incident detail modal when a row is activated', () => {
+    const incident = buildIncident({ incidentNumber: 'INC-314', title: 'Activation Test' });
+    useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
+
+    render(<IncidentTable />);
+
+    const row = screen.getByText('INC-314').closest('tr') as HTMLTableRowElement;
+    act(() => {
+      fireEvent.click(row);
+    });
+
+    const state = useIncidentDetailStore.getState();
+    expect(state.selectedIncident).toEqual(incident);
+    expect(state.isOpen).toBe(true);
+  });
+
+  it('opens the incident detail modal via keyboard activation', () => {
+    const incident = buildIncident({ incidentNumber: 'INC-400', title: 'Keyboard Activation' });
+    useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
+
+    render(<IncidentTable />);
+
+    const row = screen.getByText('INC-400').closest('tr') as HTMLTableRowElement;
+    act(() => {
+      fireEvent.keyDown(row, { key: 'Enter' });
+    });
+
+    const state = useIncidentDetailStore.getState();
+    expect(state.selectedIncident).toEqual(incident);
+    expect(state.isOpen).toBe(true);
+  });
+
+  it('opens the incident detail modal when clicking the view details button', () => {
+    const incident = buildIncident({ incidentNumber: 'INC-555', title: 'Button Activation' });
+    useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
+
+    render(<IncidentTable />);
+
+    const button = screen.getByRole('button', { name: /view details/i });
+    act(() => {
+      fireEvent.click(button);
+    });
+
+    const state = useIncidentDetailStore.getState();
+    expect(state.selectedIncident).toEqual(incident);
+    expect(state.isOpen).toBe(true);
   });
 });
