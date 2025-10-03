@@ -84,7 +84,7 @@ describe('MapView', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     act(() => {
-      resetIncidentDetailStore();
+      resetIncidentDetailStore({ clearStorage: true });
       resetMapPreferencesStore();
     });
     mockedUseStations.mockImplementation(() => ({

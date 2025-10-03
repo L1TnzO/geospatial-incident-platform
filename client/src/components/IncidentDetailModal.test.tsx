@@ -97,7 +97,7 @@ describe('IncidentDetailModal', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     act(() => {
-      resetIncidentDetailStore();
+      resetIncidentDetailStore({ clearStorage: true });
     });
   });
 

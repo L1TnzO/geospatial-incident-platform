@@ -216,7 +216,7 @@ describe('MapView integration', () => {
 
   afterEach(() => {
     act(() => {
-      resetIncidentDetailStore();
+      resetIncidentDetailStore({ clearStorage: true });
       resetMapPreferencesStore();
     });
     globalThis.fetch = originalFetch;

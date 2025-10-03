@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IncidentListItem } from '@/types/incidents';
 import type { IncidentTableResult } from '@/services/incidentsTableService';
-import { useIncidentTableData } from './useIncidentTableData';
+import { INCIDENT_TABLE_FILTERS_STORAGE_KEY, useIncidentTableData } from './useIncidentTableData';
 
 const fetchIncidentTableDataMock = vi.hoisted(() => vi.fn());
 
@@ -69,6 +69,9 @@ describe('useIncidentTableData', () => {
   beforeEach(() => {
     fetchIncidentTableDataMock.mockReset();
     fetchIncidentTableDataMock.mockResolvedValue(buildResult());
+    if (typeof window !== 'undefined' && 'localStorage' in window) {
+      window.localStorage.clear();
+    }
   });
 
   it('fetches data on mount and exposes pagination helpers', async () => {
@@ -174,6 +177,61 @@ describe('useIncidentTableData', () => {
       severityCodes: ['HIGH'],
       sortDirection: 'asc',
       page: 1,
+    });
+  });
+
+  it('rehydrates filters from localStorage when available', async () => {
+    const storedPayload = {
+      version: 1,
+      filters: {
+        page: 3,
+        pageSize: 50,
+        sortBy: 'occurrenceAt',
+        sortDirection: 'asc',
+        severityCodes: ['HIGH', 'LOW'],
+        statusCodes: ['OPEN'],
+        startDate: '2025-01-01T00:00:00.000Z',
+        endDate: '2025-01-15T23:59:59.999Z',
+        isActive: false,
+      },
+    };
+
+    window.localStorage.setItem(INCIDENT_TABLE_FILTERS_STORAGE_KEY, JSON.stringify(storedPayload));
+
+    const { result } = renderHook(() => useIncidentTableData());
+
+    await waitFor(() => expect(fetchIncidentTableDataMock).toHaveBeenCalledTimes(1));
+    expect(result.current.filters.page).toBe(3);
+    expect(result.current.filters.pageSize).toBe(50);
+    expect(result.current.filters.sortBy).toBe('occurrenceAt');
+    expect(result.current.filters.sortDirection).toBe('asc');
+    expect(result.current.filters.severityCodes).toEqual(['HIGH', 'LOW']);
+    expect(result.current.filters.statusCodes).toEqual(['OPEN']);
+    expect(result.current.filters.startDate).toBe('2025-01-01T00:00:00.000Z');
+    expect(result.current.filters.endDate).toBe('2025-01-15T23:59:59.999Z');
+    expect(result.current.filters.isActive).toBe(false);
+  });
+
+  it('persists filters to localStorage when they change', async () => {
+    const { result } = renderHook(() => useIncidentTableData());
+
+    await waitFor(() => expect(fetchIncidentTableDataMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      result.current.setFilters({ severityCodes: ['CRITICAL'], pageSize: 40 });
+    });
+
+    await waitFor(() => {
+      const raw = window.localStorage.getItem(INCIDENT_TABLE_FILTERS_STORAGE_KEY);
+      expect(raw).not.toBeNull();
+      if (!raw) {
+        throw new Error('missing storage payload');
+      }
+
+      const payload = JSON.parse(raw) as { filters?: Record<string, unknown> };
+      expect(payload.filters?.severityCodes).toEqual(['CRITICAL']);
+      expect(payload.filters?.pageSize).toBe(40);
+      expect(payload.filters?.page).toBe(1);
     });
   });
 });

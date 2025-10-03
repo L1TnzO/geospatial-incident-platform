@@ -96,7 +96,7 @@ describe('IncidentTable', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     act(() => {
-      resetIncidentDetailStore();
+      resetIncidentDetailStore({ clearStorage: true });
     });
     useIncidentTableDataMock.mockReset();
     useIncidentTableDataMock.mockReturnValue(createState());
@@ -126,7 +126,7 @@ describe('IncidentTable', () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     act(() => {
-      resetIncidentDetailStore();
+      resetIncidentDetailStore({ clearStorage: true });
     });
   });
 

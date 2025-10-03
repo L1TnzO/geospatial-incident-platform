@@ -106,7 +106,7 @@ describe('IncidentClusterLayer', () => {
     mapStub.on.mockClear();
     mapStub.off.mockClear();
     act(() => {
-      resetIncidentDetailStore();
+      resetIncidentDetailStore({ clearStorage: true });
     });
   });
 
