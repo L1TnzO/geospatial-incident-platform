@@ -1,11 +1,19 @@
 import { IncidentService, type IncidentListOptions } from '../../src/services/incidentsService';
 import { HttpError } from '../../src/errors/httpError';
-import type { IncidentDetail, IncidentListItem, PaginatedResult } from '../../src/db';
+import type {
+  IncidentDetail,
+  IncidentListItem,
+  IncidentMetadata,
+  IncidentSearchResult,
+  PaginatedResult,
+} from '../../src/db';
 
 const createService = () => {
   const repository = {
     listIncidents: jest.fn<Promise<PaginatedResult<IncidentListItem>>, [IncidentListOptions]>(),
     getIncidentDetail: jest.fn<Promise<IncidentDetail | null>, [string]>(),
+    getIncidentMetadata: jest.fn<Promise<Omit<IncidentMetadata, 'limits'>>, []>(),
+    findIncidentSummary: jest.fn<Promise<IncidentSearchResult | null>, [string]>(),
   };
 
   return {
@@ -212,6 +220,85 @@ describe('IncidentService', () => {
       const { service } = createService();
 
       await expect(service.getIncidentDetail(' ')).rejects.toThrow(HttpError);
+    });
+  });
+
+  describe('getIncidentMetadata', () => {
+    const baseMetadata: Omit<IncidentMetadata, 'limits'> = {
+      types: [{ code: 'FIRE_STRUCTURE', name: 'Structure' }],
+      severities: [{ code: 'CRITICAL', name: 'Critical', priority: 1, colorHex: '#ff0000' }],
+      statuses: [{ code: 'REPORTED', name: 'Reported', isTerminal: false }],
+      occurrenceRange: { start: '2025-09-01T00:00:00.000Z', end: '2025-09-02T00:00:00.000Z' },
+      reportedRange: { start: '2025-09-01T00:05:00.000Z', end: '2025-09-02T00:05:00.000Z' },
+      activeCount: 10,
+    };
+
+    it('caches metadata responses until TTL expires', async () => {
+      const { service, repository } = createService();
+      repository.getIncidentMetadata.mockResolvedValue(baseMetadata);
+
+      const first = await service.getIncidentMetadata();
+      const second = await service.getIncidentMetadata();
+
+      expect(first.limits.maxTotalResults).toBeGreaterThan(0);
+      expect(second).toBe(first);
+      expect(repository.getIncidentMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    it('force refresh bypasses cache', async () => {
+      const { service, repository } = createService();
+      repository.getIncidentMetadata.mockResolvedValue(baseMetadata);
+
+      await service.getIncidentMetadata();
+      await service.getIncidentMetadata(true);
+
+      expect(repository.getIncidentMetadata).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('searchIncidentByNumber', () => {
+    it('normalizes the incident number and returns summary', async () => {
+      const { service, repository } = createService();
+      const summary = {
+        incidentNumber: 'INC-123',
+        title: 'Summary',
+        occurrenceAt: '2025-09-01T00:00:00.000Z',
+        reportedAt: '2025-09-01T00:05:00.000Z',
+        isActive: true,
+        location: {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [0, 0] },
+          properties: {},
+        },
+        severity: { code: 'CRITICAL', name: 'Critical', priority: 1, colorHex: '#ff0000' },
+        status: { code: 'REPORTED', name: 'Reported', isTerminal: false },
+        type: { code: 'FIRE_STRUCTURE', name: 'Structure' },
+      } satisfies IncidentSearchResult;
+      repository.findIncidentSummary.mockResolvedValue(summary);
+
+      const result = await service.searchIncidentByNumber(' inc-123 ');
+
+      expect(result).toEqual(summary);
+      expect(repository.findIncidentSummary).toHaveBeenCalledWith('INC-123');
+    });
+
+    it('throws when incident number missing', async () => {
+      const { service } = createService();
+
+      await expect(service.searchIncidentByNumber('')).rejects.toThrow(HttpError);
+    });
+
+    it('rejects invalid characters', async () => {
+      const { service } = createService();
+
+      await expect(service.searchIncidentByNumber('INC 123')).rejects.toThrow(HttpError);
+    });
+
+    it('throws not found when repository misses incident', async () => {
+      const { service, repository } = createService();
+      repository.findIncidentSummary.mockResolvedValue(null);
+
+      await expect(service.searchIncidentByNumber('INC-404')).rejects.toThrow(HttpError);
     });
   });
 });

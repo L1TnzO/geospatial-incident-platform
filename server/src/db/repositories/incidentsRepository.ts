@@ -5,6 +5,8 @@ import {
   type IncidentDetail,
   type IncidentListItem,
   type IncidentLookupValue,
+  type IncidentMetadata,
+  type IncidentSearchResult,
   type IncidentSeverity,
   type IncidentStatus,
   type IncidentSource,
@@ -91,6 +93,27 @@ interface IncidentNoteRow {
   author: string;
   note: string;
   createdAt: string;
+}
+
+interface IncidentTypeMetaRow {
+  code: string;
+  name: string | null;
+  description: string | null;
+}
+
+interface IncidentSeverityMetaRow {
+  code: string;
+  name: string | null;
+  description: string | null;
+  priority: number | string | null;
+  colorHex: string | null;
+}
+
+interface IncidentStatusMetaRow {
+  code: string;
+  name: string | null;
+  description: string | null;
+  isTerminal: boolean | null;
 }
 
 const requireLookup = (code: string | null, entity: string): string => {
@@ -424,6 +447,139 @@ export class IncidentRepository {
         note: row.note,
         createdAt: row.createdAt,
       })),
+    };
+  }
+
+  public async getIncidentMetadata(): Promise<Omit<IncidentMetadata, 'limits'>> {
+    const [typeRows, severityRows, statusRows, dateBoundsRaw, activeRowRaw] = await Promise.all([
+      this.db<IncidentTypeMetaRow>('incident_types')
+        .select<IncidentTypeMetaRow[]>(['type_code as code', 'name', 'description'])
+        .orderBy('name', 'asc'),
+      this.db<IncidentSeverityMetaRow>('incident_severities')
+        .select<IncidentSeverityMetaRow[]>([
+          'severity_code as code',
+          'name',
+          'description',
+          'priority',
+          'color_hex as colorHex',
+        ])
+        .orderBy([
+          { column: 'priority', order: 'asc' },
+          { column: 'name', order: 'asc' },
+        ]),
+      this.db<IncidentStatusMetaRow>('incident_statuses')
+        .select<IncidentStatusMetaRow[]>([
+          'status_code as code',
+          'name',
+          'description',
+          'is_terminal as isTerminal',
+        ])
+        .orderBy([
+          { column: 'is_terminal', order: 'asc' },
+          { column: 'name', order: 'asc' },
+        ]),
+      this.db('incidents')
+        .min({ minOccurrenceAt: 'occurrence_at' })
+        .max({ maxOccurrenceAt: 'occurrence_at' })
+        .min({ minReportedAt: 'reported_at' })
+        .max({ maxReportedAt: 'reported_at' })
+        .first(),
+      this.db('incidents').count<{ total: string }>('id as total').where('is_active', true).first(),
+    ]);
+
+    const types = typeRows.map((row) => createLookup(row.code, row.name, row.description));
+    const severities = severityRows.map(
+      (row): IncidentSeverity => ({
+        ...createLookup(row.code, row.name, row.description),
+        priority: Number(row.priority ?? 0),
+        colorHex: row.colorHex ?? '#000000',
+      })
+    );
+    const statuses = statusRows.map(
+      (row): IncidentStatus => ({
+        ...createLookup(row.code, row.name, row.description),
+        isTerminal: Boolean(row.isTerminal),
+      })
+    );
+
+    const bounds = (dateBoundsRaw ?? {}) as {
+      minOccurrenceAt?: string | null;
+      maxOccurrenceAt?: string | null;
+      minReportedAt?: string | null;
+      maxReportedAt?: string | null;
+    };
+
+    const activeTotalRaw = activeRowRaw?.total as string | number | null | undefined;
+    const activeTotal =
+      typeof activeTotalRaw === 'string' ? Number(activeTotalRaw) : activeTotalRaw;
+
+    return {
+      types,
+      severities,
+      statuses,
+      occurrenceRange: {
+        start: bounds.minOccurrenceAt ?? null,
+        end: bounds.maxOccurrenceAt ?? null,
+      },
+      reportedRange: {
+        start: bounds.minReportedAt ?? null,
+        end: bounds.maxReportedAt ?? null,
+      },
+      activeCount: Number(activeTotal ?? 0),
+    };
+  }
+
+  public async findIncidentSummary(incidentNumber: string): Promise<IncidentSearchResult | null> {
+    const row = (await this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select([
+        'i.id as incidentId',
+        'i.incident_number as incidentNumber',
+        'i.title as title',
+        'i.occurrence_at as occurrenceAt',
+        'i.reported_at as reportedAt',
+        'i.dispatch_at as dispatchAt',
+        'i.arrival_at as arrivalAt',
+        'i.resolved_at as resolvedAt',
+        'i.is_active as isActive',
+        'i.casualty_count as casualtyCount',
+        'i.responder_injuries as responderInjuries',
+        'i.estimated_damage_amount as estimatedDamageAmount',
+        'i.location_geohash as locationGeohash',
+        'it.type_code as typeCode',
+        'it.name as typeName',
+        'it.description as typeDescription',
+        'isv.severity_code as severityCode',
+        'isv.name as severityName',
+        'isv.description as severityDescription',
+        'isv.priority as severityPriority',
+        'isv.color_hex as severityColorHex',
+        'ist.status_code as statusCode',
+        'ist.name as statusName',
+        'ist.description as statusDescription',
+        'ist.is_terminal as statusIsTerminal',
+      ])
+      .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
+      .where('i.incident_number', incidentNumber)
+      .first()) as IncidentRowBase | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    const mapped = mapIncidentRow(row);
+    return {
+      incidentNumber: mapped.incidentNumber,
+      title: mapped.title,
+      occurrenceAt: mapped.occurrenceAt,
+      reportedAt: mapped.reportedAt,
+      isActive: mapped.isActive,
+      location: mapped.location,
+      severity: mapped.severity,
+      status: mapped.status,
+      type: mapped.type,
     };
   }
 }

@@ -13,3 +13,15 @@ export const getIncidentDetail = async (req: Request, res: Response): Promise<vo
   const detail = await incidentService.getIncidentDetail(req.params.incidentNumber);
   res.json(detail);
 };
+
+export const getIncidentMetadata = async (_req: Request, res: Response): Promise<void> => {
+  const metadata = await incidentService.getIncidentMetadata();
+  res.json(metadata);
+};
+
+export const searchIncidentByNumber = async (req: Request, res: Response): Promise<void> => {
+  const summary = await incidentService.searchIncidentByNumber(
+    req.query.incidentNumber as string | undefined
+  );
+  res.json(summary);
+};

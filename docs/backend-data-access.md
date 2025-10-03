@@ -34,6 +34,7 @@ Capabilities:
 - **Lookup Metadata** – returns type/severity/status/source/weather information as structured objects.
 - **Geometry Handling** – incident locations are surfaced as GeoJSON `Feature<Point>` objects. `location_geohash` is included for map bucketing.
 - **Detail View** – fetches units, assets, and notes for an incident, along with JSON metadata.
+- **Filter Metadata & Search** – `getIncidentMetadata()` returns cached lookup options/date ranges/active counts, while `findIncidentSummary()` powers quick incident-number lookups with GeoJSON coordinates.
 
 ### StationRepository
 
@@ -60,6 +61,8 @@ Located at `server/src/services/incidentsService.ts`, the service layer wraps `I
 - Adds sorting support for `reportedAt`, `occurrenceAt`, and `severityPriority`, guarding sort direction values.
 - Returns controller-friendly DTOs (`{ data, pagination }`) with totals clamped for map consumers plus derived metadata (`totalPages`, `hasNext`, `hasPrevious`, `sortBy`, `sortDirection`).
 - Provides `getIncidentDetail` with built-in 400/404 handling so controllers remain slim.
+- Surfaces lookup metadata and server limits via `getIncidentMetadata(forceRefresh?)`, which caches responses in-memory for five minutes and exposes `clearCaches()` for test resets.
+- Supports identifier search through `searchIncidentByNumber()`, performing validation, normalization, and 404 translation for the lightweight lookup endpoint.
 
 ### IncidentsTableDataService
 

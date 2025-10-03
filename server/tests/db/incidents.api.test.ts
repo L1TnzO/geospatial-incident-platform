@@ -2,7 +2,7 @@ import request from 'supertest';
 import type { Knex } from 'knex';
 import createApp from '../../src/app';
 import { closeDb, getDb, type IncidentDetail, type IncidentListItem } from '../../src/db';
-import { type IncidentListResponse } from '../../src/services/incidentsService';
+import { incidentService, type IncidentListResponse } from '../../src/services/incidentsService';
 import { getLookupId, iso, pointWkt, purgeTestRecords } from './testUtils';
 
 const TEST_PREFIX = 'TEST_TASK_3_1';
@@ -59,6 +59,10 @@ describe('Incidents API', () => {
       await purgeTestRecords(db, TEST_PREFIX);
     }
     await closeDb();
+  });
+
+  beforeEach(() => {
+    incidentService.clearCaches();
   });
 
   test('returns paginated incidents list with default parameters', async () => {
@@ -218,6 +222,92 @@ describe('Incidents API', () => {
     expect(response.status).toBe(400);
     const body = response.body as ErrorResponse;
     expect(body.error.code).toBe('BAD_REQUEST');
+  });
+
+  test('returns incidents metadata for filter UI', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app).get('/api/incidents/meta');
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      types: Array<{ code: string }>;
+      severities: Array<{ code: string }>;
+      statuses: Array<{ code: string }>;
+      occurrenceRange: { start: string | null; end: string | null };
+      reportedRange: { start: string | null; end: string | null };
+      activeCount: number;
+      limits: { maxPageSize: number; maxTotalResults: number };
+    };
+
+    expect(body.types.map((t) => t.code)).toEqual(
+      expect.arrayContaining(['FIRE_STRUCTURE', 'MEDICAL'])
+    );
+    expect(body.severities.map((s) => s.code)).toEqual(expect.arrayContaining(['CRITICAL']));
+    expect(body.statuses.map((s) => s.code)).toEqual(
+      expect.arrayContaining(['REPORTED', 'ON_SCENE'])
+    );
+    expect(body.occurrenceRange.start).not.toBeNull();
+    expect(body.occurrenceRange.end).not.toBeNull();
+    expect(body.reportedRange.start).not.toBeNull();
+    expect(body.reportedRange.end).not.toBeNull();
+    expect(body.activeCount).toBeGreaterThan(0);
+    expect(body.limits.maxTotalResults).toBe(5000);
+    expect(body.limits.maxPageSize).toBe(100);
+  });
+
+  test('search endpoint returns summary with coordinates', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const targetIncident = seededIncidents[0];
+    const response = await request(app)
+      .get('/api/incidents/search')
+      .query({ incidentNumber: targetIncident.incidentNumber.toLowerCase() });
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      incidentNumber: string;
+      location: { geometry: { coordinates: [number, number] } };
+      severity: { code: string };
+      status: { code: string };
+      type: { code: string };
+    };
+
+    expect(body.incidentNumber).toBe(targetIncident.incidentNumber);
+    expect(body.location.geometry.coordinates.length).toBe(2);
+    expect(body.severity.code).toBe(targetIncident.severityCode);
+  });
+
+  test('search endpoint returns 404 for unknown incidents', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/incidents/search')
+      .query({ incidentNumber: 'UNKNOWN-INCIDENT' });
+
+    expect(response.status).toBe(404);
+    const body = response.body as ErrorResponse;
+    expect(body.error.code).toBe('NOT_FOUND');
+  });
+
+  test('search endpoint validates query parameter', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const missing = await request(app).get('/api/incidents/search');
+    expect(missing.status).toBe(400);
+
+    const invalid = await request(app)
+      .get('/api/incidents/search')
+      .query({ incidentNumber: 'BAD VALUE' });
+    expect(invalid.status).toBe(400);
   });
 });
 

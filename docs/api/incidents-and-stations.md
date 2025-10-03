@@ -196,6 +196,90 @@ Returns a detailed payload for a single incident, including units, assets, notes
 | `400 BAD_REQUEST` | `BAD_REQUEST` | Missing or malformed `incidentNumber`.         |
 | `404 NOT_FOUND`   | `NOT_FOUND`   | No incident found for the supplied identifier. |
 
+## `GET /api/incidents/meta`
+
+Provides lookup metadata and range bounds required to render filter controls. This endpoint is lightweight and cached server-side for five minutes.
+
+### Response
+
+```json
+{
+  "types": [{ "code": "FIRE_STRUCTURE", "name": "Structure Fire", "description": null }],
+  "severities": [{ "code": "CRITICAL", "name": "Critical", "priority": 4, "colorHex": "#F57C00" }],
+  "statuses": [{ "code": "REPORTED", "name": "Reported", "isTerminal": false }],
+  "occurrenceRange": {
+    "start": "2025-07-01T00:00:00.000Z",
+    "end": "2025-07-31T23:59:59.999Z"
+  },
+  "reportedRange": {
+    "start": "2025-07-01T00:05:00.000Z",
+    "end": "2025-07-31T23:59:59.999Z"
+  },
+  "activeCount": 178,
+  "limits": {
+    "maxPageSize": 100,
+    "maxTotalResults": 5000
+  }
+}
+```
+
+- `types`/`severities`/`statuses` provide authoritative values for dropdowns and chips.
+- `occurrenceRange`/`reportedRange` reflect min/max timestamps across all incidents (null when no records exist).
+- `activeCount` returns the number of currently active incidents to power badge indicators.
+- `limits` mirrors backend pagination caps so clients can enforce them locally.
+
+## `GET /api/incidents/search`
+
+Returns an incident summary by identifier for quick selection workflows (e.g., search box linking map + table).
+
+### Query Parameters
+
+| Name             | Type   | Description                                                                                       |
+| ---------------- | ------ | ------------------------------------------------------------------------------------------------- |
+| `incidentNumber` | string | Required. Case-insensitive; must match `^[A-Z0-9._:-]+$`. Leading/trailing whitespace is trimmed. |
+
+### Response
+
+```json
+{
+  "incidentNumber": "INC-20250709-025520",
+  "title": "Structure fire – Midtown",
+  "occurrenceAt": "2025-07-09T02:55:20.000Z",
+  "reportedAt": "2025-07-09T02:56:33.000Z",
+  "isActive": true,
+  "location": {
+    "type": "Feature",
+    "geometry": {
+      "type": "Point",
+      "coordinates": [-73.9857, 40.7484]
+    },
+    "properties": {}
+  },
+  "severity": {
+    "code": "CRITICAL",
+    "name": "Critical",
+    "priority": 4,
+    "colorHex": "#F57C00"
+  },
+  "status": {
+    "code": "ON_SCENE",
+    "name": "On Scene",
+    "isTerminal": false
+  },
+  "type": {
+    "code": "FIRE_STRUCTURE",
+    "name": "Structure Fire"
+  }
+}
+```
+
+### Error Codes
+
+| Status            | Code          | Description                                                    |
+| ----------------- | ------------- | -------------------------------------------------------------- |
+| `400 BAD_REQUEST` | `BAD_REQUEST` | `incidentNumber` missing/blank or contains invalid characters. |
+| `404 NOT_FOUND`   | `NOT_FOUND`   | No incident matched the supplied identifier.                   |
+
 ## `GET /api/stations`
 
 Returns station metadata, including location and optional response zone geometry. This endpoint is used by the frontend station overlay and administration dashboards.

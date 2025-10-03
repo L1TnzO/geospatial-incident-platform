@@ -126,7 +126,7 @@ Each repository returns GeoJSON `Feature` objects for geometry columns and surfa
 
 ### Service Layer
 
-- `IncidentService` (`src/services/incidentsService.ts`) centralizes pagination defaults, filter parsing, and payload shaping for `/api/incidents`. Controllers hand raw query params to the service, which enforces the 5 000-record window and converts repository results into response DTOs.
+- `IncidentService` (`src/services/incidentsService.ts`) centralizes pagination defaults, filter parsing, and payload shaping for `/api/incidents`. It also supplies cached lookup metadata for `/api/incidents/meta` (5-minute TTL) and normalizes identifier lookups for `/api/incidents/search`. Controllers hand raw query params to the service, which enforces the 5 000-record window and converts repository results into response DTOs.
 
 Need contribution standards or CI expectations? See [`docs/contributing.md`](../docs/contributing.md).
 
@@ -171,6 +171,14 @@ Response shape:
 ### `GET /api/incidents/:incidentNumber`
 
 Returns the full incident record (including units, assets, notes, metadata) for the specified incident number. Responds with `404` if the incident does not exist and `400` for malformed identifiers.
+
+### `GET /api/incidents/meta`
+
+Returns lookup metadata (types, severities, statuses), date range bounds, the active incident count, and the server-enforced pagination limits. Responses are cached in-memory for five minutes; the cache clears automatically on TTL expiry or via `incidentService.clearCaches()` (used by the test suite).
+
+### `GET /api/incidents/search`
+
+Returns a concise incident summary (title, timestamps, GeoJSON point, type/severity/status) for a specific incident number. Input is case-insensitive and limited to `A-Z0-9._:-` characters. Responds with `400` for missing/invalid identifiers and `404` when no match is found.
 
 ### `GET /api/stations`
 

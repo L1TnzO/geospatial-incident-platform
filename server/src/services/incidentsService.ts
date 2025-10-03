@@ -3,9 +3,11 @@ import type {
   IncidentDetail,
   IncidentListFilters,
   IncidentListItem,
+  IncidentMetadata,
   IncidentSortField,
   PaginatedResult,
   PaginationMeta,
+  IncidentSearchResult,
 } from '../db';
 import { HttpError } from '../errors/httpError';
 
@@ -13,6 +15,7 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const MAX_TOTAL_RESULTS = 5000;
+const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const SORTABLE_FIELDS: readonly IncidentSortField[] = [
   'reportedAt',
@@ -192,10 +195,18 @@ const buildPaginationMeta = (
 interface IncidentRepositoryLike {
   listIncidents(filters: IncidentListOptions): Promise<PaginatedResult<IncidentListItem>>;
   getIncidentDetail(incidentNumber: string): Promise<IncidentDetail | null>;
+  getIncidentMetadata(): Promise<Omit<IncidentMetadata, 'limits'>>;
+  findIncidentSummary(incidentNumber: string): Promise<IncidentSearchResult | null>;
 }
 
 export class IncidentService {
+  private metadataCache: { expiresAt: number; value: IncidentMetadata } | null = null;
+
   constructor(private readonly repository: IncidentRepositoryLike = incidentRepository) {}
+
+  public clearCaches(): void {
+    this.metadataCache = null;
+  }
 
   public buildListOptions(query: Record<string, QueryValue>): IncidentListOptions {
     const page = parseInteger(query.page, 'page', { min: 1 }) ?? DEFAULT_PAGE;
@@ -253,6 +264,53 @@ export class IncidentService {
     }
 
     return detail;
+  }
+
+  public async getIncidentMetadata(forceRefresh = false): Promise<IncidentMetadata> {
+    const now = Date.now();
+    if (!forceRefresh && this.metadataCache && this.metadataCache.expiresAt > now) {
+      return this.metadataCache.value;
+    }
+
+    const base = await this.repository.getIncidentMetadata();
+    const metadata: IncidentMetadata = {
+      ...base,
+      limits: {
+        maxPageSize: MAX_PAGE_SIZE,
+        maxTotalResults: MAX_TOTAL_RESULTS,
+      },
+    };
+
+    this.metadataCache = {
+      value: metadata,
+      expiresAt: now + METADATA_CACHE_TTL_MS,
+    };
+
+    return metadata;
+  }
+
+  public async searchIncidentByNumber(
+    incidentNumber: string | undefined
+  ): Promise<IncidentSearchResult> {
+    const normalized = incidentNumber?.trim();
+    if (!normalized) {
+      throw HttpError.badRequest("Query parameter 'incidentNumber' is required.");
+    }
+
+    if (!/^[A-Z0-9._:-]+$/i.test(normalized)) {
+      throw HttpError.badRequest(
+        "Query parameter 'incidentNumber' must contain only letters, digits, and -._: characters."
+      );
+    }
+
+    const lookupValue = normalized.toUpperCase();
+    const summary = await this.repository.findIncidentSummary(lookupValue);
+
+    if (!summary) {
+      throw HttpError.notFound(`Incident '${lookupValue}' was not found.`);
+    }
+
+    return summary;
   }
 }
 
