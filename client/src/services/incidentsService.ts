@@ -45,6 +45,7 @@ export interface FetchIncidentsOptions {
   isActive?: boolean;
   sortBy?: IncidentSortField;
   sortDirection?: 'asc' | 'desc';
+  incidentNumber?: string;
 }
 
 export const fetchIncidents = async ({
@@ -59,6 +60,7 @@ export const fetchIncidents = async ({
   isActive,
   sortBy,
   sortDirection,
+  incidentNumber,
 }: FetchIncidentsOptions = {}): Promise<IncidentListResponse> => {
   const normalizedPageSize = Math.min(Math.max(pageSize, 1), DEFAULT_PAGE_SIZE);
 
@@ -73,6 +75,7 @@ export const fetchIncidents = async ({
     isActive,
     sortBy,
     sortDirection,
+    incidentNumber,
   });
 
   const response = await fetch(url.toString(), {

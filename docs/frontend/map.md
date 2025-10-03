@@ -8,10 +8,12 @@ This guide explains how the Geospatial Incident Platform map works, the endpoint
 - Data hooks:
   - `useIncidents()` fetches `/api/incidents` once, capping results at 5 000 summaries to satisfy RF07. It exposes loading/error states, pagination metadata, and a remainder indicator when more incidents exist than the cap renders.
   - `useStations({ isActive: true })` fetches `/api/stations` and memoizes results per filter. Requests rely on browser caching via `AbortController` and an in-memory cache for quick toggles.
+  - `useIncidentSearch()` hydrates `/api/incidents/meta`, debounces `/api/incidents/search` lookups, and exposes `search`, `lastResult`, and error/loading flags for the global search bar.
 - State management:
   - `useMapStore` stores the current map center/zoom.
   - `useMapPreferencesStore` stores UI preferences (currently only the station overlay toggle).
   - `useIncidentDetailStore` tracks the incident selected in the popup and controls whether the detail modal is open.
+  - `useIncidentTableData` now responds to an `incidentNumber` filter that the search bar toggles to automatically surface the located incident in the table.
 - Rendering pipeline:
   1. `MapContainer` (Leaflet) renders the tile layer and orchestrates the viewport.
   2. `IncidentClusterLayer` clusters incidents with `supercluster` and renders cluster markers or individual incident markers with popups.
@@ -41,6 +43,16 @@ The banner above the map displays **“Showing X of Y incidents”** when more i
 - `IncidentDetailModal` subscribes to `useIncidentDetailStore`, which now prefetches `/api/incidents/{incidentNumber}` when the modal opens from either the map or the incidents table.
 - Responses are cached in-memory by incident number to prevent redundant requests; retry/loader states surface in the modal header when fetches are pending or fail.
 - Closing the modal resets selection via `closeIncident()` and aborts any in-flight detail fetch to keep the store consistent with user intent.
+
+## Incident Search & Table Sync
+
+- The dashboard header renders `IncidentSearchBar` (see `client/src/components/IncidentSearchBar.tsx`). It loads `/api/incidents/meta` for placeholder text, debounces `/api/incidents/search`, and persists the five most recent hits to `localStorage` (`gip::incidentSearchHistory::v1`).
+- On a successful lookup, the search bar:
+  1. Calls `useMapStore.setView` with the incident's coordinates (zoom `14`) to recenter the map.
+  2. Invokes `useIncidentDetailStore.openIncident`, priming the detail modal cache and highlighting the matching row in the table.
+  3. Passes the uppercase incident number to `useIncidentTableData.setFilters`, which re-fetches the table with an `incidentNumber` filter so the located record appears at the top.
+- The incident table listens for changes to the selected incident. When the modal closes (`closeIncident()`), it clears the incident-number filter so pagination returns to the previous view.
+- Component-level tests (`IncidentSearchBar.test.tsx`, `IncidentTable.test.tsx`) cover success/error states, history persistence, and the cross-store integration described above.
 
 ## Testing & Validation
 

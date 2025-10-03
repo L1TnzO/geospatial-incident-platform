@@ -1,5 +1,5 @@
-import type { ChangeEvent } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { useEffect, type ChangeEvent } from 'react';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import '@/lib/leaflet';
 import { useIncidents } from '@/hooks/useIncidents';
 import { useStations } from '@/hooks/useStations';
@@ -9,8 +9,21 @@ import IncidentClusterLayer from './IncidentClusterLayer';
 import StationLayer from './StationLayer';
 import IncidentDetailModal from './IncidentDetailModal';
 
+const MapViewportController = () => {
+  const center = useMapStore((state) => state.center);
+  const zoom = useMapStore((state) => state.zoom);
+  const map = useMap();
+
+  useEffect(() => {
+    map.setView(center, zoom, { animate: true });
+  }, [map, center, zoom]);
+
+  return null;
+};
+
 const MapView = () => {
-  const { center, zoom } = useMapStore();
+  const center = useMapStore((state) => state.center);
+  const zoom = useMapStore((state) => state.zoom);
   const showStations = useMapPreferencesStore((state) => state.showStations);
   const setShowStations = useMapPreferencesStore((state) => state.setShowStations);
   const {
@@ -77,6 +90,7 @@ const MapView = () => {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            <MapViewportController />
             <IncidentClusterLayer incidents={incidents} />
             <StationLayer stations={stations} isVisible={showStations} />
           </MapContainer>

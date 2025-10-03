@@ -68,6 +68,19 @@ const sanitizeDateString = (value: unknown): string | undefined => {
   return Number.isNaN(timestamp) ? undefined : new Date(timestamp).toISOString();
 };
 
+const sanitizeIncidentNumber = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return trimmed.toUpperCase();
+};
+
 const sanitizeStoredFilters = (value: unknown): TableFiltersState => {
   const base = buildInitialFilters();
   if (!value || typeof value !== 'object') {
@@ -105,6 +118,11 @@ const sanitizeStoredFilters = (value: unknown): TableFiltersState => {
   }
   if (endDate) {
     next.endDate = endDate;
+  }
+
+  const incidentNumber = sanitizeIncidentNumber(raw.incidentNumber);
+  if (incidentNumber) {
+    next.incidentNumber = incidentNumber;
   }
 
   return next;
@@ -291,6 +309,15 @@ export const useIncidentTableData = (): UseIncidentTableDataState => {
         next.page = sanitizePage(partial.page);
       }
 
+      if (Object.prototype.hasOwnProperty.call(partial, 'incidentNumber')) {
+        const sanitizedIncident = sanitizeIncidentNumber(partial.incidentNumber);
+        if (sanitizedIncident) {
+          next.incidentNumber = sanitizedIncident;
+        } else {
+          delete next.incidentNumber;
+        }
+      }
+
       if (
         partial.page === undefined &&
         (partial.typeCodes !== undefined ||
@@ -300,7 +327,8 @@ export const useIncidentTableData = (): UseIncidentTableDataState => {
           partial.endDate !== undefined ||
           partial.sortBy !== undefined ||
           partial.sortDirection !== undefined ||
-          partial.isActive !== undefined)
+          partial.isActive !== undefined ||
+          Object.prototype.hasOwnProperty.call(partial, 'incidentNumber'))
       ) {
         next.page = DEFAULT_PAGE;
       }

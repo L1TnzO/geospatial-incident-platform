@@ -1,5 +1,6 @@
 import MapView from '@/components/MapView';
 import IncidentTable from '@/components/IncidentTable';
+import IncidentSearchBar from '@/components/IncidentSearchBar';
 
 const DashboardPage = () => (
   <div className="dashboard-page">
@@ -11,6 +12,7 @@ const DashboardPage = () => (
         roll out in upcoming milestones.
       </p>
     </section>
+    <IncidentSearchBar />
     <MapView />
     <IncidentTable />
   </div>

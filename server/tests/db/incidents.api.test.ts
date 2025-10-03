@@ -258,6 +258,25 @@ describe('Incidents API', () => {
     expect(body.limits.maxPageSize).toBe(100);
   });
 
+  test('filters incidents by incidentNumber, ignoring case', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const targetIncident = seededIncidents[1];
+    const response = await request(app)
+      .get('/api/incidents')
+      .query({ incidentNumber: targetIncident.incidentNumber.toLowerCase() });
+
+    expect(response.status).toBe(200);
+    const body = response.body as IncidentListResponse;
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.incidentNumber).toBe(targetIncident.incidentNumber);
+    expect(body.pagination.total).toBe(1);
+    expect(body.pagination.totalPages).toBe(1);
+    expect(body.pagination.page).toBe(1);
+  });
+
   test('search endpoint returns summary with coordinates', async () => {
     if (!requireDb()) {
       return;

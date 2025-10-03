@@ -273,6 +273,7 @@ describe('IncidentTable', () => {
       statusCodes: undefined,
       startDate: undefined,
       endDate: undefined,
+      incidentNumber: undefined,
     });
   });
 
@@ -299,7 +300,8 @@ describe('IncidentTable', () => {
 
   it('highlights the selected incident row from the detail store', async () => {
     const incident = buildIncident({ incidentNumber: 'INC-777', title: 'Selected Incident' });
-    useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident] }));
+    const setFilters = vi.fn();
+    useIncidentTableDataMock.mockReturnValue(createState({ rows: [incident], setFilters }));
 
     render(<IncidentTable />);
 
@@ -312,6 +314,40 @@ describe('IncidentTable', () => {
     expect(selectedRow).toHaveClass('incident-table__row--selected');
 
     await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(setFilters).toHaveBeenCalledWith({ incidentNumber: incident.incidentNumber })
+    );
+  });
+
+  it('clears the incident filter when the detail modal closes', async () => {
+    const incident = buildIncident({ incidentNumber: 'INC-901', title: 'Closing Test' });
+    const setFilters = vi.fn();
+    useIncidentTableDataMock
+      .mockReturnValueOnce(createState({ rows: [incident], setFilters }))
+      .mockReturnValueOnce(createState({ rows: [incident], setFilters }))
+      .mockReturnValue(
+        createState({
+          rows: [incident],
+          setFilters,
+          filters: { incidentNumber: incident.incidentNumber },
+        })
+      );
+
+    render(<IncidentTable />);
+
+    act(() => {
+      useIncidentDetailStore.getState().openIncident(incident);
+    });
+
+    await waitFor(() =>
+      expect(setFilters).toHaveBeenCalledWith({ incidentNumber: incident.incidentNumber })
+    );
+
+    act(() => {
+      useIncidentDetailStore.getState().closeIncident();
+    });
+
+    await waitFor(() => expect(setFilters).toHaveBeenLastCalledWith({ incidentNumber: undefined }));
   });
 
   it('opens the incident detail modal when a row is activated', async () => {

@@ -18,6 +18,184 @@
   max-width: 720px;
 }
 
+.incident-search {
+  position: relative;
+  background-color: var(--color-elevated);
+  border-radius: 0.75rem;
+  box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 1.25rem clamp(1rem, 3vw, 2rem);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.incident-search__form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.incident-search__label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.8);
+}
+
+.incident-search__input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.incident-search__input-wrapper input {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  font-size: 0.95rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.incident-search__input-wrapper input:focus-visible {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.incident-search__clear,
+.incident-search__submit {
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.incident-search__clear {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: rgba(15, 23, 42, 0.75);
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+}
+
+.incident-search__clear:hover {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.incident-search__submit {
+  padding: 0.65rem 1.35rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95), rgba(14, 116, 144, 0.95));
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.incident-search__submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0.75rem 1.5rem rgba(59, 130, 246, 0.35);
+}
+
+.incident-search__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.incident-search__status {
+  min-height: 1.2rem;
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.incident-search__error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.incident-search__success {
+  color: rgba(16, 185, 129, 0.95);
+  font-weight: 600;
+}
+
+.incident-search__helper {
+  font-size: 0.8rem;
+  color: rgba(15, 23, 42, 0.6);
+}
+
+.incident-search__suggestions {
+  position: absolute;
+  top: calc(100% - 0.25rem);
+  left: clamp(1rem, 3vw, 2rem);
+  right: clamp(1rem, 3vw, 2rem);
+  background: #fff;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.12);
+  list-style: none;
+  padding: 0.35rem 0;
+  margin: 0;
+  z-index: 50;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.incident-search__suggestion {
+  width: 100%;
+  background: transparent;
+  border: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.incident-search__suggestion:hover,
+.incident-search__suggestion:focus-visible {
+  background: rgba(59, 130, 246, 0.08);
+  outline: none;
+}
+
+.incident-search__suggestion-number {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.incident-search__suggestion-title {
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.65);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .incident-search__input-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .incident-search__clear,
+  .incident-search__submit {
+    width: 100%;
+  }
+
+  .incident-search__suggestions {
+    left: 1rem;
+    right: 1rem;
+  }
+}
+
 .map-card {
   background-color: var(--color-elevated);
   border-radius: 0.75rem;

@@ -40,6 +40,7 @@ export interface IncidentTableFilters {
   startDate?: string;
   endDate?: string;
   isActive?: boolean;
+  incidentNumber?: string;
   signal?: AbortSignal;
 }
 
@@ -69,6 +70,7 @@ export const fetchIncidentTableData = async (
     startDate,
     endDate,
     isActive,
+    incidentNumber,
   } = filters;
 
   const resolvedPageSize = resolvePageSize(pageSize);
@@ -86,6 +88,7 @@ export const fetchIncidentTableData = async (
     startDate,
     endDate,
     isActive,
+    incidentNumber,
   });
 
   const remainder = computeRemainder(response.pagination);

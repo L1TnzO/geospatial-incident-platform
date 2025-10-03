@@ -193,6 +193,7 @@ describe('useIncidentTableData', () => {
         startDate: '2025-01-01T00:00:00.000Z',
         endDate: '2025-01-15T23:59:59.999Z',
         isActive: false,
+        incidentNumber: 'inc-123',
       },
     };
 
@@ -210,6 +211,7 @@ describe('useIncidentTableData', () => {
     expect(result.current.filters.startDate).toBe('2025-01-01T00:00:00.000Z');
     expect(result.current.filters.endDate).toBe('2025-01-15T23:59:59.999Z');
     expect(result.current.filters.isActive).toBe(false);
+    expect(result.current.filters.incidentNumber).toBe('INC-123');
   });
 
   it('persists filters to localStorage when they change', async () => {
@@ -218,7 +220,11 @@ describe('useIncidentTableData', () => {
     await waitFor(() => expect(fetchIncidentTableDataMock).toHaveBeenCalledTimes(1));
 
     await act(async () => {
-      result.current.setFilters({ severityCodes: ['CRITICAL'], pageSize: 40 });
+      result.current.setFilters({
+        severityCodes: ['CRITICAL'],
+        pageSize: 40,
+        incidentNumber: 'inc-555',
+      });
     });
 
     await waitFor(() => {
@@ -232,6 +238,24 @@ describe('useIncidentTableData', () => {
       expect(payload.filters?.severityCodes).toEqual(['CRITICAL']);
       expect(payload.filters?.pageSize).toBe(40);
       expect(payload.filters?.page).toBe(1);
+      expect(payload.filters?.incidentNumber).toBe('INC-555');
+    });
+  });
+
+  it('sanitizes incidentNumber filters and triggers refetch', async () => {
+    const { result } = renderHook(() => useIncidentTableData());
+
+    await waitFor(() => expect(fetchIncidentTableDataMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      result.current.setFilters({ incidentNumber: '  inc-789  ' });
+    });
+
+    await waitFor(() => expect(result.current.filters.incidentNumber).toBe('INC-789'));
+    await waitFor(() => expect(result.current.filters.page).toBe(1));
+    await waitFor(() => expect(fetchIncidentTableDataMock).toHaveBeenCalledTimes(2));
+    expect(fetchIncidentTableDataMock.mock.calls[1]?.[0]).toMatchObject({
+      incidentNumber: 'INC-789',
     });
   });
 });

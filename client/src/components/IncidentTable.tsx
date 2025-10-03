@@ -166,6 +166,17 @@ const IncidentTable = () => {
   );
 
   useEffect(() => {
+    const currentFilter = filters.incidentNumber;
+    if (selectedIncidentNumber) {
+      if (currentFilter !== selectedIncidentNumber) {
+        setFilters({ incidentNumber: selectedIncidentNumber });
+      }
+    } else if (currentFilter !== undefined) {
+      setFilters({ incidentNumber: undefined });
+    }
+  }, [filters.incidentNumber, selectedIncidentNumber, setFilters]);
+
+  useEffect(() => {
     if (!selectedIncidentNumber) {
       return;
     }
@@ -181,6 +192,21 @@ const IncidentTable = () => {
       }
     }
   }, [selectedIncidentNumber, rows]);
+
+  useEffect(() => {
+    if (!selectedIncidentNumber) {
+      return;
+    }
+
+    const isInCurrentRows = rows.some(
+      (incident) => incident.incidentNumber === selectedIncidentNumber
+    );
+    const currentPage = filters.page ?? 1;
+
+    if (!isInCurrentRows && !isLoading && currentPage !== 1) {
+      setPage(1);
+    }
+  }, [selectedIncidentNumber, rows, filters.page, isLoading, setPage]);
 
   const [severityDraft, setSeverityDraft] = useState<string[]>(() => filters.severityCodes ?? []);
   const [statusDraft, setStatusDraft] = useState<string[]>(() => filters.statusCodes ?? []);
@@ -273,7 +299,8 @@ const IncidentTable = () => {
     (filters.severityCodes && filters.severityCodes.length > 0) ||
       (filters.statusCodes && filters.statusCodes.length > 0) ||
       filters.startDate ||
-      filters.endDate
+      filters.endDate ||
+      filters.incidentNumber
   );
 
   const applyFilters = () => {
@@ -299,6 +326,7 @@ const IncidentTable = () => {
       statusCodes: undefined,
       startDate: undefined,
       endDate: undefined,
+      incidentNumber: undefined,
     });
   };
 
@@ -333,8 +361,13 @@ const IncidentTable = () => {
     : undefined;
 
   const dateSummary = formatDateSummary(filters.startDate, filters.endDate);
+  const incidentSummary = filters.incidentNumber
+    ? `Incident: ${filters.incidentNumber}`
+    : undefined;
 
-  const filterSummaries = [severitySummary, statusSummary, dateSummary].filter(Boolean) as string[];
+  const filterSummaries = [severitySummary, statusSummary, dateSummary, incidentSummary].filter(
+    Boolean
+  ) as string[];
 
   return (
     <section className="map-card incident-table-card" aria-label="Incidents table">

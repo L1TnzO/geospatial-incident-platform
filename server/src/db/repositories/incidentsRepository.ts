@@ -26,6 +26,7 @@ export interface IncidentListFilters {
   isActive?: boolean;
   sortBy?: 'reportedAt' | 'occurrenceAt' | 'severityPriority';
   sortDirection?: 'asc' | 'desc';
+  incidentNumber?: string;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -194,6 +195,10 @@ const applyFilters = (query: Knex.QueryBuilder, filters: IncidentListFilters): v
 
   if (filters.endDate) {
     query.where('i.occurrence_at', '<=', filters.endDate);
+  }
+
+  if (filters.incidentNumber) {
+    query.whereRaw('UPPER(i.incident_number) = ?', [filters.incidentNumber.toUpperCase()]);
   }
 };
 

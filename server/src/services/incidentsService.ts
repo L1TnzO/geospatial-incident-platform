@@ -213,10 +213,20 @@ export class IncidentService {
     const pageSize =
       parseInteger(query.pageSize, 'pageSize', { min: 1, max: MAX_PAGE_SIZE }) ?? DEFAULT_PAGE_SIZE;
 
-    const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
-    if (page > maxPage) {
+    const incidentNumberRaw = normalizeValue(query.incidentNumber)?.trim();
+    if (incidentNumberRaw && !/^[A-Z0-9._:-]+$/i.test(incidentNumberRaw)) {
       throw HttpError.badRequest(
-        `The combination of page=${page} and pageSize=${pageSize} exceeds the maximum supported range of ${MAX_TOTAL_RESULTS} records.`
+        "Query parameter 'incidentNumber' must contain only letters, digits, and -._: characters."
+      );
+    }
+    const incidentNumber = incidentNumberRaw ? incidentNumberRaw.toUpperCase() : undefined;
+
+    const resolvedPage = incidentNumber ? DEFAULT_PAGE : page;
+
+    const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
+    if (resolvedPage > maxPage) {
+      throw HttpError.badRequest(
+        `The combination of page=${resolvedPage} and pageSize=${pageSize} exceeds the maximum supported range of ${MAX_TOTAL_RESULTS} records.`
       );
     }
 
@@ -234,7 +244,7 @@ export class IncidentService {
     }
 
     return {
-      page,
+      page: resolvedPage,
       pageSize,
       typeCodes,
       severityCodes,
@@ -244,6 +254,7 @@ export class IncidentService {
       isActive,
       sortBy,
       sortDirection,
+      incidentNumber,
     };
   }
 

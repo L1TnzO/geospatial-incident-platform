@@ -7,6 +7,8 @@ import { resetMapPreferencesStore } from '@/store/useMapPreferencesStore';
 
 vi.mock('@/lib/leaflet', () => ({ leaflet: {} }));
 
+const setViewMock = vi.fn();
+
 vi.mock('react-leaflet', async () => {
   const React = await import('react');
   return {
@@ -14,6 +16,7 @@ vi.mock('react-leaflet', async () => {
     MapContainer: ({ children }: { children?: React.ReactNode }) =>
       React.createElement('div', { 'data-testid': 'map' }, children),
     TileLayer: () => React.createElement('div', { 'data-testid': 'tile-layer' }),
+    useMap: () => ({ setView: setViewMock }),
   };
 });
 
@@ -221,6 +224,7 @@ describe('MapView integration', () => {
     });
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
+    setViewMock.mockReset();
   });
 
   it('renders incidents and stations from API responses and opens detail modal', async () => {

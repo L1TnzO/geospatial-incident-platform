@@ -25,9 +25,14 @@ vi.mock('@/hooks/useStations', () => ({
   useStations: () => mockedUseStations(),
 }));
 
+const setViewMock = vi.fn();
+
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children: ReactNode }) => <div data-testid="map">{children}</div>,
   TileLayer: () => <div data-testid="tile" />,
+  useMap: () => ({
+    setView: setViewMock,
+  }),
 }));
 
 const stationLayerSpy = vi.fn<(isVisible: boolean) => void>();
@@ -76,6 +81,7 @@ describe('MapView', () => {
     mockedUseIncidents.mockReset();
     mockedUseStations.mockReset();
     stationLayerSpy.mockReset();
+    setViewMock.mockReset();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

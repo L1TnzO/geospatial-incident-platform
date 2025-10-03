@@ -93,3 +93,34 @@ export interface IncidentDetail extends IncidentListItem {
   assets: IncidentAsset[];
   notes: IncidentNote[];
 }
+
+export interface IncidentMetadata {
+  types: IncidentLookupValue[];
+  severities: IncidentSeverity[];
+  statuses: IncidentStatus[];
+  occurrenceRange: {
+    start: string | null;
+    end: string | null;
+  };
+  reportedRange: {
+    start: string | null;
+    end: string | null;
+  };
+  activeCount: number;
+  limits: {
+    maxPageSize: number;
+    maxTotalResults: number;
+  };
+}
+
+export interface IncidentSearchResult {
+  incidentNumber: string;
+  title: string;
+  occurrenceAt: string;
+  reportedAt: string;
+  isActive: boolean;
+  location: GeoJsonPoint;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  type: IncidentLookupValue;
+}
