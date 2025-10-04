@@ -128,4 +128,48 @@ describe('fetchIncidentTableData', () => {
     expect(result.pagination.sortBy).toBe('severityPriority');
     expect(result.pagination.sortDirection).toBe('desc');
   });
+
+  it('forwards filter parameters to fetchIncidents, including incidentNumber', async () => {
+    const response = buildResponse({
+      data: [buildIncident({ incidentNumber: 'INC-500' })],
+      pagination: {
+        page: 1,
+        pageSize: 25,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrevious: false,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      },
+    });
+
+    fetchIncidentsMock.mockResolvedValue(response);
+
+    await fetchIncidentTableData({
+      page: 2,
+      typeCodes: ['FIRE_STRUCTURE'],
+      severityCodes: ['CRITICAL'],
+      statusCodes: ['ON_SCENE'],
+      startDate: '2025-01-01T00:00:00.000Z',
+      endDate: '2025-01-31T23:59:59.999Z',
+      isActive: false,
+      incidentNumber: 'INC-500',
+      sortDirection: 'asc',
+    });
+
+    expect(fetchIncidentsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 2,
+        typeCodes: ['FIRE_STRUCTURE'],
+        severityCodes: ['CRITICAL'],
+        statusCodes: ['ON_SCENE'],
+        startDate: '2025-01-01T00:00:00.000Z',
+        endDate: '2025-01-31T23:59:59.999Z',
+        isActive: false,
+        incidentNumber: 'INC-500',
+        sortDirection: 'asc',
+      })
+    );
+  });
 });

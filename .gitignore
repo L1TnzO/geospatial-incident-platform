@@ -5,6 +5,10 @@ node_modules/
 dist/
 build/
 coverage/
+playwright-report/
+test-results/
+client/playwright-report/
+client/test-results/
 
 # Environment files
 .env

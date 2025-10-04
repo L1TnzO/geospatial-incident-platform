@@ -10,9 +10,13 @@
     "lint:server": "npm --prefix server run lint",
     "test": "npm-run-all test:server test:client",
     "test:client": "npm --prefix client run test -- --run",
+    "test:client:integration": "npm --prefix client run test:integration",
+    "test:client:e2e": "npm --prefix client run test:e2e",
     "test:server": "npm-run-all --sequential test:server:unit test:server:integration",
     "test:server:unit": "npm --prefix server run test -- --runInBand",
     "test:server:integration": "npm --prefix server run test:db",
+    "test:integration": "npm run test:client:integration",
+    "test:e2e": "npm run test:client:e2e",
     "format": "prettier --check \"**/*.{js,ts,tsx,jsx,json,md,css,scss}\"",
     "format:write": "prettier --write \"**/*.{js,ts,tsx,jsx,json,md,css,scss}\""
   },

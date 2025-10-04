@@ -118,6 +118,10 @@ describe('IncidentSearchBar', () => {
     );
     expect(await screen.findByText(/Incident 'INC-404' was not found\./i)).toBeInTheDocument();
     expect(useIncidentDetailStore.getState().selectedIncident).toBeNull();
+
+    const mapState = useMapStore.getState();
+    expect(mapState.center).toEqual([40.7128, -74.006]);
+    expect(mapState.zoom).toBe(11);
   });
 
   it('loads recent history from localStorage and limits suggestions', async () => {

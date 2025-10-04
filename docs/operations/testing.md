@@ -24,7 +24,9 @@ This guide outlines how to run automated tests for the Geospatial Incident Platf
 | `npm test`                        | Runs server unit tests, database integration suites, and frontend Vitest suites. Integration specs will emit skip notices if the database is unreachable.                   |
 | `npm run test:server:unit`        | Backend unit tests only (`jest --runInBand`).                                                                                                                               |
 | `npm run test:server:integration` | Database-backed Jest suites under `server/tests/db`. Requires PostGIS; set `DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres` when running outside Docker. |
-| `npm run test:client`             | Frontend unit/integration tests, including the MapView integration coverage that exercises incident/station overlays and detail modal wiring.                               |
+| `npm run test:client`             | Full frontend Vitest suite (unit + integration).                                                                                                                            |
+| `npm run test:integration`        | Frontend integration subset (`*.integration.test.tsx`) targeting cross-component flows such as the dashboard table/search/map coordination.                                 |
+| `npm run test:e2e`                | Playwright browser automation covering the dashboard happy path (filters → search → detail). Requires Vite dev server; see _Frontend E2E coverage_ below.                   |
 
 ### Backend integration coverage
 
@@ -40,7 +42,24 @@ Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose
 
 ### Frontend integration coverage
 
-Vitest now includes `MapView.integration.test.tsx`, which exercises the combined incidents + stations layers and detail trigger logic by mocking API responses at the fetch layer. No browser automation is required; the test runs headless in Node.
+Vitest integration specs live alongside the components they exercise and run headless in Node:
+
+- `MapView.integration.test.tsx` validates the incident/station layers and detail modal wiring with mocked fetch responses.
+- `DashboardPage.integration.test.tsx` stubs the `/api/incidents` family with MSW, then drives the search bar, map view, and table together to assert that filters translate into query parameters (including `incidentNumber`) and that the detail modal opens with the correct payload.
+
+Run `npm run test:integration` to execute only these cross-component suites when iterating locally.
+
+### Frontend E2E coverage
+
+Playwright scenarios live under `client/tests/e2e/` and rely on route intercepts instead of a live backend. `npm run test:e2e` will:
+
+1. Launch the Vite dev server (or reuse an existing instance when not in CI).
+2. Open the dashboard, apply severity/status/date filters, and assert the table issues the expected `/api/incidents` query params.
+3. Perform an incident number search, verify the table refresh, and confirm the detail modal plus map state update.
+
+Artifacts (screenshots, traces, and video) are captured automatically on failure inside `playwright-report/`.
+
+> **First run:** install Playwright browsers once per environment with `npx playwright install --with-deps chromium`.
 
 ## Cleaning up
 
