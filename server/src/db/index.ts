@@ -4,6 +4,9 @@ export {
   IncidentRepository,
   incidentRepository,
   type IncidentListFilters,
+  type CreateIncidentInput,
+  type IncidentLocationInput,
+  IncidentLookupError,
 } from './repositories/incidentsRepository';
 export {
   StationRepository,

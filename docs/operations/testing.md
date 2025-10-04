@@ -28,7 +28,15 @@ This guide outlines how to run automated tests for the Geospatial Incident Platf
 
 ### Backend integration coverage
 
-Backend tests under `server/tests/db/` seed fixtures that tie incidents and stations together, then verify `/api/incidents` and `/api/stations` responses, GeoJSON payloads, and filter behavior. Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose already configures this for the backend container. When the variable is not set or the database is offline, the suites log a warning and skip assertions so local development can proceed.
+Backend tests under `server/tests/db/` seed fixtures that tie incidents and stations together, then verify `/api/incidents` and `/api/stations` responses, GeoJSON payloads, and filter behavior. The new suites include:
+
+- `incidents.filters.int.test.ts` — exercises pagination, combined filters (type/severity/status/date/isActive), validation errors, and the 5 000-record window guard.
+- `incidents.crud.int.test.ts` — covers `POST /api/incidents` success, timeline validation, lookup failures, and duplicate handling, ensuring caches reset after inserts.
+- `incidents.api.test.ts` — baseline list/detail, metadata refresh, and search coverage shared with previous milestones.
+
+Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose already configures this for the backend container. When the variable is not set or the database is offline, the suites log a warning and skip assertions so local development can proceed.
+
+> **Coverage thresholds:** Jest now enforces a minimum of 85 % for statements/functions/lines and 80 % for branches at the backend level. Failing to meet these numbers will break the CI build, so keep specs in sync with new features.
 
 ### Frontend integration coverage
 

@@ -1,13 +1,16 @@
-import { incidentRepository } from '../db';
-import type {
-  IncidentDetail,
-  IncidentListFilters,
-  IncidentListItem,
-  IncidentMetadata,
-  IncidentSortField,
-  PaginatedResult,
-  PaginationMeta,
-  IncidentSearchResult,
+import {
+  incidentRepository,
+  IncidentLookupError,
+  type CreateIncidentInput,
+  type IncidentDetail,
+  type IncidentListFilters,
+  type IncidentListItem,
+  type IncidentMetadata,
+  type IncidentSortField,
+  type PaginatedResult,
+  type PaginationMeta,
+  type IncidentSearchResult,
+  type IncidentLocationInput,
 } from '../db';
 import { HttpError } from '../errors/httpError';
 
@@ -25,6 +28,174 @@ const SORTABLE_FIELDS: readonly IncidentSortField[] = [
 type SortableField = IncidentSortField;
 
 type QueryValue = string | string[] | undefined;
+
+export interface CreateIncidentRequest {
+  incidentNumber?: string | null;
+  externalReference?: string | null;
+  title?: string | null;
+  narrative?: string | null;
+  typeCode?: string | null;
+  severityCode?: string | null;
+  statusCode?: string | null;
+  sourceCode?: string | null;
+  weatherCode?: string | null;
+  primaryStationCode?: string | null;
+  occurrenceAt?: string | null;
+  reportedAt?: string | null;
+  dispatchAt?: string | null;
+  arrivalAt?: string | null;
+  resolvedAt?: string | null;
+  casualtyCount?: number | string | null;
+  responderInjuries?: number | string | null;
+  estimatedDamageAmount?: number | string | null;
+  isActive?: boolean | null;
+  metadata?: Record<string, unknown> | null;
+  location?: {
+    latitude?: number;
+    longitude?: number;
+  } | null;
+}
+
+const INCIDENT_IDENTIFIER_PATTERN = /^[A-Z0-9._:-]+$/i;
+
+const requireString = (value: unknown, field: string): string => {
+  if (typeof value !== 'string') {
+    throw HttpError.badRequest(`Field '${field}' is required.`);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw HttpError.badRequest(`Field '${field}' is required.`);
+  }
+  return trimmed;
+};
+
+const sanitizeOptionalString = (value: unknown, field: string): string | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw HttpError.badRequest(`Field '${field}' must be a string.`);
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const parseDateField = (value: unknown, field: string): Date => {
+  const raw = requireString(value, field);
+  const timestamp = Date.parse(raw);
+  if (Number.isNaN(timestamp)) {
+    throw HttpError.badRequest(`Field '${field}' must be a valid ISO-8601 date string.`);
+  }
+  return new Date(timestamp);
+};
+
+const parseOptionalDateField = (value: unknown, field: string): Date | null => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw HttpError.badRequest(`Field '${field}' must be a valid ISO-8601 date string.`);
+    }
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw HttpError.badRequest(`Field '${field}' must be a valid ISO-8601 date string.`);
+    }
+    const dateFromNumber = new Date(value);
+    if (Number.isNaN(dateFromNumber.getTime())) {
+      throw HttpError.badRequest(`Field '${field}' must be a valid ISO-8601 date string.`);
+    }
+    return dateFromNumber;
+  }
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw) {
+      return null;
+    }
+    const timestamp = Date.parse(raw);
+    if (Number.isNaN(timestamp)) {
+      throw HttpError.badRequest(`Field '${field}' must be a valid ISO-8601 date string.`);
+    }
+    return new Date(timestamp);
+  }
+  throw HttpError.badRequest(`Field '${field}' must be a valid ISO-8601 date string.`);
+};
+
+const parseNonNegativeInteger = (value: unknown, field: string, defaultValue = 0): number => {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw HttpError.badRequest(`Field '${field}' must be a non-negative integer.`);
+  }
+
+  return Math.trunc(numeric);
+};
+
+const parseEstimatedDamageAmount = (value: unknown): string | null => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw HttpError.badRequest("Field 'estimatedDamageAmount' must be a non-negative number.");
+  }
+  return numeric.toFixed(2);
+};
+
+const parseMetadata = (value: unknown): Record<string, unknown> => {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw HttpError.badRequest("Field 'metadata' must be an object.");
+  }
+  return value as Record<string, unknown>;
+};
+
+const parseLocation = (value: unknown): IncidentLocationInput => {
+  if (!value || typeof value !== 'object') {
+    throw HttpError.badRequest(
+      "Field 'location' is required and must include latitude and longitude."
+    );
+  }
+
+  const candidate = value as { latitude?: unknown; longitude?: unknown };
+  const latitude =
+    typeof candidate.latitude === 'number' ? candidate.latitude : Number(candidate.latitude);
+  const longitude =
+    typeof candidate.longitude === 'number' ? candidate.longitude : Number(candidate.longitude);
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    throw HttpError.badRequest('Location coordinates must be valid latitude/longitude values.');
+  }
+
+  return { latitude, longitude };
+};
+
+const normalizeCode = (value: string): string => value.trim().toUpperCase();
+
+const normalizeOptionalCode = (value: string | null): string | null =>
+  value ? value.trim().toUpperCase() : null;
+
+const isUniqueViolationError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const candidate = error as { code?: string };
+  return candidate.code === '23505';
+};
 
 export interface IncidentListOptions extends IncidentListFilters {
   page: number;
@@ -197,6 +368,7 @@ interface IncidentRepositoryLike {
   getIncidentDetail(incidentNumber: string): Promise<IncidentDetail | null>;
   getIncidentMetadata(): Promise<Omit<IncidentMetadata, 'limits'>>;
   findIncidentSummary(incidentNumber: string): Promise<IncidentSearchResult | null>;
+  createIncident(input: CreateIncidentInput): Promise<IncidentDetail>;
 }
 
 export class IncidentService {
@@ -214,7 +386,7 @@ export class IncidentService {
       parseInteger(query.pageSize, 'pageSize', { min: 1, max: MAX_PAGE_SIZE }) ?? DEFAULT_PAGE_SIZE;
 
     const incidentNumberRaw = normalizeValue(query.incidentNumber)?.trim();
-    if (incidentNumberRaw && !/^[A-Z0-9._:-]+$/i.test(incidentNumberRaw)) {
+    if (incidentNumberRaw && !INCIDENT_IDENTIFIER_PATTERN.test(incidentNumberRaw)) {
       throw HttpError.badRequest(
         "Query parameter 'incidentNumber' must contain only letters, digits, and -._: characters."
       );
@@ -300,6 +472,112 @@ export class IncidentService {
     return metadata;
   }
 
+  public async createIncident(payload: CreateIncidentRequest = {}): Promise<IncidentDetail> {
+    const incidentNumberValue = requireString(payload.incidentNumber, 'incidentNumber');
+    if (!INCIDENT_IDENTIFIER_PATTERN.test(incidentNumberValue)) {
+      throw HttpError.badRequest(
+        "Field 'incidentNumber' must contain only letters, digits, and -._: characters."
+      );
+    }
+    const incidentNumber = normalizeCode(incidentNumberValue);
+
+    const title = requireString(payload.title, 'title');
+    const typeCode = normalizeCode(requireString(payload.typeCode, 'typeCode'));
+    const severityCode = normalizeCode(requireString(payload.severityCode, 'severityCode'));
+    const statusCode = normalizeCode(requireString(payload.statusCode, 'statusCode'));
+    const sourceCode = normalizeOptionalCode(
+      sanitizeOptionalString(payload.sourceCode, 'sourceCode')
+    );
+    const weatherCode = normalizeOptionalCode(
+      sanitizeOptionalString(payload.weatherCode, 'weatherCode')
+    );
+    const primaryStationCode = normalizeOptionalCode(
+      sanitizeOptionalString(payload.primaryStationCode, 'primaryStationCode')
+    );
+    const externalReference = sanitizeOptionalString(
+      payload.externalReference,
+      'externalReference'
+    );
+    const narrative = sanitizeOptionalString(payload.narrative, 'narrative');
+
+    const occurrenceAtDate = parseDateField(payload.occurrenceAt, 'occurrenceAt');
+    const reportedAtDate = parseDateField(payload.reportedAt, 'reportedAt');
+    const dispatchAtDate = parseOptionalDateField(payload.dispatchAt, 'dispatchAt');
+    const arrivalAtDate = parseOptionalDateField(payload.arrivalAt, 'arrivalAt');
+    const resolvedAtDate = parseOptionalDateField(payload.resolvedAt, 'resolvedAt');
+
+    if (occurrenceAtDate.getTime() > reportedAtDate.getTime()) {
+      throw HttpError.badRequest(
+        "Field 'reportedAt' must be greater than or equal to 'occurrenceAt'."
+      );
+    }
+    if (dispatchAtDate && dispatchAtDate.getTime() < reportedAtDate.getTime()) {
+      throw HttpError.badRequest(
+        "Field 'dispatchAt' must be greater than or equal to 'reportedAt'."
+      );
+    }
+    if (arrivalAtDate && dispatchAtDate && arrivalAtDate.getTime() < dispatchAtDate.getTime()) {
+      throw HttpError.badRequest(
+        "Field 'arrivalAt' must be greater than or equal to 'dispatchAt'."
+      );
+    }
+    if (resolvedAtDate && arrivalAtDate && resolvedAtDate.getTime() < arrivalAtDate.getTime()) {
+      throw HttpError.badRequest(
+        "Field 'resolvedAt' must be greater than or equal to 'arrivalAt'."
+      );
+    }
+
+    const casualtyCount = parseNonNegativeInteger(payload.casualtyCount, 'casualtyCount');
+    const responderInjuries = parseNonNegativeInteger(
+      payload.responderInjuries,
+      'responderInjuries'
+    );
+    const estimatedDamageAmount = parseEstimatedDamageAmount(payload.estimatedDamageAmount);
+    const metadata = parseMetadata(payload.metadata ?? undefined);
+    const location = parseLocation(payload.location ?? null);
+
+    const derivedIsActive = !['RESOLVED', 'CANCELLED'].includes(statusCode);
+    const isActive = typeof payload.isActive === 'boolean' ? payload.isActive : derivedIsActive;
+
+    const input: CreateIncidentInput = {
+      incidentNumber,
+      externalReference,
+      title,
+      narrative,
+      typeCode,
+      severityCode,
+      statusCode,
+      sourceCode,
+      weatherCode,
+      primaryStationCode,
+      occurrenceAt: occurrenceAtDate.toISOString(),
+      reportedAt: reportedAtDate.toISOString(),
+      dispatchAt: dispatchAtDate ? dispatchAtDate.toISOString() : null,
+      arrivalAt: arrivalAtDate ? arrivalAtDate.toISOString() : null,
+      resolvedAt: resolvedAtDate ? resolvedAtDate.toISOString() : null,
+      casualtyCount,
+      responderInjuries,
+      estimatedDamageAmount,
+      isActive,
+      metadata,
+      location,
+    };
+
+    try {
+      const detail = await this.repository.createIncident(input);
+      this.clearCaches();
+      return detail;
+    } catch (error) {
+      if (isUniqueViolationError(error)) {
+        throw HttpError.conflict(`Incident '${incidentNumber}' already exists.`);
+      }
+      if (error instanceof IncidentLookupError) {
+        throw HttpError.badRequest(error.message);
+      }
+      throw error;
+    }
+  }
+
   public async searchIncidentByNumber(
     incidentNumber: string | undefined
   ): Promise<IncidentSearchResult> {
@@ -308,7 +586,7 @@ export class IncidentService {
       throw HttpError.badRequest("Query parameter 'incidentNumber' is required.");
     }
 
-    if (!/^[A-Z0-9._:-]+$/i.test(normalized)) {
+    if (!INCIDENT_IDENTIFIER_PATTERN.test(normalized)) {
       throw HttpError.badRequest(
         "Query parameter 'incidentNumber' must contain only letters, digits, and -._: characters."
       );

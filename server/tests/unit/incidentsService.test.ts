@@ -1,11 +1,16 @@
-import { IncidentService, type IncidentListOptions } from '../../src/services/incidentsService';
+import {
+  IncidentService,
+  type CreateIncidentRequest,
+  type IncidentListOptions,
+} from '../../src/services/incidentsService';
 import { HttpError } from '../../src/errors/httpError';
-import type {
-  IncidentDetail,
-  IncidentListItem,
-  IncidentMetadata,
-  IncidentSearchResult,
-  PaginatedResult,
+import {
+  IncidentLookupError,
+  type IncidentDetail,
+  type IncidentListItem,
+  type IncidentMetadata,
+  type IncidentSearchResult,
+  type PaginatedResult,
 } from '../../src/db';
 
 const createService = () => {
@@ -14,6 +19,7 @@ const createService = () => {
     getIncidentDetail: jest.fn<Promise<IncidentDetail | null>, [string]>(),
     getIncidentMetadata: jest.fn<Promise<Omit<IncidentMetadata, 'limits'>>, []>(),
     findIncidentSummary: jest.fn<Promise<IncidentSearchResult | null>, [string]>(),
+    createIncident: jest.fn<Promise<IncidentDetail>, [unknown]>(),
   };
 
   return {
@@ -299,6 +305,116 @@ describe('IncidentService', () => {
       repository.findIncidentSummary.mockResolvedValue(null);
 
       await expect(service.searchIncidentByNumber('INC-404')).rejects.toThrow(HttpError);
+    });
+  });
+
+  describe('createIncident', () => {
+    const buildRequest = (
+      overrides: Partial<CreateIncidentRequest> = {}
+    ): CreateIncidentRequest => ({
+      incidentNumber: 'test-001',
+      title: 'Test Incident',
+      typeCode: 'fire_structure',
+      severityCode: 'high',
+      statusCode: 'resolved',
+      sourceCode: '911',
+      weatherCode: 'clear',
+      primaryStationCode: 'station-1',
+      occurrenceAt: '2025-09-01T00:00:00Z',
+      reportedAt: '2025-09-01T00:05:00Z',
+      dispatchAt: '2025-09-01T00:06:00Z',
+      arrivalAt: '2025-09-01T00:10:00Z',
+      resolvedAt: null,
+      casualtyCount: 1,
+      responderInjuries: 0,
+      estimatedDamageAmount: 1000,
+      location: { latitude: 37.77, longitude: -122.41 },
+      metadata: { createdBy: 'unit-test' },
+      ...overrides,
+    });
+
+    const buildDetail = (): IncidentDetail => ({
+      incidentNumber: 'TEST-001',
+      title: 'Test Incident',
+      occurrenceAt: '2025-09-01T00:00:00Z',
+      reportedAt: '2025-09-01T00:05:00Z',
+      dispatchAt: '2025-09-01T00:06:00Z',
+      arrivalAt: '2025-09-01T00:10:00Z',
+      resolvedAt: null,
+      isActive: false,
+      casualtyCount: 1,
+      responderInjuries: 0,
+      estimatedDamageAmount: '1000.00',
+      externalReference: null,
+      locationGeohash: null,
+      location: {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [-122.41, 37.77] },
+        properties: {},
+      },
+      type: { code: 'FIRE_STRUCTURE', name: 'Structure' },
+      severity: { code: 'HIGH', name: 'High', priority: 3, colorHex: '#fbc02d' },
+      status: { code: 'RESOLVED', name: 'Resolved', isTerminal: true },
+      source: null,
+      weather: null,
+      primaryStation: { stationCode: 'STATION-1', name: 'Station-1' },
+      metadata: { createdBy: 'unit-test' },
+      units: [],
+      assets: [],
+      notes: [],
+    });
+
+    it('normalizes payload, delegates to repository, and clears caches', async () => {
+      const { service, repository } = createService();
+      const detail = buildDetail();
+      repository.createIncident.mockResolvedValue(detail);
+      const clearSpy = jest.spyOn(service, 'clearCaches');
+
+      const result = await service.createIncident(buildRequest());
+
+      expect(result).toBe(detail);
+      expect(repository.createIncident).toHaveBeenCalledTimes(1);
+      const input = repository.createIncident.mock.calls[0][0] as Record<string, unknown>;
+      expect(input.incidentNumber).toBe('TEST-001');
+      expect(input.typeCode).toBe('FIRE_STRUCTURE');
+      expect(input.severityCode).toBe('HIGH');
+      expect(input.statusCode).toBe('RESOLVED');
+      expect(input.sourceCode).toBe('911');
+      expect(input.weatherCode).toBe('CLEAR');
+      expect(input.primaryStationCode).toBe('STATION-1');
+      expect(input.estimatedDamageAmount).toBe('1000.00');
+      expect((input.metadata as Record<string, unknown>).createdBy).toBe('unit-test');
+      expect((input.location as { latitude: number }).latitude).toBeCloseTo(37.77);
+      expect(input.isActive).toBe(false); // derived from resolved status
+      expect(clearSpy).toHaveBeenCalled();
+    });
+
+    it('throws conflict when repository reports uniqueness violation', async () => {
+      const { service, repository } = createService();
+      repository.createIncident.mockRejectedValue({ code: '23505' });
+
+      await expect(service.createIncident(buildRequest())).rejects.toMatchObject({
+        status: 409,
+      });
+    });
+
+    it('maps lookup errors to bad request responses', async () => {
+      const { service, repository } = createService();
+      repository.createIncident.mockRejectedValue(
+        new IncidentLookupError('Incident type', 'UNKNOWN')
+      );
+
+      await expect(service.createIncident(buildRequest())).rejects.toMatchObject({
+        status: 400,
+      });
+    });
+
+    it('validates location coordinates', async () => {
+      const { service } = createService();
+
+      await expect(
+        service.createIncident(buildRequest({ location: { latitude: 200, longitude: 0 } }))
+      ).rejects.toThrow(HttpError);
     });
   });
 });

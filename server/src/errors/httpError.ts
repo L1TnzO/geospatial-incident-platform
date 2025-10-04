@@ -1,4 +1,4 @@
-export type HttpErrorCode = 'BAD_REQUEST' | 'NOT_FOUND' | 'INTERNAL_SERVER_ERROR';
+export type HttpErrorCode = 'BAD_REQUEST' | 'NOT_FOUND' | 'CONFLICT' | 'INTERNAL_SERVER_ERROR';
 
 export interface HttpErrorOptions {
   code?: HttpErrorCode;
@@ -23,6 +23,8 @@ export class HttpError extends Error {
         return 'BAD_REQUEST';
       case 404:
         return 'NOT_FOUND';
+      case 409:
+        return 'CONFLICT';
       default:
         return 'INTERNAL_SERVER_ERROR';
     }
@@ -34,6 +36,10 @@ export class HttpError extends Error {
 
   static notFound(message: string, details?: unknown): HttpError {
     return new HttpError(404, message, { code: 'NOT_FOUND', details });
+  }
+
+  static conflict(message: string, details?: unknown): HttpError {
+    return new HttpError(409, message, { code: 'CONFLICT', details });
   }
 
   static internal(message: string, details?: unknown): HttpError {

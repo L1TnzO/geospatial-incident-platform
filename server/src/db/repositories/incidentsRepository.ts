@@ -96,6 +96,54 @@ interface IncidentNoteRow {
   createdAt: string;
 }
 
+export class IncidentLookupError extends Error {
+  constructor(
+    public readonly entity: string,
+    public readonly codeValue: string
+  ) {
+    super(`${entity} '${codeValue}' was not found.`);
+    this.name = 'IncidentLookupError';
+  }
+}
+
+export interface IncidentLocationInput {
+  latitude: number;
+  longitude: number;
+}
+
+export interface CreateIncidentInput {
+  incidentNumber: string;
+  externalReference?: string | null;
+  title: string;
+  narrative?: string | null;
+  typeCode: string;
+  severityCode: string;
+  statusCode: string;
+  sourceCode?: string | null;
+  weatherCode?: string | null;
+  primaryStationCode?: string | null;
+  occurrenceAt: string;
+  reportedAt: string;
+  dispatchAt?: string | null;
+  arrivalAt?: string | null;
+  resolvedAt?: string | null;
+  casualtyCount: number;
+  responderInjuries: number;
+  estimatedDamageAmount?: string | null;
+  isActive: boolean;
+  metadata: Record<string, unknown>;
+  location: IncidentLocationInput;
+}
+
+interface IncidentReferenceIds {
+  typeId: number;
+  severityId: number;
+  statusId: number;
+  sourceId: number | null;
+  weatherConditionId: number | null;
+  primaryStationId: number | null;
+}
+
 interface IncidentTypeMetaRow {
   code: string;
   name: string | null;
@@ -247,6 +295,91 @@ const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
 export class IncidentRepository {
   constructor(private readonly db: Knex = getDb()) {}
 
+  private async findLookupId(
+    executor: Knex,
+    table: string,
+    codeColumn: string,
+    code: string,
+    entityName: string
+  ): Promise<number> {
+    const row = await executor(table).where(codeColumn, code).first<{ id: number }>('id');
+    if (!row) {
+      throw new IncidentLookupError(entityName, code);
+    }
+    return row.id;
+  }
+
+  private async findOptionalLookupId(
+    executor: Knex,
+    table: string,
+    codeColumn: string,
+    code: string | null | undefined,
+    entityName: string
+  ): Promise<number | null> {
+    if (!code) {
+      return null;
+    }
+    return this.findLookupId(executor, table, codeColumn, code, entityName);
+  }
+
+  private async resolveIncidentReferences(
+    executor: Knex,
+    input: CreateIncidentInput
+  ): Promise<IncidentReferenceIds> {
+    const typeId = await this.findLookupId(
+      executor,
+      'incident_types',
+      'type_code',
+      input.typeCode,
+      'Incident type'
+    );
+    const severityId = await this.findLookupId(
+      executor,
+      'incident_severities',
+      'severity_code',
+      input.severityCode,
+      'Incident severity'
+    );
+    const statusId = await this.findLookupId(
+      executor,
+      'incident_statuses',
+      'status_code',
+      input.statusCode,
+      'Incident status'
+    );
+
+    const sourceId = await this.findOptionalLookupId(
+      executor,
+      'incident_sources',
+      'source_code',
+      input.sourceCode ?? null,
+      'Incident source'
+    );
+    const weatherConditionId = await this.findOptionalLookupId(
+      executor,
+      'weather_conditions',
+      'condition_code',
+      input.weatherCode ?? null,
+      'Weather condition'
+    );
+    const primaryStationId = await this.findOptionalLookupId(
+      executor,
+      'stations',
+      'station_code',
+      input.primaryStationCode ?? null,
+      'Station'
+    );
+
+    return {
+      typeId,
+      severityId,
+      statusId,
+      sourceId,
+      weatherConditionId,
+      primaryStationId,
+    };
+  }
+
   public async listIncidents(
     filters: IncidentListFilters = {}
   ): Promise<PaginatedResult<IncidentListItem>> {
@@ -348,6 +481,53 @@ export class IncidentRepository {
       sortBy,
       sortDirection,
     };
+  }
+
+  public async createIncident(input: CreateIncidentInput): Promise<IncidentDetail> {
+    const incidentNumber = input.incidentNumber;
+
+    const insertedIncidentNumber = await this.db.transaction(async (trx) => {
+      const references = await this.resolveIncidentReferences(trx, input);
+
+      const [row] = await trx('incidents')
+        .insert({
+          incident_number: incidentNumber,
+          external_reference: input.externalReference ?? null,
+          title: input.title,
+          narrative: input.narrative ?? null,
+          type_id: references.typeId,
+          severity_id: references.severityId,
+          status_id: references.statusId,
+          source_id: references.sourceId,
+          weather_condition_id: references.weatherConditionId,
+          primary_station_id: references.primaryStationId,
+          occurrence_at: input.occurrenceAt,
+          reported_at: input.reportedAt,
+          dispatch_at: input.dispatchAt ?? null,
+          arrival_at: input.arrivalAt ?? null,
+          resolved_at: input.resolvedAt ?? null,
+          is_active: input.isActive,
+          casualty_count: input.casualtyCount,
+          responder_injuries: input.responderInjuries,
+          estimated_damage_amount: input.estimatedDamageAmount ?? null,
+          location: trx.raw('ST_SetSRID(ST_Point(?, ?), 4326)', [
+            input.location.longitude,
+            input.location.latitude,
+          ]),
+          location_geohash: null,
+          metadata: trx.raw('?::jsonb', [JSON.stringify(input.metadata ?? {})]),
+        })
+        .returning<{ incident_number: string }[]>('incident_number');
+
+      return row.incident_number;
+    });
+
+    const detail = await this.getIncidentDetail(insertedIncidentNumber);
+    if (!detail) {
+      throw new Error(`Failed to load incident '${insertedIncidentNumber}' after creation.`);
+    }
+
+    return detail;
   }
 
   public async getIncidentDetail(incidentNumber: string): Promise<IncidentDetail | null> {
