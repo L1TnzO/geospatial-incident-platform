@@ -1,0 +1,9 @@
+/* Dashboard layout scaffolding */
+.dashboard-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.dashboard-page__intro {
+  max-width: 720px;
+}

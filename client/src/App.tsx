@@ -1,8 +1,7 @@
-import { Route, Routes } from 'react-router-dom'
-import AppLayout from '@/layouts/AppLayout'
-import DashboardPage from '@/pages/DashboardPage'
-import NotFoundPage from '@/pages/NotFoundPage'
-import './App.css'
+import { Route, Routes } from 'react-router-dom';
+import AppLayout from '@/layouts/AppLayout';
+import DashboardPage from '@/pages/DashboardPage';
+import NotFoundPage from '@/pages/NotFoundPage';
 
 const App = () => (
   <Routes>
@@ -11,6 +10,6 @@ const App = () => (
       <Route path="*" element={<NotFoundPage />} />
     </Route>
   </Routes>
-)
+);
 
-export default App
+export default App;

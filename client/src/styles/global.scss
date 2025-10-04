@@ -1,0 +1,19 @@
+/* Global layout primitives shared across the dashboard experience. */
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background-color: var(--color-surface);
+}
+
+.app-main {
+  padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 2.5rem;
+}
+
+.not-found {
+  display: grid;
+  gap: 1rem;
+  text-align: center;
+  margin-top: 3rem;
+}

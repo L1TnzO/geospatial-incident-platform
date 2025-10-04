@@ -35,8 +35,20 @@ npm run test:watch # Run Vitest in watch mode
 - Incident search bar (`src/components/IncidentSearchBar.tsx`) that hydrates `/api/incidents/meta` for UX hints, debounces `/api/incidents/search` lookups, recenters the map with `useMapStore`, drives the detail modal, and syncs the table filter plus recent history cache
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend cursor helpers for filterable pagination
 - Incident detail modal (`src/components/IncidentDetailModal.tsx`) backed by `useIncidentDetailStore`, which prefetches `/api/incidents/{incidentNumber}` payloads, caches responses per incident, persists the most recent 25 detail payloads to localStorage, and exposes retry/loading/error states shared between the map and table entry points
-- Responsive layout styling via global CSS (no utility framework for now)
+- Responsive layout styling via shared SCSS entrypoints (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
+
+## Styles
+
+- `src/styles/index.scss` loads every feature bundle and is the only stylesheet imported by `main.tsx`.
+- `src/styles/global.scss` contains shared layout primitives (`.app-shell`, `.app-main`, not-found screen, etc.).
+- `src/styles/dashboard/dashboard.scss` owns dashboard-level layout wrappers.
+- `src/styles/search/search.scss` scopes the incident search card and its dropdown suggestions.
+- `src/styles/map/map.scss` styles the map card, toolbar, overlays, and Leaflet marker popups.
+- `src/styles/table/table.scss` contains the incident table card, filters, and table classes.
+- `src/styles/modal/incident-detail.scss` styles the incident detail modal.
+
+When introducing a new surface area, add a dedicated partial under `src/styles/` (e.g., `analytics/analytics.scss`) and wire it through `index.scss` instead of modifying an unrelated bundle.
 
 ## Documentation & testing resources
 
