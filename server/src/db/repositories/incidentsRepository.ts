@@ -2,16 +2,20 @@ import type { Knex } from 'knex';
 import { getDb } from '../client';
 import {
   type GeoJsonPoint,
+  type IncidentDailyCount,
   type IncidentDetail,
   type IncidentListItem,
   type IncidentLookupValue,
   type IncidentMetadata,
   type IncidentSearchResult,
   type IncidentSeverity,
+  type IncidentSeverityBucket,
   type IncidentStatus,
   type IncidentSource,
+  type IncidentTypeBucket,
   type IncidentWeather,
   type PaginatedResult,
+  type RecentIncidentSummary,
 } from '../types';
 import { geometryToFeature, parseGeometry, parseJsonColumn } from '../utils';
 
@@ -95,6 +99,29 @@ interface IncidentNoteRow {
   note: string;
   createdAt: string;
 }
+
+interface IncidentTypeCountRow {
+  typeCode: string;
+  typeName: string | null;
+  typeDescription: string | null;
+  total: string | number;
+}
+
+interface IncidentSeverityCountRow {
+  severityCode: string;
+  severityName: string | null;
+  severityDescription: string | null;
+  severityPriority: number | string | null;
+  severityColorHex: string | null;
+  total: string | number;
+}
+
+interface IncidentDailyCountRow {
+  bucketDate: Date;
+  total: string | number;
+}
+
+type RecentIncidentRow = IncidentRowBase;
 
 export class IncidentLookupError extends Error {
   constructor(
@@ -290,6 +317,17 @@ const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
         }
       : null,
   };
+};
+
+const coerceCount = (value: string | number | null | undefined): number => {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
 };
 
 export class IncidentRepository {
@@ -766,6 +804,181 @@ export class IncidentRepository {
       status: mapped.status,
       type: mapped.type,
     };
+  }
+
+  public async countIncidentsByReportedRange(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<number> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return 0;
+    }
+
+    const query = this.db('incidents as i');
+    applyFilters(query, filters);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const row = await query.count<{ total: string | number }>('i.id as total').first();
+    return coerceCount(row?.total);
+  }
+
+  public async getIncidentCountsByType(
+    filters: IncidentListFilters,
+    range?: { start: string; end: string }
+  ): Promise<IncidentTypeBucket[]> {
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .select<
+        IncidentTypeCountRow[]
+      >(['it.type_code as typeCode', 'it.name as typeName', 'it.description as typeDescription'])
+      .count<{ total: string | number }>('i.id as total')
+      .groupBy(['it.type_code', 'it.name', 'it.description'])
+      .orderBy('total', 'desc');
+
+    applyFilters(query, filters);
+
+    if (range) {
+      query.whereBetween('i.reported_at', [range.start, range.end]);
+    }
+
+    const rows = (await query) as IncidentTypeCountRow[];
+    return rows
+      .filter((row) => row.typeCode)
+      .map((row) => ({
+        type: createLookup(row.typeCode, row.typeName, row.typeDescription),
+        count: coerceCount(row.total),
+      }))
+      .filter((bucket) => bucket.count > 0);
+  }
+
+  public async getIncidentCountsByReportedDay(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<IncidentDailyCount[]> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const query = this.db('incidents as i')
+      .select<IncidentDailyCountRow[]>([
+        this.db.raw('DATE_TRUNC(\'day\', i.reported_at) as "bucketDate"'),
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw("DATE_TRUNC('day', i.reported_at)")
+      .orderByRaw("DATE_TRUNC('day', i.reported_at)");
+
+    applyFilters(query, filters);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as IncidentDailyCountRow[];
+
+    return rows.map((row) => ({
+      date: new Date(row.bucketDate).toISOString(),
+      count: coerceCount(row.total),
+    }));
+  }
+
+  public async getSeverityDistribution(
+    filters: IncidentListFilters
+  ): Promise<IncidentSeverityBucket[]> {
+    const query = this.db('incidents as i')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .select<
+        IncidentSeverityCountRow[]
+      >(['isv.severity_code as severityCode', 'isv.name as severityName', 'isv.description as severityDescription', 'isv.priority as severityPriority', 'isv.color_hex as severityColorHex'])
+      .count<{ total: string | number }>('i.id as total')
+      .groupBy([
+        'isv.severity_code',
+        'isv.name',
+        'isv.description',
+        'isv.priority',
+        'isv.color_hex',
+      ])
+      .orderBy('total', 'desc');
+
+    applyFilters(query, filters);
+
+    const rows = (await query) as IncidentSeverityCountRow[];
+    return rows
+      .filter((row) => row.severityCode)
+      .map((row) => ({
+        severity: {
+          ...createLookup(row.severityCode, row.severityName, row.severityDescription),
+          priority: Number(row.severityPriority ?? 0),
+          colorHex: row.severityColorHex ?? '#000000',
+        },
+        count: coerceCount(row.total),
+      }))
+      .filter((bucket) => bucket.count > 0);
+  }
+
+  public async listRecentIncidents(
+    filters: IncidentListFilters,
+    limit = 10
+  ): Promise<RecentIncidentSummary[]> {
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .leftJoin('stations as ps', 'i.primary_station_id', 'ps.id')
+      .select<RecentIncidentRow[]>([
+        'i.incident_number as incidentNumber',
+        'i.title as title',
+        'i.occurrence_at as occurrenceAt',
+        'i.reported_at as reportedAt',
+        'i.is_active as isActive',
+        'ps.station_code as primaryStationCode',
+        'ps.name as primaryStationName',
+        'it.type_code as typeCode',
+        'it.name as typeName',
+        'it.description as typeDescription',
+        'isv.severity_code as severityCode',
+        'isv.name as severityName',
+        'isv.description as severityDescription',
+        'isv.priority as severityPriority',
+        'isv.color_hex as severityColorHex',
+        'ist.status_code as statusCode',
+        'ist.name as statusName',
+        'ist.description as statusDescription',
+        'ist.is_terminal as statusIsTerminal',
+      ])
+      .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
+      .orderBy('i.reported_at', 'desc')
+      .orderBy('i.id', 'desc')
+      .limit(Math.max(1, Math.min(limit, 50)));
+
+    applyFilters(query, filters);
+
+    const rows = (await query) as Array<RecentIncidentRow & { locationGeoJson: unknown }>;
+
+    return rows.map((row) => {
+      const severity = mapSeverity(row);
+      const status = mapStatus(row);
+      const type = mapIncidentType(row);
+      const locationGeometry = parseGeometry(row.locationGeoJson);
+      const location = geometryToFeature(locationGeometry) as GeoJsonPoint | null;
+      if (!location) {
+        throw new Error('Incident location geometry is missing');
+      }
+
+      return {
+        incidentNumber: row.incidentNumber,
+        title: row.title,
+        occurrenceAt: row.occurrenceAt,
+        reportedAt: row.reportedAt,
+        isActive: row.isActive,
+        location,
+        severity,
+        status,
+        type,
+        primaryStation: row.primaryStationCode
+          ? {
+              stationCode: row.primaryStationCode,
+              name: row.primaryStationName ?? row.primaryStationCode,
+            }
+          : null,
+      } satisfies RecentIncidentSummary;
+    });
   }
 }
 

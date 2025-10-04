@@ -33,6 +33,37 @@ describe('IncidentService', () => {
     jest.clearAllMocks();
   });
 
+  describe('buildFilterOptions', () => {
+    it('parses filters without pagination information', () => {
+      const { service } = createService();
+      const filters = service.buildFilterOptions({
+        typeCodes: 'FIRE_STRUCTURE,MEDICAL',
+        severityCodes: ['CRITICAL', 'HIGH'],
+        statusCodes: 'REPORTED',
+        startDate: '2025-09-01T00:00:00Z',
+        endDate: '2025-09-05T00:00:00Z',
+        isActive: 'false',
+      });
+
+      expect(filters.typeCodes).toEqual(['FIRE_STRUCTURE', 'MEDICAL']);
+      expect(filters.severityCodes).toEqual(['CRITICAL', 'HIGH']);
+      expect(filters.statusCodes).toEqual(['REPORTED']);
+      expect(filters.startDate).toBe('2025-09-01T00:00:00.000Z');
+      expect(filters.endDate).toBe('2025-09-05T00:00:00.000Z');
+      expect(filters.isActive).toBe(false);
+      expect(filters).not.toHaveProperty('page');
+    });
+
+    it('validates incidentNumber pattern', () => {
+      const { service } = createService();
+      expect(() =>
+        service.buildFilterOptions({
+          incidentNumber: 'bad value',
+        })
+      ).toThrow(HttpError);
+    });
+  });
+
   describe('buildListOptions', () => {
     it('returns defaults when no query parameters provided', () => {
       const { service } = createService();

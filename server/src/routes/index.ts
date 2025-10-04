@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import healthRouter from './health';
 import incidentsRouter from './incidents';
+import dashboardRouter from './dashboard';
 import stationsRouter from './stations';
 
 const router = Router();
 
 router.use('/api/incidents', incidentsRouter);
+router.use('/api/dashboard', dashboardRouter);
 router.use('/api/stations', stationsRouter);
 router.use(healthRouter);
 

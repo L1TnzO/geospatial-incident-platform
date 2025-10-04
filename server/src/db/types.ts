@@ -148,3 +148,34 @@ export interface IncidentSearchResult {
   status: IncidentStatus;
   type: IncidentLookupValue;
 }
+
+export interface IncidentTypeBucket {
+  type: IncidentLookupValue;
+  count: number;
+}
+
+export interface IncidentDailyCount {
+  date: string;
+  count: number;
+}
+
+export interface IncidentSeverityBucket {
+  severity: IncidentSeverity;
+  count: number;
+}
+
+export interface RecentIncidentSummary {
+  incidentNumber: string;
+  title: string;
+  occurrenceAt: string;
+  reportedAt: string;
+  isActive: boolean;
+  location: GeoJsonPoint;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  type: IncidentLookupValue;
+  primaryStation?: {
+    stationCode: string;
+    name: string;
+  } | null;
+}

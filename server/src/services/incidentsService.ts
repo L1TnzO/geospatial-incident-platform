@@ -204,6 +204,8 @@ export interface IncidentListOptions extends IncidentListFilters {
   sortDirection: 'asc' | 'desc';
 }
 
+export type IncidentFilterOptions = IncidentListFilters;
+
 export interface IncidentListResponse {
   data: IncidentListItem[];
   pagination: PaginationMeta;
@@ -380,11 +382,7 @@ export class IncidentService {
     this.metadataCache = null;
   }
 
-  public buildListOptions(query: Record<string, QueryValue>): IncidentListOptions {
-    const page = parseInteger(query.page, 'page', { min: 1 }) ?? DEFAULT_PAGE;
-    const pageSize =
-      parseInteger(query.pageSize, 'pageSize', { min: 1, max: MAX_PAGE_SIZE }) ?? DEFAULT_PAGE_SIZE;
-
+  public buildFilterOptions(query: Record<string, QueryValue>): IncidentFilterOptions {
     const incidentNumberRaw = normalizeValue(query.incidentNumber)?.trim();
     if (incidentNumberRaw && !INCIDENT_IDENTIFIER_PATTERN.test(incidentNumberRaw)) {
       throw HttpError.badRequest(
@@ -393,7 +391,36 @@ export class IncidentService {
     }
     const incidentNumber = incidentNumberRaw ? incidentNumberRaw.toUpperCase() : undefined;
 
-    const resolvedPage = incidentNumber ? DEFAULT_PAGE : page;
+    const typeCodes = parseStringList(query.typeCodes);
+    const severityCodes = parseStringList(query.severityCodes);
+    const statusCodes = parseStringList(query.statusCodes);
+    const startDate = parseIsoDate(query.startDate, 'startDate');
+    const endDate = parseIsoDate(query.endDate, 'endDate');
+
+    let isActive: boolean | undefined;
+    if (query.isActive !== undefined) {
+      isActive = parseBoolean(query.isActive, 'isActive');
+    }
+
+    return {
+      typeCodes,
+      severityCodes,
+      statusCodes,
+      startDate,
+      endDate,
+      isActive,
+      incidentNumber,
+    };
+  }
+
+  public buildListOptions(query: Record<string, QueryValue>): IncidentListOptions {
+    const page = parseInteger(query.page, 'page', { min: 1 }) ?? DEFAULT_PAGE;
+    const pageSize =
+      parseInteger(query.pageSize, 'pageSize', { min: 1, max: MAX_PAGE_SIZE }) ?? DEFAULT_PAGE_SIZE;
+
+    const baseFilters = this.buildFilterOptions(query);
+
+    const resolvedPage = baseFilters.incidentNumber ? DEFAULT_PAGE : page;
 
     const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
     if (resolvedPage > maxPage) {
@@ -402,31 +429,15 @@ export class IncidentService {
       );
     }
 
-    const typeCodes = parseStringList(query.typeCodes);
-    const severityCodes = parseStringList(query.severityCodes);
-    const statusCodes = parseStringList(query.statusCodes);
-    const startDate = parseIsoDate(query.startDate, 'startDate');
-    const endDate = parseIsoDate(query.endDate, 'endDate');
     const sortBy = parseSortBy(query.sortBy);
     const sortDirection = parseSortDirection(query.sortDirection);
 
-    let isActive: boolean | undefined;
-    if (query.isActive !== undefined) {
-      isActive = parseBoolean(query.isActive, 'isActive');
-    }
-
     return {
+      ...baseFilters,
       page: resolvedPage,
       pageSize,
-      typeCodes,
-      severityCodes,
-      statusCodes,
-      startDate,
-      endDate,
-      isActive,
       sortBy,
       sortDirection,
-      incidentNumber,
     };
   }
 
