@@ -4,11 +4,26 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockUseDashboardAggregations = vi.fn();
+const mockUseDashboardLast24HoursKpi = vi.fn();
+const mockUseDashboardTypeDistribution = vi.fn();
+const mockUseDashboardSeverityDistribution = vi.fn();
+const mockUseDashboardDailyTrend = vi.fn();
 const mockUseDashboardRecentIncidents = vi.fn();
 
-vi.mock('@/hooks/useDashboardAggregations', () => ({
-  useDashboardAggregations: () => mockUseDashboardAggregations(),
+vi.mock('@/hooks/useDashboardLast24HoursKpi', () => ({
+  useDashboardLast24HoursKpi: () => mockUseDashboardLast24HoursKpi(),
+}));
+
+vi.mock('@/hooks/useDashboardTypeDistribution', () => ({
+  useDashboardTypeDistribution: () => mockUseDashboardTypeDistribution(),
+}));
+
+vi.mock('@/hooks/useDashboardSeverityDistribution', () => ({
+  useDashboardSeverityDistribution: () => mockUseDashboardSeverityDistribution(),
+}));
+
+vi.mock('@/hooks/useDashboardDailyTrend', () => ({
+  useDashboardDailyTrend: () => mockUseDashboardDailyTrend(),
 }));
 
 vi.mock('@/hooks/useDashboardRecentIncidents', () => ({
@@ -19,24 +34,66 @@ describe('App routing', () => {
   let App: FC;
 
   beforeEach(async () => {
-    mockUseDashboardAggregations.mockReset();
+    mockUseDashboardLast24HoursKpi.mockReset();
+    mockUseDashboardTypeDistribution.mockReset();
+    mockUseDashboardSeverityDistribution.mockReset();
+    mockUseDashboardDailyTrend.mockReset();
     mockUseDashboardRecentIncidents.mockReset();
 
-    mockUseDashboardAggregations.mockReturnValue({
+    mockUseDashboardLast24HoursKpi.mockReturnValue({
       status: 'success',
       data: {
-        kpis: [],
-        typeDistribution: [],
-        severityDistribution: [],
-        dailyTrend: [],
+        window: { start: '2025-01-10T12:00:00Z', end: '2025-01-11T12:00:00Z' },
+        previousWindow: { start: '2025-01-09T12:00:00Z', end: '2025-01-10T12:00:00Z' },
+        currentCount: 18,
+        previousCount: 14,
+        delta: 4,
+        deltaPercentage: 28.57,
       },
       error: null,
+      lastUpdated: '2025-01-11T12:05:00Z',
+      refresh: vi.fn(),
+    });
+
+    mockUseDashboardTypeDistribution.mockReturnValue({
+      status: 'success',
+      data: { total: 0, buckets: [] },
+      error: null,
+      lastUpdated: '2025-01-11T12:05:00Z',
+      refresh: vi.fn(),
+    });
+
+    mockUseDashboardSeverityDistribution.mockReturnValue({
+      status: 'success',
+      data: { total: 0, buckets: [] },
+      error: null,
+      lastUpdated: '2025-01-11T12:05:00Z',
+      refresh: vi.fn(),
+    });
+
+    mockUseDashboardDailyTrend.mockReturnValue({
+      status: 'success',
+      data: {
+        points: [],
+        trend: {
+          currentTotal: 0,
+          previousTotal: 0,
+          change: 0,
+          percentageChange: null,
+          direction: 'flat',
+        },
+      },
+      error: null,
+      lastUpdated: '2025-01-11T12:05:00Z',
+      refresh: vi.fn(),
     });
 
     mockUseDashboardRecentIncidents.mockReturnValue({
       status: 'success',
       data: [],
       error: null,
+      lastUpdated: '2025-01-11T12:05:00Z',
+      refresh: vi.fn(),
     });
 
     ({ default: App } = await import('./App'));

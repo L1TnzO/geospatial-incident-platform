@@ -1,8 +1,8 @@
-import type { DashboardAggregationsState } from '@/hooks/useDashboardAggregations';
-import type { DashboardKpi } from '@/types/dashboard';
+import type { DashboardQueryState } from '@/hooks/useDashboardQuery';
+import type { DashboardLast24HoursKpi } from '@/types/dashboard';
 
 interface DashboardKPIRowProps {
-  summary: DashboardAggregationsState;
+  kpi: DashboardQueryState<DashboardLast24HoursKpi>;
 }
 
 const valueFormatter = new Intl.NumberFormat(undefined, {
@@ -15,7 +15,7 @@ const deltaFormatter = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
-const formatValue = (value: DashboardKpi['value'], unit?: string | null): string => {
+const formatValue = (value: number | null | undefined, unit?: string | null): string => {
   if (value === null || value === undefined) {
     return '—';
   }
@@ -32,8 +32,8 @@ const formatDelta = (delta: number | null | undefined): string => {
   return `${deltaFormatter.format(delta)}%`;
 };
 
-const DashboardKPIRow = ({ summary }: DashboardKPIRowProps) => {
-  if (summary.status === 'loading' || summary.status === 'idle') {
+const DashboardKPIRow = ({ kpi }: DashboardKPIRowProps) => {
+  if (kpi.status === 'loading' || kpi.status === 'idle') {
     return (
       <div className="dashboard-kpi-row" role="status" aria-live="polite">
         <div className="dashboard-placeholder">Loading KPI metrics…</div>
@@ -43,17 +43,17 @@ const DashboardKPIRow = ({ summary }: DashboardKPIRowProps) => {
     );
   }
 
-  if (summary.status === 'error') {
+  if (kpi.status === 'error') {
     return (
       <div className="dashboard-kpi-row" role="alert">
-        <div className="dashboard-error">{summary.error ?? 'Unable to load KPI metrics.'}</div>
+        <div className="dashboard-error">{kpi.error ?? 'Unable to load KPI metrics.'}</div>
       </div>
     );
   }
 
-  const kpis = summary.data?.kpis ?? [];
+  const metric = kpi.data;
 
-  if (kpis.length === 0) {
+  if (!metric) {
     return (
       <div className="dashboard-kpi-row" role="status" aria-live="polite">
         <div className="dashboard-empty">KPI metrics will appear here soon.</div>
@@ -61,13 +61,37 @@ const DashboardKPIRow = ({ summary }: DashboardKPIRowProps) => {
     );
   }
 
+  const cards = [
+    {
+      id: 'current',
+      label: 'Incidents (last 24h)',
+      value: metric.currentCount,
+      unit: null,
+      delta: metric.deltaPercentage,
+    },
+    {
+      id: 'previous',
+      label: 'Incidents (previous 24h)',
+      value: metric.previousCount,
+      unit: null,
+      delta: null,
+    },
+    {
+      id: 'change',
+      label: 'Net change',
+      value: metric.delta,
+      unit: null,
+      delta: metric.deltaPercentage,
+    },
+  ];
+
   return (
     <div className="dashboard-kpi-row" role="list">
-      {kpis.map((kpi) => (
-        <article key={kpi.id} className="dashboard-kpi-card" role="listitem">
-          <p className="dashboard-kpi-card__label">{kpi.label}</p>
-          <p className="dashboard-kpi-card__value">{formatValue(kpi.value, kpi.unit)}</p>
-          <p className="dashboard-kpi-card__delta">Change: {formatDelta(kpi.delta)}</p>
+      {cards.map((card) => (
+        <article key={card.id} className="dashboard-kpi-card" role="listitem">
+          <p className="dashboard-kpi-card__label">{card.label}</p>
+          <p className="dashboard-kpi-card__value">{formatValue(card.value, card.unit)}</p>
+          <p className="dashboard-kpi-card__delta">Change: {formatDelta(card.delta)}</p>
         </article>
       ))}
     </div>

@@ -183,44 +183,138 @@ const STATIONS_RESPONSE = {
   ],
 };
 
-const DASHBOARD_SUMMARY = {
-  kpis: [
-    { id: 'activeIncidents', label: 'Active incidents', value: 18, unit: null, delta: 4.2 },
-    { id: 'criticalShare', label: 'Critical share', value: 42, unit: '%', delta: 1.5 },
-    { id: 'avgResponse', label: 'Avg. response (min)', value: 7.3, unit: 'min', delta: -0.8 },
+const DASHBOARD_LAST_24H = {
+  window: { start: '2025-01-10T12:00:00Z', end: '2025-01-11T12:00:00Z' },
+  previousWindow: { start: '2025-01-09T12:00:00Z', end: '2025-01-10T12:00:00Z' },
+  currentCount: 18,
+  previousCount: 14,
+  delta: 4,
+  deltaPercentage: 28.57,
+};
+
+const DASHBOARD_TYPE_DISTRIBUTION = {
+  total: 18,
+  buckets: [
+    {
+      type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+      count: 12,
+      percentage: 66.67,
+    },
+    {
+      type: { code: 'HAZMAT', name: 'Hazmat', description: null },
+      count: 4,
+      percentage: 22.22,
+    },
+    {
+      type: { code: 'MEDICAL', name: 'Medical', description: null },
+      count: 2,
+      percentage: 11.11,
+    },
   ],
-  typeDistribution: [
-    { id: 'FIRE_STRUCTURE', label: 'Structure Fire', value: 12 },
-    { id: 'HAZMAT', label: 'Hazmat', value: 4 },
-    { id: 'MEDICAL', label: 'Medical', value: 2 },
+};
+
+const DASHBOARD_SEVERITY_DISTRIBUTION = {
+  total: 18,
+  buckets: [
+    {
+      severity: {
+        code: 'CRITICAL',
+        name: 'Critical',
+        description: null,
+        priority: 4,
+        colorHex: '#dc2626',
+      },
+      count: 8,
+      percentage: 44.44,
+    },
+    {
+      severity: {
+        code: 'MODERATE',
+        name: 'Moderate',
+        description: null,
+        priority: 2,
+        colorHex: '#f59e0b',
+      },
+      count: 6,
+      percentage: 33.33,
+    },
+    {
+      severity: {
+        code: 'LOW',
+        name: 'Low',
+        description: null,
+        priority: 1,
+        colorHex: '#10b981',
+      },
+      count: 4,
+      percentage: 22.22,
+    },
   ],
-  severityDistribution: [
-    { id: 'CRITICAL', label: 'Critical', value: 8 },
-    { id: 'MODERATE', label: 'Moderate', value: 6 },
-    { id: 'LOW', label: 'Low', value: 4 },
+};
+
+const DASHBOARD_DAILY_TREND = {
+  points: [
+    { date: '2025-01-04T00:00:00Z', count: 3 },
+    { date: '2025-01-05T00:00:00Z', count: 4 },
+    { date: '2025-01-06T00:00:00Z', count: 5 },
+    { date: '2025-01-07T00:00:00Z', count: 6 },
+    { date: '2025-01-08T00:00:00Z', count: 7 },
+    { date: '2025-01-09T00:00:00Z', count: 8 },
+    { date: '2025-01-10T00:00:00Z', count: 9 },
   ],
-  dailyTrend: [
-    { date: '2025-01-08', count: 5 },
-    { date: '2025-01-09', count: 7 },
-    { date: '2025-01-10', count: 6 },
-  ],
-  generatedAt: '2025-01-11T12:00:00Z',
+  trend: {
+    currentTotal: 35,
+    previousTotal: 21,
+    change: 14,
+    percentageChange: 66.67,
+    direction: 'up',
+  },
 };
 
 const DASHBOARD_RECENT_INCIDENTS = [
   {
     incidentNumber: 'INC-200',
     title: 'Warehouse Fire',
-    severity: { code: 'CRITICAL', name: 'Critical' },
-    status: { code: 'ON_SCENE', name: 'On Scene' },
+    occurrenceAt: '2025-01-08T11:58:00Z',
     reportedAt: '2025-01-08T12:04:00Z',
+    isActive: true,
+    location: {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-122.41, 37.79] },
+      properties: {},
+    },
+    severity: {
+      code: 'CRITICAL',
+      name: 'Critical',
+      description: null,
+      priority: 4,
+      colorHex: '#dc2626',
+    },
+    status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
+    type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+    primaryStation: { stationCode: 'ST-102', name: 'Station 102' },
   },
   {
     incidentNumber: 'INC-300',
     title: 'Hazmat Spill',
-    severity: { code: 'CRITICAL', name: 'Critical' },
-    status: { code: 'ON_SCENE', name: 'On Scene' },
+    occurrenceAt: '2025-01-10T16:20:00Z',
     reportedAt: '2025-01-10T16:24:00Z',
+    isActive: true,
+    location: {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-122.39, 37.76] },
+      properties: {},
+    },
+    severity: {
+      code: 'CRITICAL',
+      name: 'Critical',
+      description: null,
+      priority: 4,
+      colorHex: '#b91c1c',
+    },
+    status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
+    type: { code: 'HAZMAT', name: 'Hazmat', description: null },
+    primaryStation: { stationCode: 'ST-103', name: 'Station 103' },
   },
 ];
 
@@ -283,15 +377,39 @@ const configureApiRoutes = async (page: Page, incidentsRequests: string[]) => {
     route.fulfill({ status: 204, body: '' })
   );
 
-  await page.route('**/api/dashboard/summary**', (route: Route) =>
+  await page.route('**/api/dashboard/kpi/last-24h**', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(DASHBOARD_SUMMARY),
+      body: JSON.stringify(DASHBOARD_LAST_24H),
     })
   );
 
-  await page.route('**/api/dashboard/recent-incidents**', (route: Route) =>
+  await page.route('**/api/dashboard/incidents/by-type**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DASHBOARD_TYPE_DISTRIBUTION),
+    })
+  );
+
+  await page.route('**/api/dashboard/incidents/severity-distribution**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DASHBOARD_SEVERITY_DISTRIBUTION),
+    })
+  );
+
+  await page.route('**/api/dashboard/incidents/daily-trend**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DASHBOARD_DAILY_TREND),
+    })
+  );
+
+  await page.route('**/api/dashboard/incidents/recent**', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -451,7 +569,7 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   );
   await expect(page.getByRole('heading', { name: /dashboard analytics/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /key performance indicators/i })).toBeVisible();
-  await expect(page.getByText('Active incidents')).toBeVisible();
+  await expect(page.getByText('Incidents (last 24h)')).toBeVisible();
   await expect(page.getByText(/structure fire/i)).toBeVisible();
   await expect(page.getByText('INC-200')).toBeVisible();
 });

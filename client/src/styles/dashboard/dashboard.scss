@@ -19,10 +19,39 @@
   max-width: 720px;
 }
 
+.dashboard-shell__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .dashboard-shell__timestamp {
   margin: 0;
   font-size: 0.85rem;
   color: rgba(15, 23, 42, 0.6);
+}
+
+.dashboard-refresh {
+  appearance: none;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background-color: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.dashboard-refresh:hover,
+.dashboard-refresh:focus-visible {
+  background-color: rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.45);
+  outline: none;
 }
 
 .dashboard-shell__section {
@@ -150,6 +179,17 @@
   padding: 0.5rem 0.75rem;
   border-radius: 0.6rem;
   background-color: rgba(37, 99, 235, 0.05);
+}
+
+.dashboard-distribution__percentage {
+  font-size: 0.8rem;
+  color: rgba(15, 23, 42, 0.5);
+}
+
+.dashboard-trend__summary {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(15, 23, 42, 0.65);
 }
 
 .dashboard-recent {

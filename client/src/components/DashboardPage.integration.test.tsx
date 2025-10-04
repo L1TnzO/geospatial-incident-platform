@@ -4,7 +4,13 @@ import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import DashboardPage from '@/pages/DashboardPage';
 import type { IncidentListResponse, IncidentMetadata } from '@/types/incidents';
-import type { DashboardRecentIncident, DashboardSummary } from '@/types/dashboard';
+import type {
+  DashboardDailyTrend,
+  DashboardLast24HoursKpi,
+  DashboardRecentIncident,
+  DashboardSeverityDistribution,
+  DashboardTypeDistribution,
+} from '@/types/dashboard';
 import { clearIncidentMetadataCache } from '@/services/incidentsMetaService';
 import { resetIncidentDetailStore } from '@/store/useIncidentDetailStore';
 import { resetMapPreferencesStore } from '@/store/useMapPreferencesStore';
@@ -73,34 +79,100 @@ const INCIDENT_METADATA: IncidentMetadata = {
   limits: { maxPageSize: 100, maxTotalResults: 5000 },
 };
 
-const DASHBOARD_SUMMARY: DashboardSummary = {
-  kpis: [
-    { id: 'activeIncidents', label: 'Active incidents', value: 18, unit: null, delta: 4.2 },
-    { id: 'criticalShare', label: 'Critical share', value: 42, unit: '%', delta: 1.5 },
+const DASHBOARD_LAST_24H: DashboardLast24HoursKpi = {
+  window: { start: '2025-01-10T12:00:00Z', end: '2025-01-11T12:00:00Z' },
+  previousWindow: { start: '2025-01-09T12:00:00Z', end: '2025-01-10T12:00:00Z' },
+  currentCount: 18,
+  previousCount: 14,
+  delta: 4,
+  deltaPercentage: 28.57,
+};
+
+const DASHBOARD_TYPE_DISTRIBUTION: DashboardTypeDistribution = {
+  total: 16,
+  buckets: [
+    {
+      type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+      count: 12,
+      percentage: 75,
+    },
+    {
+      type: { code: 'HAZMAT', name: 'Hazmat', description: null },
+      count: 4,
+      percentage: 25,
+    },
   ],
-  typeDistribution: [
-    { id: 'FIRE_STRUCTURE', label: 'Structure Fire', value: 12 },
-    { id: 'HAZMAT', label: 'Hazmat', value: 4 },
+};
+
+const DASHBOARD_SEVERITY_DISTRIBUTION: DashboardSeverityDistribution = {
+  total: 14,
+  buckets: [
+    {
+      severity: {
+        code: 'CRITICAL',
+        name: 'Critical',
+        description: null,
+        priority: 4,
+        colorHex: '#dc2626',
+      },
+      count: 8,
+      percentage: 57.14,
+    },
+    {
+      severity: {
+        code: 'MODERATE',
+        name: 'Moderate',
+        description: null,
+        priority: 2,
+        colorHex: '#f59e0b',
+      },
+      count: 6,
+      percentage: 42.86,
+    },
   ],
-  severityDistribution: [
-    { id: 'CRITICAL', label: 'Critical', value: 8 },
-    { id: 'MODERATE', label: 'Moderate', value: 6 },
+};
+
+const DASHBOARD_DAILY_TREND: DashboardDailyTrend = {
+  points: [
+    { date: '2025-01-04T00:00:00Z', count: 2 },
+    { date: '2025-01-05T00:00:00Z', count: 3 },
+    { date: '2025-01-06T00:00:00Z', count: 4 },
+    { date: '2025-01-07T00:00:00Z', count: 5 },
+    { date: '2025-01-08T00:00:00Z', count: 6 },
+    { date: '2025-01-09T00:00:00Z', count: 7 },
+    { date: '2025-01-10T00:00:00Z', count: 8 },
   ],
-  dailyTrend: [
-    { date: '2025-01-08', count: 5 },
-    { date: '2025-01-09', count: 7 },
-    { date: '2025-01-10', count: 6 },
-  ],
-  generatedAt: '2025-01-11T12:00:00Z',
+  trend: {
+    currentTotal: 30,
+    previousTotal: 18,
+    change: 12,
+    percentageChange: 66.67,
+    direction: 'up',
+  },
 };
 
 const DASHBOARD_RECENT_INCIDENTS: DashboardRecentIncident[] = [
   {
     incidentNumber: 'INC-200',
     title: 'Warehouse Fire',
-    severity: { code: 'CRITICAL', name: 'Critical' },
-    status: { code: 'ON_SCENE', name: 'On Scene' },
+    occurrenceAt: '2025-01-08T11:58:00Z',
     reportedAt: '2025-01-08T12:04:00Z',
+    isActive: true,
+    location: {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-122.41, 37.79] },
+      properties: {},
+    },
+    severity: {
+      code: 'CRITICAL',
+      name: 'Critical',
+      description: null,
+      priority: 4,
+      colorHex: '#dc2626',
+    },
+    status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
+    type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+    primaryStation: null,
   },
 ];
 
@@ -110,8 +182,15 @@ const server = setupServer(
   http.get('*/api/incidents/search', () =>
     HttpResponse.json({ error: 'Not implemented' }, { status: 404 })
   ),
-  http.get('*/api/dashboard/summary', () => HttpResponse.json(DASHBOARD_SUMMARY)),
-  http.get('*/api/dashboard/recent-incidents', () => HttpResponse.json(DASHBOARD_RECENT_INCIDENTS))
+  http.get('*/api/dashboard/kpi/last-24h', () => HttpResponse.json(DASHBOARD_LAST_24H)),
+  http.get('*/api/dashboard/incidents/by-type', () =>
+    HttpResponse.json(DASHBOARD_TYPE_DISTRIBUTION)
+  ),
+  http.get('*/api/dashboard/incidents/severity-distribution', () =>
+    HttpResponse.json(DASHBOARD_SEVERITY_DISTRIBUTION)
+  ),
+  http.get('*/api/dashboard/incidents/daily-trend', () => HttpResponse.json(DASHBOARD_DAILY_TREND)),
+  http.get('*/api/dashboard/incidents/recent', () => HttpResponse.json(DASHBOARD_RECENT_INCIDENTS))
 );
 
 describe('DashboardPage analytics integration', () => {
@@ -138,8 +217,8 @@ describe('DashboardPage analytics integration', () => {
     await waitFor(() => expect(screen.queryByText(/loading kpi metrics/i)).not.toBeInTheDocument());
 
     expect(screen.getByRole('heading', { name: /dashboard analytics/i })).toBeInTheDocument();
-    expect(screen.getByText('Active incidents')).toBeInTheDocument();
-    expect(screen.getByText(/critical share/i)).toBeInTheDocument();
+    expect(screen.getByText(/incidents \(last 24h\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/net change/i)).toBeInTheDocument();
     expect(screen.getByText(/structure fire/i)).toBeInTheDocument();
     expect(screen.getByText('Warehouse Fire')).toBeInTheDocument();
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
@@ -147,16 +226,29 @@ describe('DashboardPage analytics integration', () => {
 
   it('surfaces error states when dashboard endpoints fail', async () => {
     server.use(
-      http.get('*/api/dashboard/summary', () => HttpResponse.text('', { status: 500 })),
-      http.get('*/api/dashboard/recent-incidents', () => HttpResponse.text('', { status: 500 }))
+      http.get('*/api/dashboard/kpi/last-24h', () => HttpResponse.text('', { status: 500 })),
+      http.get('*/api/dashboard/incidents/by-type', () => HttpResponse.text('', { status: 500 })),
+      http.get('*/api/dashboard/incidents/severity-distribution', () =>
+        HttpResponse.text('', { status: 500 })
+      ),
+      http.get('*/api/dashboard/incidents/daily-trend', () =>
+        HttpResponse.text('', { status: 500 })
+      ),
+      http.get('*/api/dashboard/incidents/recent', () => HttpResponse.text('', { status: 500 }))
     );
 
     render(<DashboardPage />);
 
-    const summaryErrors = await screen.findAllByText(
-      /failed to fetch dashboard summary \(status 500\)/i
-    );
-    expect(summaryErrors).toHaveLength(2);
+    await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
+    expect(
+      screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/failed to fetch dashboard severity distribution \(status 500\)/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/failed to fetch dashboard daily trend \(status 500\)/i)
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/failed to fetch dashboard recent incidents \(status 500\)/i)
     ).toBeInTheDocument();

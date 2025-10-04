@@ -1,94 +1,156 @@
-import type { DashboardAggregationsState } from '@/hooks/useDashboardAggregations';
-import type { DashboardDistributionDatum, DashboardTrendPoint } from '@/types/dashboard';
+import type { DashboardQueryState } from '@/hooks/useDashboardQuery';
+import type {
+  DashboardDailyTrend,
+  DashboardSeverityDistribution,
+  DashboardTypeDistribution,
+} from '@/types/dashboard';
 
 interface DashboardChartsGridProps {
-  summary: DashboardAggregationsState;
+  typeDistribution: DashboardQueryState<DashboardTypeDistribution>;
+  severityDistribution: DashboardQueryState<DashboardSeverityDistribution>;
+  dailyTrend: DashboardQueryState<DashboardDailyTrend>;
 }
 
-const renderDistribution = (data: DashboardDistributionDatum[], emptyMessage: string) => {
-  if (data.length === 0) {
+const formatPercentage = (value: number): string => `${value.toFixed(1)}%`;
+
+const renderDistributionList = (
+  items: { id: string; label: string; count: number; percentage: number }[],
+  emptyMessage: string
+) => {
+  if (items.length === 0) {
     return <p className="dashboard-empty">{emptyMessage}</p>;
   }
 
   return (
     <ul className="dashboard-distribution" role="list">
-      {data.map((datum) => (
-        <li key={datum.id}>
-          <span>{datum.label}</span>
-          <strong>{datum.value.toLocaleString()}</strong>
+      {items.map((item) => (
+        <li key={item.id}>
+          <span>{item.label}</span>
+          <strong>
+            {item.count.toLocaleString()}
+            <span className="dashboard-distribution__percentage">
+              {' '}
+              ({formatPercentage(item.percentage)})
+            </span>
+          </strong>
         </li>
       ))}
     </ul>
   );
 };
 
-const renderTrend = (points: DashboardTrendPoint[]) => {
-  if (points.length === 0) {
+const renderTrendList = (trend: DashboardDailyTrend | null) => {
+  if (!trend || trend.points.length === 0) {
     return <p className="dashboard-empty">Trend data will appear once incidents stream in.</p>;
   }
 
+  const recentPoints = trend.points.slice(-7);
+
   return (
-    <ul className="dashboard-trend" role="list">
-      {points.slice(0, 7).map((point) => (
-        <li key={point.date}>
-          <span>{new Date(point.date).toLocaleDateString()}</span>
-          <strong>{point.count.toLocaleString()}</strong>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="dashboard-trend" role="list">
+        {recentPoints.map((point) => (
+          <li key={point.date}>
+            <span>{new Date(point.date).toLocaleDateString()}</span>
+            <strong>{point.count.toLocaleString()}</strong>
+          </li>
+        ))}
+      </ul>
+      <p className="dashboard-trend__summary">
+        Last 7 days: {trend.trend.currentTotal.toLocaleString()} incidents · Change:{' '}
+        {trend.trend.change >= 0 ? '+' : ''}
+        {trend.trend.change.toLocaleString()} (
+        {trend.trend.percentageChange === null
+          ? 'n/a'
+          : formatPercentage(trend.trend.percentageChange)}
+        )
+      </p>
+    </>
   );
 };
 
-const DashboardChartsGrid = ({ summary }: DashboardChartsGridProps) => {
-  if (summary.status === 'loading' || summary.status === 'idle') {
-    return (
-      <div className="dashboard-charts-grid" role="status" aria-live="polite">
-        <p className="dashboard-loading">Loading distribution data…</p>
-        <div className="dashboard-placeholder" aria-hidden="true" />
-        <div className="dashboard-placeholder" aria-hidden="true" />
-        <div className="dashboard-placeholder" aria-hidden="true" />
-      </div>
-    );
-  }
+const DashboardChartsGrid = ({
+  typeDistribution,
+  severityDistribution,
+  dailyTrend,
+}: DashboardChartsGridProps) => {
+  const renderTypeSection = () => {
+    if (typeDistribution.status === 'loading' || typeDistribution.status === 'idle') {
+      return <p className="dashboard-loading">Loading incident type distribution…</p>;
+    }
 
-  if (summary.status === 'error') {
-    return (
-      <div className="dashboard-charts-grid" role="alert">
+    if (typeDistribution.status === 'error') {
+      return (
         <div className="dashboard-error">
-          {summary.error ?? 'Unable to load distribution charts.'}
+          {typeDistribution.error ?? 'Unable to load incident type distribution.'}
         </div>
-      </div>
+      );
+    }
+
+    return renderDistributionList(
+      (typeDistribution.data?.buckets ?? []).map((bucket) => ({
+        id: bucket.type.code,
+        label: bucket.type.name,
+        count: bucket.count,
+        percentage: bucket.percentage,
+      })),
+      'No type data yet. Configure filters to begin.'
     );
-  }
+  };
 
-  const data = summary.data;
+  const renderSeveritySection = () => {
+    if (severityDistribution.status === 'loading' || severityDistribution.status === 'idle') {
+      return <p className="dashboard-loading">Loading severity distribution…</p>;
+    }
 
-  if (!data) {
-    return (
-      <div className="dashboard-charts-grid" role="status">
-        <div className="dashboard-empty">
-          Distribution widgets will load once data is available.
+    if (severityDistribution.status === 'error') {
+      return (
+        <div className="dashboard-error">
+          {severityDistribution.error ?? 'Unable to load severity distribution.'}
         </div>
-      </div>
+      );
+    }
+
+    return renderDistributionList(
+      (severityDistribution.data?.buckets ?? []).map((bucket) => ({
+        id: bucket.severity.code,
+        label: bucket.severity.name,
+        count: bucket.count,
+        percentage: bucket.percentage,
+      })),
+      'No severity data yet. Adjust timeframe filters if needed.'
     );
-  }
+  };
+
+  const renderTrendSection = () => {
+    if (dailyTrend.status === 'loading' || dailyTrend.status === 'idle') {
+      return <p className="dashboard-loading">Loading daily trend…</p>;
+    }
+
+    if (dailyTrend.status === 'error') {
+      return (
+        <div className="dashboard-error">
+          {dailyTrend.error ?? 'Unable to load daily trend data.'}
+        </div>
+      );
+    }
+
+    return renderTrendList(dailyTrend.data);
+  };
 
   return (
     <div className="dashboard-charts-grid" role="list">
       <section className="dashboard-chart-card" aria-label="Type distribution" role="listitem">
         <h3>Incident Types</h3>
-        {renderDistribution(data.typeDistribution, 'No type data yet. Configure filters to begin.')}
+        {renderTypeSection()}
       </section>
       <section className="dashboard-chart-card" aria-label="Severity distribution" role="listitem">
         <h3>Severity Mix</h3>
-        {renderDistribution(
-          data.severityDistribution,
-          'No severity data yet. Adjust timeframe filters if needed.'
-        )}
+        {renderSeveritySection()}
       </section>
       <section className="dashboard-chart-card" aria-label="Daily trend" role="listitem">
         <h3>Daily Trend</h3>
-        {renderTrend(data.dailyTrend)}
+        {renderTrendSection()}
       </section>
     </div>
   );

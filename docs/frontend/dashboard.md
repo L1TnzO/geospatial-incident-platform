@@ -10,19 +10,20 @@ The dashboard route (`/dashboard`) hosts the analytics surface that complements 
 
 ## Placeholder widgets
 
-| Component        | Path                           | Purpose                                                                                                                                                                                              |
-| ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| KPI row          | `DashboardKPIRow.tsx`          | Shows three cards that render loading, error, empty, or formatted KPI values. Uses the shared filters hook to call `/api/dashboard/summary`.                                                         |
-| Charts grid      | `DashboardChartsGrid.tsx`      | Renders three lightweight cards (type mix, severity mix, daily trend) with accessible list semantics. Each card displays skeletons, error states, or stub data pulled from `/api/dashboard/summary`. |
-| Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/recent-incidents`, including severity/status chips and localized timestamps.                                                                  |
+| Component        | Path                           | Purpose                                                                                                                                                                                                                      |
+| ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| KPI row          | `DashboardKPIRow.tsx`          | Shows three cards that render loading, error, empty, or formatted KPI values sourced from `/api/dashboard/kpi/last-24h`.                                                                                                     |
+| Charts grid      | `DashboardChartsGrid.tsx`      | Renders three lightweight cards (type mix, severity mix, daily trend) with accessible list semantics. Each card calls its own endpoint (`/incidents/by-type`, `/incidents/severity-distribution`, `/incidents/daily-trend`). |
+| Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/incidents/recent`, including severity/status chips and localized timestamps.                                                                                          |
 
 All widgets accept result objects from their respective hooks, ensuring we can drop in real charting/visualization libraries in Tasks 5.3+ without rewriting container logic.
 
 ## Data hooks & services
 
 - `useDashboardFilters.ts` reuses the incident table filters (`useIncidentTableData`) so the dashboard respects the same query parameters as the overview.
-- `useDashboardAggregations.ts` fetches `/api/dashboard/summary`, tracking `idle`, `loading`, `success`, and `error` states with automatic `AbortController` cancellation.
-- `useDashboardRecentIncidents.ts` reads `/api/dashboard/recent-incidents` with the same filter set and lifecycle handling.
+- `useDashboardLast24HoursKpi.ts`, `useDashboardTypeDistribution.ts`, `useDashboardSeverityDistribution.ts`, and `useDashboardDailyTrend.ts` each call their respective `/api/dashboard/*` endpoints while exposing a common status shape.
+- `useDashboardAggregations.ts` simply composes the granular hooks above for scenarios where a single selector is still convenient.
+- `useDashboardRecentIncidents.ts` reads `/api/dashboard/incidents/recent` with the same filter set and lifecycle handling.
 - `dashboardService.ts` centralizes API helpers and typed payloads defined in `types/dashboard.ts`.
 
 Each hook returns plain objects, making them easy to mock in Vitest or swap with MSW handlers during local development.
