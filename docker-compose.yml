@@ -58,6 +58,7 @@ services:
       - '5173:5173'
     volumes:
       - ./client:/workspace
+      - ./tsconfig.base.json:/tsconfig.base.json:ro
       - node_modules_frontend:/workspace/node_modules
     networks:
       - internal

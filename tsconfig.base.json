@@ -11,7 +11,8 @@
     "paths": {
       "@server/*": ["server/src/*"],
       "@client/*": ["client/src/*"],
-      "@docs/*": ["docs/*"]
+      "@docs/*": ["docs/*"],
+      "@/*": ["client/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build"]

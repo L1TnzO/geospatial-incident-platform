@@ -1,5 +1,10 @@
 :root {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -80,6 +85,8 @@ main {
 
 .app-nav a.active {
   color: var(--color-primary);
+  background-color: rgba(37, 99, 235, 0.12);
+  box-shadow: inset 0 -2px 0 var(--color-primary);
 }
 
 .app-nav a:hover,

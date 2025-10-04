@@ -2,6 +2,8 @@
 
 This guide explains how the Geospatial Incident Platform map works, the endpoints it consumes, and how to validate the new functionality introduced in Tasks 3.4–3.8. Share it with frontend contributors, QA, and stakeholders who need a walkthrough of the incident map and station overlay.
 
+> **Navigation note:** The global header now exposes two routes—**Overview** (map/table experience) and **Dashboard** (analytics scaffold). Use the Overview tab or visit `/overview` to follow this guide; jump to `/dashboard` for analytics details covered in [`docs/frontend/dashboard.md`](./dashboard.md).
+
 ## Architecture & Data Flow
 
 - Component entry point: `client/src/components/MapView.tsx`

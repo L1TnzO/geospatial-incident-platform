@@ -28,13 +28,14 @@ npm run test:watch # Run Vitest in watch mode
 
 ## Frontend features
 
-- React Router with a shell layout (`src/layouts/AppLayout.tsx`) and dashboard route
+- React Router with a shared shell layout (`src/layouts/AppLayout.tsx`) that exposes both the map-driven **Overview** (`/` and `/overview`) and analytics **Dashboard** (`/dashboard`) routes
 - Zustand store (`src/store/useMapStore.ts`) for map view state
 - Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through the cached incident detail store, and overlays toggleable fire station markers fetched from `/api/stations`
 - Incidents table card (`src/components/IncidentTable.tsx`) that consumes the table data hook to render paginated rows with loading, error, and empty states alongside pagination controls, severity/status multi-selects, occurrence date range filters, synchronized row highlighting driven by `useIncidentDetailStore`, and localStorage-backed filter persistence so user preferences survive reloads
 - Incident search bar (`src/components/IncidentSearchBar.tsx`) that hydrates `/api/incidents/meta` for UX hints, debounces `/api/incidents/search` lookups, recenters the map with `useMapStore`, drives the detail modal, and syncs the table filter plus recent history cache
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend cursor helpers for filterable pagination
 - Incident detail modal (`src/components/IncidentDetailModal.tsx`) backed by `useIncidentDetailStore`, which prefetches `/api/incidents/{incidentNumber}` payloads, caches responses per incident, persists the most recent 25 detail payloads to localStorage, and exposes retry/loading/error states shared between the map and table entry points
+- Dashboard analytics scaffold (`src/layouts/DashboardLayout.tsx`) with placeholder KPI, distribution, and recent-incident widgets that call `/api/dashboard/*` through typed hooks (`src/hooks/useDashboardAggregations.ts`, `src/hooks/useDashboardRecentIncidents.ts`) and share the same filter state as the incidents table
 - Responsive layout styling via shared SCSS entrypoints (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -52,7 +53,8 @@ When introducing a new surface area, add a dedicated partial under `src/styles/`
 
 ## Documentation & testing resources
 
-- [Map Experience Guide](../docs/frontend/map.md) — Interaction walkthrough, state/data flow, troubleshooting tips.
+- [Map Experience Guide](../docs/frontend/map.md) — Interaction walkthrough, state/data flow, troubleshooting tips, and navigation hand-off to the dashboard.
+- [Dashboard Analytics Guide](../docs/frontend/dashboard.md) — Route layout, placeholder widgets, and integration points for upcoming analytics work.
 - [Incidents & Stations API Reference](../docs/api/incidents-and-stations.md) — REST payloads consumed by the map and supporting dashboards.
 - [Testing & Quality Gates](../docs/operations/testing.md) — Commands for running lint/unit/integration suites, including `MapView.integration.test.tsx`.
 

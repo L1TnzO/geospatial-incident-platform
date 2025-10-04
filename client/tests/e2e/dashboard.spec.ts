@@ -183,6 +183,47 @@ const STATIONS_RESPONSE = {
   ],
 };
 
+const DASHBOARD_SUMMARY = {
+  kpis: [
+    { id: 'activeIncidents', label: 'Active incidents', value: 18, unit: null, delta: 4.2 },
+    { id: 'criticalShare', label: 'Critical share', value: 42, unit: '%', delta: 1.5 },
+    { id: 'avgResponse', label: 'Avg. response (min)', value: 7.3, unit: 'min', delta: -0.8 },
+  ],
+  typeDistribution: [
+    { id: 'FIRE_STRUCTURE', label: 'Structure Fire', value: 12 },
+    { id: 'HAZMAT', label: 'Hazmat', value: 4 },
+    { id: 'MEDICAL', label: 'Medical', value: 2 },
+  ],
+  severityDistribution: [
+    { id: 'CRITICAL', label: 'Critical', value: 8 },
+    { id: 'MODERATE', label: 'Moderate', value: 6 },
+    { id: 'LOW', label: 'Low', value: 4 },
+  ],
+  dailyTrend: [
+    { date: '2025-01-08', count: 5 },
+    { date: '2025-01-09', count: 7 },
+    { date: '2025-01-10', count: 6 },
+  ],
+  generatedAt: '2025-01-11T12:00:00Z',
+};
+
+const DASHBOARD_RECENT_INCIDENTS = [
+  {
+    incidentNumber: 'INC-200',
+    title: 'Warehouse Fire',
+    severity: { code: 'CRITICAL', name: 'Critical' },
+    status: { code: 'ON_SCENE', name: 'On Scene' },
+    reportedAt: '2025-01-08T12:04:00Z',
+  },
+  {
+    incidentNumber: 'INC-300',
+    title: 'Hazmat Spill',
+    severity: { code: 'CRITICAL', name: 'Critical' },
+    status: { code: 'ON_SCENE', name: 'On Scene' },
+    reportedAt: '2025-01-10T16:24:00Z',
+  },
+];
+
 type SearchParams = URLSearchParams;
 
 const buildListResponse = (items: IncidentListEntry[]) => ({
@@ -240,6 +281,22 @@ const configureApiRoutes = async (page: Page, incidentsRequests: string[]) => {
 
   await page.route('https://tile.openstreetmap.org/**', (route: Route) =>
     route.fulfill({ status: 204, body: '' })
+  );
+
+  await page.route('**/api/dashboard/summary**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DASHBOARD_SUMMARY),
+    })
+  );
+
+  await page.route('**/api/dashboard/recent-incidents**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(DASHBOARD_RECENT_INCIDENTS),
+    })
   );
 
   await page.route('**/api/incidents/meta', (route: Route) =>
@@ -379,4 +436,22 @@ test('filters incidents, searches by number, and opens detail modal', async ({ p
   await expect(page.getByRole('dialog')).toContainText('INC-300');
 
   expect(incidentsRequests.some((url) => url.includes('incidentNumber=INC-300'))).toBeTruthy();
+});
+
+test('dashboard analytics screen renders navigation and placeholders', async ({ page }) => {
+  const incidentsRequests: string[] = [];
+  await configureApiRoutes(page, incidentsRequests);
+
+  await page.goto('/dashboard');
+  await page.waitForLoadState('networkidle');
+
+  await expect(page.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
+  await expect(page.getByRole('heading', { name: /dashboard analytics/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /key performance indicators/i })).toBeVisible();
+  await expect(page.getByText('Active incidents')).toBeVisible();
+  await expect(page.getByText(/structure fire/i)).toBeVisible();
+  await expect(page.getByText('INC-200')).toBeVisible();
 });
