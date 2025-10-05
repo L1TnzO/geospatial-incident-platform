@@ -24,6 +24,9 @@ npm run preview    # Preview the production build locally
 npm run lint       # Run ESLint checks
 npm test           # Execute Vitest test suite once
 npm run test:watch # Run Vitest in watch mode
+npm run test:integration # Run Vitest integration suites (map + dashboard)
+npm run test:e2e        # Run Playwright E2E suite headless
+npm run test:e2e:headed # Run Playwright E2E suite in headed mode
 ```
 
 ## Frontend features
@@ -38,6 +41,20 @@ npm run test:watch # Run Vitest in watch mode
 - Dashboard analytics surface (`src/layouts/DashboardLayout.tsx`) with the **Incidents (Last 24h)** KPI card (trend arrow, signed delta, percentage change, in-card refresh), incidents-by-type bar chart featuring count/percentage toggle + tooltips, severity mix donut chart keyed to backend colour swatches, daily trend line chart with highlighted 7-day window, and a recent incidents panel that renders severity badges, station metadata, and quick actions wired to recenter the map or open the incident detail modal. All widgets consume `/api/dashboard/*` hooks (`useDashboardLast24HoursKpi`, `useDashboardTypeDistribution`, `useDashboardSeverityDistribution`, `useDashboardDailyTrend`, `useDashboardRecentIncidents`, `useDashboardExport`) while sharing the same filter state as the incidents table and offering a filter-aware CSV export control with success/error banners
 - Responsive layout styling via shared SCSS entrypoints (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
+
+## Dashboard analytics workflow
+
+- **Shared filters:** `useDashboardFilters` mirrors the incidents table filter state (type, severity, status, date range, active flag, incident number). Adjusting filters on either surface keeps the other aligned.
+- **Widgets:** KPI, charts, and recent incidents pull from dedicated hooks (`useDashboard…`) and expose consistent loading/error/refresh behaviour. Manual refresh buttons pass `refresh=true` to bypass the server cache.
+- **Export:** The **Export CSV** pill button reuses current filters, displays in-flight status, and surfaces success/error banners. Filenames are taken from `Content-Disposition`; fall back naming pattern is `incidents-YYYYMMDD-HHmmss.csv`.
+- **Map/Table sync:** Quick actions in `DashboardRecentIncidents` call `useMapStore.setView`, highlight the incidents table row, and open the shared detail modal so operators can jump between analytics and spatial context instantly.
+
+### CSV export tips
+
+- Default limit is 5 000 rows. If the filtered result exceeds that cap the backend returns `400 BAD_REQUEST`; narrow filters or request a smaller `limit` to continue.
+- Supply `includeColumns=incidentNumber,title,latitude,longitude` (or any supported keys) to customise the output order. Unknown keys trigger descriptive 400 responses.
+- Exports prepend metadata comments (generated time, record count, applied filters, column list). Some spreadsheet tools treat comment lines as plain rows; use import options that skip leading `#` lines if needed.
+- Banners stay on screen until dismissed; **Download again** reuses the last successful blob without hitting the network.
 
 ## Styles
 
@@ -56,7 +73,7 @@ When introducing a new surface area, add a dedicated partial under `src/styles/`
 - [Map Experience Guide](../docs/frontend/map.md) — Interaction walkthrough, state/data flow, troubleshooting tips, and navigation hand-off to the dashboard.
 - [Dashboard Analytics Guide](../docs/frontend/dashboard.md) — Route layout, KPI card, incidents-by-type chart toggle, severity donut chart, daily trend line chart, and integration points for upcoming analytics work.
 - [Incidents & Stations API Reference](../docs/api/incidents-and-stations.md) — REST payloads consumed by the map and supporting dashboards.
-- [Testing & Quality Gates](../docs/operations/testing.md) — Commands for running lint/unit/integration suites, including `MapView.integration.test.tsx`.
+- [Testing & Quality Gates](../docs/operations/testing.md) — Lint/unit/integration/E2E matrices (`npm run test:client:integration`, `npm run test:client:e2e -- dashboard`, backend analytics suites, Playwright setup).
 
 ## Docker Compose integration
 
@@ -90,6 +107,17 @@ The React hook (`src/hooks/useIncidentTableData.ts`) wraps that service with loc
 - `src/hooks/useIncidentSearch.ts` coordinates metadata hydration, debounced/abortable searches, and exposes `lastResult`, `isSearching`, and `searchError` state alongside helper actions.
 - `src/components/IncidentSearchBar.tsx` is rendered on the dashboard, synchronizes the map (`useMapStore.setView`), table (`useIncidentTableData.setFilters`), and detail modal (`useIncidentDetailStore.openIncident`), and persists the last five successful lookups to localStorage (`gip::incidentSearchHistory::v1`).
 - Vitest coverage lives in `src/components/IncidentSearchBar.test.tsx`, which exercises success, error, and history scenarios with mocked services/stores.
+
+## Testing the dashboard
+
+```bash
+npm run test:client:integration -- DashboardPage.integration.test.tsx
+npm run test:client:e2e -- dashboard
+```
+
+- The integration command runs just the MSW-backed dashboard suite; omit the `--` filter to execute the full integration matrix.
+- The E2E command scopes Playwright to the dashboard spec. Ensure the Vite dev server is running (`npm run dev`) and install browsers once per environment with `npx playwright install` (add `--with-deps` on fresh Linux hosts).
+- Need headed debugging? Use `npm run test:client:e2e:headed -- dashboard` to open Chromium while the script runs.
 
 ### Persistent client caches
 

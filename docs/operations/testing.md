@@ -18,15 +18,15 @@ This guide outlines how to run automated tests for the Geospatial Incident Platf
 
 ## Test suites
 
-| Command                           | Description                                                                                                                                                                 |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run lint`                    | ESLint across the monorepo using the shared root config.                                                                                                                    |
-| `npm test`                        | Runs server unit tests, database integration suites, and frontend Vitest suites. Integration specs will emit skip notices if the database is unreachable.                   |
-| `npm run test:server:unit`        | Backend unit tests only (`jest --runInBand`).                                                                                                                               |
-| `npm run test:server:integration` | Database-backed Jest suites under `server/tests/db`. Requires PostGIS; set `DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres` when running outside Docker. |
-| `npm run test:client`             | Full frontend Vitest suite (unit + integration).                                                                                                                            |
-| `npm run test:integration`        | Frontend integration subset (`*.integration.test.tsx`) targeting cross-component flows such as the dashboard table/search/map coordination.                                 |
-| `npm run test:e2e`                | Playwright browser automation covering the dashboard happy path (filters → search → detail). Requires Vite dev server; see _Frontend E2E coverage_ below.                   |
+| Command                           | Description                                                                                                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run lint`                    | ESLint across the monorepo using the shared root config.                                                                                                                         |
+| `npm test`                        | Runs server unit tests, database integration suites, and frontend Vitest suites. Integration specs will emit skip notices if the database is unreachable.                        |
+| `npm run test:server:unit`        | Backend unit tests only (`jest --runInBand`).                                                                                                                                    |
+| `npm run test:server:integration` | Database-backed Jest suites under `server/tests/db`. Requires PostGIS; set `DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres` when running outside Docker.      |
+| `npm run test:client`             | Full frontend Vitest suite (unit + integration).                                                                                                                                 |
+| `npm run test:client:integration` | Frontend integration subset (`*.integration.test.tsx`). Alias: `npm run test:integration`.                                                                                       |
+| `npm run test:client:e2e`         | Playwright browser automation covering dashboard workflows (filters → export → quick actions). Alias: `npm run test:e2e`. Requires Vite dev server; see _Frontend E2E coverage_. |
 
 ### Backend integration coverage
 
@@ -57,13 +57,13 @@ Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose
 Vitest integration specs live alongside the components they exercise and run headless in Node:
 
 - `MapView.integration.test.tsx` validates the incident/station layers and detail modal wiring with mocked fetch responses.
-- `DashboardPage.integration.test.tsx` stubs the `/api/incidents` family with MSW, then drives the search bar, map view, and table together to assert that filters translate into query parameters (including `incidentNumber`) and that the detail modal opens with the correct payload.
+- `DashboardPage.integration.test.tsx` stubs the `/api/incidents` and `/api/dashboard` families with MSW, then drives the KPI, charts, export banner, map quick actions, and detail modal end-to-end to ensure filter propagation works.
 
-Run `npm run test:integration` to execute only these cross-component suites when iterating locally.
+Run `npm run test:client:integration` (or the root alias `npm run test:integration`) to execute only these cross-component suites when iterating locally. Add `-- DashboardPage.integration.test.tsx` to focus on analytics while iterating.
 
 ### Frontend E2E coverage
 
-Playwright scenarios live under `client/tests/e2e/` and rely on route intercepts instead of a live backend. `npm run test:e2e` will:
+Playwright scenarios live under `client/tests/e2e/` and rely on route intercepts instead of a live backend. `npm run test:client:e2e` will:
 
 1. Launch the Vite dev server (or reuse an existing instance when not in CI).
 2. Open the dashboard, apply severity/status/date filters, and assert the table issues the expected `/api/incidents` query params.
@@ -71,7 +71,9 @@ Playwright scenarios live under `client/tests/e2e/` and rely on route intercepts
 
 Artifacts (screenshots, traces, and video) are captured automatically on failure inside `playwright-report/`.
 
-> **First run:** install Playwright browsers once per environment with `npx playwright install --with-deps chromium`.
+> **First run:** install Playwright browsers once per environment with `npx playwright install`. On fresh Linux hosts you can append `--with-deps` to pull system packages.
+
+Need visual debugging? Use `npm run test:client:e2e:headed -- dashboard` to launch Chromium while the suite executes.
 
 ## Cleaning up
 
@@ -87,3 +89,5 @@ make compose-down
 - **PostGIS errors (e.g., `function st_geomfromtext` missing):** Ensure the database was created with PostGIS support; the provided Compose stack handles this automatically.
 - **Vitest fetch warnings:** The integration tests stub `globalThis.fetch`; if additional fetches are added, update the stub in `MapView.integration.test.tsx` to handle new endpoints.
 - **Slow Jest runs:** Consider exporting `PGDATABASE`/`PGUSER` pointing at a local Postgres instance instead of Docker for heavy debugging sessions.
+- **Metadata cache “stuck” during tests:** Call `clearIncidentMetadataCache()` (from `client/src/services/incidentsMetaService.ts`) or hit `/api/incidents/meta?refresh=true` to invalidate the five-minute cache between assertions.
+- **Playwright reports missing browsers:** Re-run `npx playwright install` (append `--with-deps` in headless Linux environments) and retry the affected suite.

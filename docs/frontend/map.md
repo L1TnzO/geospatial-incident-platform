@@ -88,5 +88,6 @@ npm --prefix client run test -- --run MapView.integration.test.tsx
 ## Related Documentation
 
 - [`docs/api/incidents-and-stations.md`](../api/incidents-and-stations.md) — Endpoint reference powering the map.
+- [`docs/frontend/dashboard.md`](./dashboard.md) — Companion analytics surface, shared filters, and export workflow.
 - [`docs/data-model/README.md`](../data-model/README.md) — Schema context for incidents and stations.
 - [`docs/operations/testing.md`](../operations/testing.md) — Integration test workflow covering backend and frontend suites.

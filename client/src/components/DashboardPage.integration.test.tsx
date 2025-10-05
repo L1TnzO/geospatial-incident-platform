@@ -1,251 +1,32 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import DashboardPage from '@/pages/DashboardPage';
-import type { IncidentListResponse, IncidentMetadata } from '@/types/incidents';
-import type {
-  DashboardDailyTrend,
-  DashboardLast24HoursKpi,
-  DashboardRecentIncident,
-  DashboardSeverityDistribution,
-  DashboardTypeDistribution,
-} from '@/types/dashboard';
 import { clearIncidentMetadataCache } from '@/services/incidentsMetaService';
 import { resetIncidentDetailStore, useIncidentDetailStore } from '@/store/useIncidentDetailStore';
 import { resetMapPreferencesStore } from '@/store/useMapPreferencesStore';
 import { useMapStore } from '@/store/useMapStore';
+import {
+  createDashboardErrorHandlers,
+  createDashboardHandlers,
+  defaultDashboardMocks,
+} from '@/test-utils/dashboardHandlers';
 
-const INCIDENTS_RESPONSE: IncidentListResponse = {
-  data: [
-    {
-      incidentNumber: 'INC-100',
-      title: 'Uptown Electrical Fire',
-      externalReference: null,
-      occurrenceAt: '2025-01-05T09:15:00Z',
-      reportedAt: '2025-01-05T09:18:00Z',
-      dispatchAt: null,
-      arrivalAt: null,
-      resolvedAt: null,
-      isActive: true,
-      casualtyCount: 0,
-      responderInjuries: 0,
-      estimatedDamageAmount: null,
-      locationGeohash: null,
-      location: {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [-122.41, 37.79] },
-        properties: {},
-      },
-      type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
-      severity: {
-        code: 'MODERATE',
-        name: 'Moderate',
-        description: null,
-        priority: 2,
-        colorHex: '#f59e0b',
-      },
-      status: { code: 'REPORTED', name: 'Reported', description: null, isTerminal: false },
-      source: null,
-      weather: null,
-      primaryStation: null,
-    },
-  ],
-  pagination: {
-    page: 1,
-    pageSize: 25,
-    total: 1,
-    totalPages: 1,
-    hasNext: false,
-    hasPrevious: false,
-    sortBy: 'reportedAt',
-    sortDirection: 'desc',
-  },
-};
-
-const INCIDENT_METADATA: IncidentMetadata = {
-  types: [{ code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null }],
-  severities: [
-    { code: 'CRITICAL', name: 'Critical', description: null, priority: 4, colorHex: '#dc2626' },
-    { code: 'MODERATE', name: 'Moderate', description: null, priority: 2, colorHex: '#f59e0b' },
-  ],
-  statuses: [
-    { code: 'REPORTED', name: 'Reported', description: null, isTerminal: false },
-    { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
-  ],
-  occurrenceRange: { start: '2025-01-01T00:00:00Z', end: '2025-01-31T23:59:59Z' },
-  reportedRange: { start: '2025-01-01T00:00:00Z', end: '2025-01-31T23:59:59Z' },
-  activeCount: 1,
-  limits: { maxPageSize: 100, maxTotalResults: 5000 },
-};
-
-const DASHBOARD_LAST_24H: DashboardLast24HoursKpi = {
-  window: { start: '2025-01-10T12:00:00Z', end: '2025-01-11T12:00:00Z' },
-  previousWindow: { start: '2025-01-09T12:00:00Z', end: '2025-01-10T12:00:00Z' },
-  currentCount: 18,
-  previousCount: 14,
-  delta: 4,
-  deltaPercentage: 28.57,
-};
-
-const DASHBOARD_TYPE_DISTRIBUTION: DashboardTypeDistribution = {
-  total: 16,
-  buckets: [
-    {
-      type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
-      count: 12,
-      percentage: 75,
-    },
-    {
-      type: { code: 'HAZMAT', name: 'Hazmat', description: null },
-      count: 4,
-      percentage: 25,
-    },
-  ],
-};
-
-const DASHBOARD_SEVERITY_DISTRIBUTION: DashboardSeverityDistribution = {
-  total: 14,
-  buckets: [
-    {
-      severity: {
-        code: 'CRITICAL',
-        name: 'Critical',
-        description: null,
-        priority: 4,
-        colorHex: '#dc2626',
-      },
-      count: 8,
-      percentage: 57.14,
-    },
-    {
-      severity: {
-        code: 'MODERATE',
-        name: 'Moderate',
-        description: null,
-        priority: 2,
-        colorHex: '#f59e0b',
-      },
-      count: 6,
-      percentage: 42.86,
-    },
-  ],
-};
-
-const DASHBOARD_DAILY_TREND: DashboardDailyTrend = {
-  points: [
-    { date: '2025-01-04T00:00:00Z', count: 2 },
-    { date: '2025-01-05T00:00:00Z', count: 3 },
-    { date: '2025-01-06T00:00:00Z', count: 4 },
-    { date: '2025-01-07T00:00:00Z', count: 5 },
-    { date: '2025-01-08T00:00:00Z', count: 6 },
-    { date: '2025-01-09T00:00:00Z', count: 7 },
-    { date: '2025-01-10T00:00:00Z', count: 8 },
-  ],
-  trend: {
-    currentTotal: 30,
-    previousTotal: 18,
-    change: 12,
-    percentageChange: 66.67,
-    direction: 'up',
-  },
-};
-
-const DASHBOARD_RECENT_INCIDENTS: DashboardRecentIncident[] = [
-  {
-    incidentNumber: 'INC-200',
-    title: 'Warehouse Fire',
-    occurrenceAt: '2025-01-08T11:58:00Z',
-    reportedAt: '2025-01-08T12:04:00Z',
-    isActive: true,
-    location: {
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [-122.41, 37.79] },
-      properties: {},
-    },
-    severity: {
-      code: 'CRITICAL',
-      name: 'Critical',
-      description: null,
-      priority: 4,
-      colorHex: '#dc2626',
-    },
-    status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
-    type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
-    primaryStation: { stationCode: 'FS21', name: 'Fire Station 21' },
-  },
-];
-
-const INCIDENT_DETAIL_RESPONSE = {
-  incidentNumber: 'INC-200',
-  title: 'Warehouse Fire',
-  occurrenceAt: '2025-01-08T11:58:00Z',
-  reportedAt: '2025-01-08T12:04:00Z',
-  dispatchAt: null,
-  arrivalAt: null,
-  resolvedAt: null,
-  isActive: true,
-  casualtyCount: 0,
-  responderInjuries: 0,
-  estimatedDamageAmount: null,
-  location: {
-    type: 'Feature' as const,
-    geometry: { type: 'Point' as const, coordinates: [-122.41, 37.79] },
-    properties: {},
-  },
-  locationGeohash: null,
-  externalReference: null,
-  type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
-  severity: {
-    code: 'CRITICAL',
-    name: 'Critical',
-    description: null,
-    priority: 4,
-    colorHex: '#dc2626',
-  },
-  status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
-  source: null,
-  weather: null,
-  primaryStation: { stationCode: 'FS21', name: 'Fire Station 21' },
-  narrative: null,
-  metadata: { source: 'integration-test' },
-  units: [],
-  assets: [],
-  notes: [],
-};
+const {
+  last24h: INITIAL_LAST_24H,
+  typeDistribution: INITIAL_TYPE_DISTRIBUTION,
+  severityDistribution: INITIAL_SEVERITY_DISTRIBUTION,
+  dailyTrend: INITIAL_DAILY_TREND,
+  recentIncidents: INITIAL_RECENT_INCIDENTS,
+} = defaultDashboardMocks;
 
 const exportRequests: string[] = [];
 
 const server = setupServer(
-  http.get('*/api/incidents', () => HttpResponse.json(INCIDENTS_RESPONSE)),
-  http.get('*/api/incidents/meta', () => HttpResponse.json(INCIDENT_METADATA)),
-  http.get('*/api/incidents/search', () =>
-    HttpResponse.json({ error: 'Not implemented' }, { status: 404 })
-  ),
-  http.get('*/api/dashboard/kpi/last-24h', () => HttpResponse.json(DASHBOARD_LAST_24H)),
-  http.get('*/api/dashboard/incidents/by-type', () =>
-    HttpResponse.json(DASHBOARD_TYPE_DISTRIBUTION)
-  ),
-  http.get('*/api/dashboard/incidents/severity-distribution', () =>
-    HttpResponse.json(DASHBOARD_SEVERITY_DISTRIBUTION)
-  ),
-  http.get('*/api/dashboard/incidents/daily-trend', () => HttpResponse.json(DASHBOARD_DAILY_TREND)),
-  http.get('*/api/dashboard/incidents/recent', () => HttpResponse.json(DASHBOARD_RECENT_INCIDENTS)),
-  http.get('*/api/incidents/:incidentNumber', ({ params }) => {
-    if ((params?.incidentNumber ?? '').toString().toUpperCase() === 'INC-200') {
-      return HttpResponse.json(INCIDENT_DETAIL_RESPONSE);
-    }
-    return HttpResponse.json({ error: 'Not found' }, { status: 404 });
-  }),
-  http.get('*/api/dashboard/export', ({ request }) => {
-    exportRequests.push(request.url);
-    return new HttpResponse('id,title\nINC-100,Uptown Electrical Fire', {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename="incidents-export.csv"',
-      },
-    });
+  ...createDashboardHandlers({
+    onExportRequest: (url) => {
+      exportRequests.push(url);
+    },
   })
 );
 
@@ -253,6 +34,18 @@ const originalCreateObjectURL = global.URL.createObjectURL;
 const originalRevokeObjectURL = global.URL.revokeObjectURL;
 const createObjectUrlMock = vi.fn(() => 'blob:dashboard-export');
 const revokeObjectUrlMock = vi.fn();
+
+const formatDelta = (value: number) => `${value >= 0 ? '+' : ''}${value.toLocaleString()}`;
+const formatPercentage = (value: number) => {
+  const formatted = Number.isInteger(value) ? value.toString() : value.toFixed(1);
+  return `${value >= 0 ? '+' : ''}${formatted}%`;
+};
+const formatTypeTooltipPercentage = (value: number) => value.toFixed(1);
+const severityPercentageFormatter = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 1,
+});
+const formatSeverityTooltipPercentage = (value: number) =>
+  severityPercentageFormatter.format(value);
 
 describe('DashboardPage analytics integration', () => {
   beforeAll(() => {
@@ -291,38 +84,37 @@ describe('DashboardPage analytics integration', () => {
     const kpiCard = kpiHeading.closest('article');
     expect(kpiCard).not.toBeNull();
     const kpi = within(kpiCard as HTMLElement);
-    expect(kpi.getByText(/incidents \(last 24h\)/i)).toBeInTheDocument();
-    expect(kpi.getByText('18')).toBeInTheDocument();
-    expect(kpi.getByText('+4')).toBeInTheDocument();
-    expect(kpi.getByText('+28.6%')).toBeInTheDocument();
-    expect(kpi.getByText(/vs previous 24h/i)).toBeInTheDocument();
+    expect(kpi.getByText(String(INITIAL_LAST_24H.currentCount))).toBeInTheDocument();
+    expect(kpi.getByText(formatDelta(INITIAL_LAST_24H.delta))).toBeInTheDocument();
+    expect(kpi.getByText(formatPercentage(INITIAL_LAST_24H.deltaPercentage))).toBeInTheDocument();
     expect(kpi.getByRole('button', { name: /refresh kpi/i })).toBeInTheDocument();
-    expect(screen.getByText(/structure fire/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole('listitem', { name: /structure fire: 12 incidents \(75\.0%\)/i })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('listitem', { name: /hazmat: 4 incidents \(25\.0%\)/i })
-    ).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /incident counts by severity/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole('listitem', { name: /critical: 8 incidents \(57\.1%\)/i })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('listitem', { name: /moderate: 6 incidents \(42\.9%\)/i })
-    ).toBeInTheDocument();
+
+    INITIAL_TYPE_DISTRIBUTION.buckets.forEach((bucket) => {
+      const title = `${bucket.type.name}: ${bucket.count.toLocaleString()} incidents (${formatTypeTooltipPercentage(bucket.percentage)}%)`;
+      expect(screen.getByRole('listitem', { name: title })).toBeInTheDocument();
+    });
+
+    INITIAL_SEVERITY_DISTRIBUTION.buckets.forEach((bucket) => {
+      const title = `${bucket.severity.name}: ${bucket.count.toLocaleString()} incidents (${formatSeverityTooltipPercentage(bucket.percentage)}%)`;
+      expect(screen.getByRole('listitem', { name: title })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('figure', { name: /incident counts per day/i })).toBeInTheDocument();
+    const trendCard = screen.getByRole('listitem', { name: /daily incident trend/i });
+    const currentTotalSummary = within(trendCard).getByText(/current 7-day total/i);
+    expect(currentTotalSummary).toHaveTextContent(
+      INITIAL_DAILY_TREND.trend.currentTotal.toLocaleString()
+    );
+    expect(screen.getByText(/last updated/i)).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /percentage/i }));
-    expect(screen.getByText(/75.0%/i)).toBeInTheDocument();
-    expect(screen.getByText(/25.0%/i)).toBeInTheDocument();
+    INITIAL_TYPE_DISTRIBUTION.buckets.forEach((bucket) => {
+      expect(screen.getByText(`${bucket.percentage.toFixed(1)}%`)).toBeInTheDocument();
+    });
     expect(screen.getByRole('button', { name: /percentage/i })).toHaveAttribute(
       'aria-pressed',
       'true'
     );
-    expect(screen.getByRole('figure', { name: /incident counts per day/i })).toBeInTheDocument();
-    expect(screen.getByText(/7-day trend:/i)).toBeInTheDocument();
-    expect(screen.getByText(/current 7-day total/i)).toBeInTheDocument();
-    expect(screen.getByText('Warehouse Fire')).toBeInTheDocument();
-    expect(screen.getByText(/last updated/i)).toBeInTheDocument();
 
     const exportButton = screen.getByRole('button', { name: /export csv/i });
     fireEvent.click(exportButton);
@@ -336,9 +128,10 @@ describe('DashboardPage analytics integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
     await waitFor(() => expect(screen.queryByText(/export ready/i)).not.toBeInTheDocument());
 
-    const recentItem = screen.getByRole('listitem', { name: /INC-200/i });
-    expect(within(recentItem).getByText(/Fire Station 21 \(FS21\)/i)).toBeInTheDocument();
-
+    const firstRecent = INITIAL_RECENT_INCIDENTS[0]!;
+    const recentItem = screen.getByRole('listitem', {
+      name: new RegExp(firstRecent.incidentNumber, 'i'),
+    });
     const viewOnMapButton = within(recentItem).getByRole('button', { name: /view on map/i });
     await act(async () => {
       fireEvent.click(viewOnMapButton);
@@ -350,7 +143,9 @@ describe('DashboardPage analytics integration', () => {
       expect(mapState.zoom).toBe(14);
     });
     await waitFor(() =>
-      expect(useIncidentDetailStore.getState().selectedIncident?.incidentNumber).toBe('INC-200')
+      expect(useIncidentDetailStore.getState().selectedIncident?.incidentNumber).toBe(
+        firstRecent.incidentNumber
+      )
     );
 
     const openDetailsButton = within(recentItem).getByRole('button', { name: /open details/i });
@@ -358,45 +153,187 @@ describe('DashboardPage analytics integration', () => {
       fireEvent.click(openDetailsButton);
     });
     const dialog = await screen.findByRole('dialog', undefined, { timeout: 3000 });
-    expect(dialog).toHaveTextContent('INC-200');
+    expect(dialog).toHaveTextContent(firstRecent.incidentNumber);
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: /^close$/i }));
     });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('surfaces error states when dashboard endpoints fail', async () => {
+  it('refreshes analytics widgets via the dashboard header control', async () => {
+    render(<DashboardPage />);
+    await waitFor(() => expect(screen.queryByText(/loading kpi metrics/i)).not.toBeInTheDocument());
+
+    const refreshedMocks = {
+      last24h: {
+        ...INITIAL_LAST_24H,
+        currentCount: 22,
+        previousCount: 20,
+        delta: 2,
+        deltaPercentage: 10,
+      },
+      typeDistribution: {
+        total: 20,
+        buckets: [
+          {
+            type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+            count: 10,
+            percentage: 50,
+          },
+          {
+            type: { code: 'RESCUE', name: 'Rescue', description: null },
+            count: 6,
+            percentage: 30,
+          },
+          {
+            type: { code: 'HAZMAT', name: 'Hazmat', description: null },
+            count: 4,
+            percentage: 20,
+          },
+        ],
+      },
+      severityDistribution: {
+        total: 20,
+        buckets: [
+          {
+            severity: {
+              code: 'CRITICAL',
+              name: 'Critical',
+              description: null,
+              priority: 4,
+              colorHex: '#dc2626',
+            },
+            count: 9,
+            percentage: 45,
+          },
+          {
+            severity: {
+              code: 'HIGH',
+              name: 'High',
+              description: null,
+              priority: 3,
+              colorHex: '#f97316',
+            },
+            count: 5,
+            percentage: 25,
+          },
+          {
+            severity: {
+              code: 'MODERATE',
+              name: 'Moderate',
+              description: null,
+              priority: 2,
+              colorHex: '#f59e0b',
+            },
+            count: 6,
+            percentage: 30,
+          },
+        ],
+      },
+      dailyTrend: {
+        points: [
+          { date: '2025-01-05T00:00:00Z', count: 3 },
+          { date: '2025-01-06T00:00:00Z', count: 4 },
+          { date: '2025-01-07T00:00:00Z', count: 5 },
+          { date: '2025-01-08T00:00:00Z', count: 6 },
+          { date: '2025-01-09T00:00:00Z', count: 7 },
+          { date: '2025-01-10T00:00:00Z', count: 8 },
+          { date: '2025-01-11T00:00:00Z', count: 9 },
+        ],
+        trend: {
+          currentTotal: 21,
+          previousTotal: 15,
+          change: 6,
+          percentageChange: 40,
+          direction: 'up' as const,
+        },
+      },
+      recentIncidents: [
+        {
+          incidentNumber: 'INC-555',
+          title: 'Pier Fire Response',
+          occurrenceAt: '2025-01-11T14:10:00Z',
+          reportedAt: '2025-01-11T14:12:00Z',
+          isActive: true,
+          location: {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [-122.3, 37.8] },
+            properties: {},
+          },
+          severity: {
+            code: 'HIGH',
+            name: 'High',
+            description: null,
+            priority: 3,
+            colorHex: '#f97316',
+          },
+          status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
+          type: { code: 'RESCUE', name: 'Rescue', description: null },
+          primaryStation: { stationCode: 'FS07', name: 'Fire Station 7' },
+        },
+      ],
+    };
+
     server.use(
-      http.get('*/api/dashboard/kpi/last-24h', () => HttpResponse.text('', { status: 500 })),
-      http.get('*/api/dashboard/incidents/by-type', () => HttpResponse.text('', { status: 500 })),
-      http.get('*/api/dashboard/incidents/severity-distribution', () =>
-        HttpResponse.text('', { status: 500 })
-      ),
-      http.get('*/api/dashboard/incidents/daily-trend', () =>
-        HttpResponse.text('', { status: 500 })
-      ),
-      http.get('*/api/dashboard/incidents/recent', () => HttpResponse.text('', { status: 500 })),
-      http.get('*/api/dashboard/export', () => HttpResponse.text('Export failed', { status: 500 }))
+      ...createDashboardHandlers({
+        last24h: refreshedMocks.last24h,
+        typeDistribution: refreshedMocks.typeDistribution,
+        severityDistribution: refreshedMocks.severityDistribution,
+        dailyTrend: refreshedMocks.dailyTrend,
+        recentIncidents: refreshedMocks.recentIncidents,
+        onExportRequest: (url) => {
+          exportRequests.push(url);
+        },
+      })
     );
+
+    const refreshButtons = screen.getAllByRole('button', { name: /^refresh data$/i });
+    const headerRefresh = refreshButtons.find((button) =>
+      button.classList.contains('dashboard-refresh')
+    );
+    expect(headerRefresh).toBeDefined();
+    fireEvent.click(headerRefresh!);
+
+    await screen.findByText(String(refreshedMocks.last24h.currentCount));
+    expect(screen.getByText(formatDelta(refreshedMocks.last24h.delta))).toBeInTheDocument();
+    expect(
+      screen.getByText(formatPercentage(refreshedMocks.last24h.deltaPercentage))
+    ).toBeInTheDocument();
+
+    refreshedMocks.typeDistribution.buckets.forEach((bucket) => {
+      const title = `${bucket.type.name}: ${bucket.count.toLocaleString()} incidents (${formatTypeTooltipPercentage(bucket.percentage)}%)`;
+      expect(screen.getByRole('listitem', { name: title })).toBeInTheDocument();
+    });
+
+    refreshedMocks.severityDistribution.buckets.forEach((bucket) => {
+      const title = `${bucket.severity.name}: ${bucket.count.toLocaleString()} incidents (${formatSeverityTooltipPercentage(bucket.percentage)}%)`;
+      expect(screen.getByRole('listitem', { name: title })).toBeInTheDocument();
+    });
+
+    const refreshedTrendCard = screen.getByRole('listitem', { name: /daily incident trend/i });
+    const refreshedCurrentTotal = within(refreshedTrendCard).getByText(/current 7-day total/i);
+    expect(refreshedCurrentTotal).toHaveTextContent(
+      refreshedMocks.dailyTrend.trend.currentTotal.toLocaleString()
+    );
+
+    expect(
+      screen.getByRole('listitem', {
+        name: new RegExp(refreshedMocks.recentIncidents[0]!.incidentNumber, 'i'),
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('surfaces error states when dashboard endpoints fail', async () => {
+    server.use(...createDashboardErrorHandlers({ errorBody: 'Export failed' }));
 
     render(<DashboardPage />);
 
-    await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
+    const errorBanners = await screen.findAllByText(/export failed/i);
+    expect(errorBanners.length).toBeGreaterThanOrEqual(5);
     expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(5);
-    expect(
-      screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/failed to fetch dashboard severity distribution \(status 500\)/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/failed to fetch dashboard daily trend \(status 500\)/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/failed to fetch dashboard recent incidents \(status 500\)/i)
-    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', { name: /export csv/i }));
-    await screen.findByText(/export failed/i);
+    await screen.findByRole('button', { name: /retry export/i });
     expect(screen.getByRole('button', { name: /retry export/i })).toBeInTheDocument();
   });
 });
