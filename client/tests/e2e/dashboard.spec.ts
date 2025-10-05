@@ -575,5 +575,29 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await expect(page.getByText(/vs previous 24h/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /refresh kpi/i })).toBeVisible();
   await expect(page.getByText(/structure fire/i)).toBeVisible();
+  const structureFireItem = page.getByRole('listitem', {
+    name: /structure fire: 12 incidents \(66\.7%\)/i,
+  });
+  const hazmatItem = page.getByRole('listitem', { name: /hazmat: 4 incidents \(22\.2%\)/i });
+  const medicalItem = page.getByRole('listitem', { name: /medical: 2 incidents \(11\.1%\)/i });
+
+  await expect(structureFireItem).toBeVisible();
+  await expect(hazmatItem).toBeVisible();
+  await expect(medicalItem).toBeVisible();
+
+  await expect(structureFireItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('12');
+  await expect(hazmatItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('4');
+  await expect(medicalItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('2');
+
+  await page.getByRole('button', { name: /percentage/i }).click();
+  await expect(page.getByRole('button', { name: /percentage/i })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await expect(structureFireItem.locator('.dashboard-type-chart__bar-value span')).toHaveText(
+    '66.7%'
+  );
+  await expect(hazmatItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('22.2%');
+  await expect(medicalItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('11.1%');
   await expect(page.getByText('INC-200')).toBeVisible();
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
@@ -224,6 +224,19 @@ describe('DashboardPage analytics integration', () => {
     expect(screen.getByText(/vs previous 24h/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /refresh kpi/i })).toBeInTheDocument();
     expect(screen.getByText(/structure fire/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('listitem', { name: /structure fire: 12 incidents \(75\.0%\)/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('listitem', { name: /hazmat: 4 incidents \(25\.0%\)/i })
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /percentage/i }));
+    expect(screen.getByText(/75.0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/25.0%/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /percentage/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
     expect(screen.getByText('Warehouse Fire')).toBeInTheDocument();
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
   });
@@ -244,7 +257,7 @@ describe('DashboardPage analytics integration', () => {
     render(<DashboardPage />);
 
     await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
-    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(2);
     expect(
       screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
     ).toBeInTheDocument();

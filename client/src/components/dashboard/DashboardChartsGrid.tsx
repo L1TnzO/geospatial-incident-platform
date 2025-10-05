@@ -1,4 +1,5 @@
 import type { DashboardQueryState } from '@/hooks/useDashboardQuery';
+import DashboardTypeDistributionChart from '@/components/dashboard/DashboardTypeDistributionChart';
 import type {
   DashboardDailyTrend,
   DashboardSeverityDistribution,
@@ -74,30 +75,6 @@ const DashboardChartsGrid = ({
   severityDistribution,
   dailyTrend,
 }: DashboardChartsGridProps) => {
-  const renderTypeSection = () => {
-    if (typeDistribution.status === 'loading' || typeDistribution.status === 'idle') {
-      return <p className="dashboard-loading">Loading incident type distribution…</p>;
-    }
-
-    if (typeDistribution.status === 'error') {
-      return (
-        <div className="dashboard-error">
-          {typeDistribution.error ?? 'Unable to load incident type distribution.'}
-        </div>
-      );
-    }
-
-    return renderDistributionList(
-      (typeDistribution.data?.buckets ?? []).map((bucket) => ({
-        id: bucket.type.code,
-        label: bucket.type.name,
-        count: bucket.count,
-        percentage: bucket.percentage,
-      })),
-      'No type data yet. Configure filters to begin.'
-    );
-  };
-
   const renderSeveritySection = () => {
     if (severityDistribution.status === 'loading' || severityDistribution.status === 'idle') {
       return <p className="dashboard-loading">Loading severity distribution…</p>;
@@ -140,10 +117,7 @@ const DashboardChartsGrid = ({
 
   return (
     <div className="dashboard-charts-grid" role="list">
-      <section className="dashboard-chart-card" aria-label="Type distribution" role="listitem">
-        <h3>Incident Types</h3>
-        {renderTypeSection()}
-      </section>
+      <DashboardTypeDistributionChart distribution={typeDistribution} />
       <section className="dashboard-chart-card" aria-label="Severity distribution" role="listitem">
         <h3>Severity Mix</h3>
         {renderSeveritySection()}
