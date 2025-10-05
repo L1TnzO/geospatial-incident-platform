@@ -175,4 +175,55 @@ describe('Strategic Analytics API', () => {
 
     expect(response.status).toBe(400);
   });
+
+  test('returns hotspot grid aggregates with normalized intensity', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app).get('/api/strategic/hotspots');
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      metadata: {
+        resolution: number;
+        totalIncidents: number;
+        maxIncidentCount: number;
+        cellCount: number;
+      };
+      cells: Array<{
+        incidentCount: number;
+        intensity: number;
+        centroid: { latitude: number; longitude: number };
+        geometry: { geometry: { type: string } };
+      }>;
+    };
+
+    expect(body.metadata.resolution).toBe(4);
+    expect(body.cells.length).toBeGreaterThan(0);
+    const maxCell = body.cells[0];
+    expect(maxCell.geometry.geometry.type).toBe('Polygon');
+    expect(typeof maxCell.centroid.latitude).toBe('number');
+    expect(maxCell.intensity).toBe(1);
+
+    if (expectations) {
+      const totalExpected = Object.values(expectations.monthlyCounts).reduce(
+        (sum, count) => sum + count,
+        0
+      );
+      expect(body.metadata.totalIncidents).toBe(totalExpected);
+      expect(body.metadata.maxIncidentCount).toBeGreaterThan(0);
+      expect(body.metadata.cellCount).toBe(body.cells.length);
+    }
+  });
+
+  test('rejects unsupported hotspot resolution', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app).get('/api/strategic/hotspots').query({ resolution: 0 });
+
+    expect(response.status).toBe(400);
+  });
 });

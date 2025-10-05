@@ -1,4 +1,4 @@
-import { incidentRepository, type IncidentLookupValue } from '../db';
+import { incidentRepository, type GeoJsonPolygon, type IncidentLookupValue } from '../db';
 import { incidentService, type IncidentFilterOptions } from './incidentsService';
 import { HttpError } from '../errors/httpError';
 
@@ -7,6 +7,9 @@ const DEFAULT_MONTH_WINDOW = 12;
 const MAX_MONTH_WINDOW = 36;
 const DEFAULT_QUARTER_WINDOW = 8;
 const MAX_QUARTER_WINDOW = 12;
+const HOTSPOT_DEFAULT_RESOLUTION = 4;
+const HOTSPOT_MIN_RESOLUTION = 1;
+const HOTSPOT_MAX_RESOLUTION = 8;
 const MONTH_NAMES = [
   'Jan',
   'Feb',
@@ -21,6 +24,17 @@ const MONTH_NAMES = [
   'Nov',
   'Dec',
 ];
+
+const HOTSPOT_CELL_SIZE_BY_RESOLUTION: Record<number, number> = {
+  1: 4000,
+  2: 2000,
+  3: 1000,
+  4: 500,
+  5: 250,
+  6: 125,
+  7: 60,
+  8: 30,
+};
 
 type QueryValue = string | string[] | undefined;
 
@@ -117,6 +131,30 @@ export interface TypeTimelineResponse {
     count: number;
   }>;
   types: TypeTimelineSeries[];
+}
+
+export interface HotspotCell {
+  cellId: string;
+  geometry: GeoJsonPolygon;
+  centroid: {
+    latitude: number;
+    longitude: number;
+  };
+  incidentCount: number;
+  intensity: number;
+}
+
+export interface HotspotResponse {
+  metadata: {
+    resolution: number;
+    cellSizeMeters: number;
+    cellAreaSquareMeters: number;
+    totalIncidents: number;
+    maxIncidentCount: number;
+    cellCount: number;
+    generatedAt: string;
+  };
+  cells: HotspotCell[];
 }
 
 const normalizeArray = (input?: string[]): string[] | undefined => {
@@ -221,6 +259,86 @@ const parseWindowParam = (
     throw HttpError.badRequest(`Query parameter '${field}' cannot exceed ${max}.`);
   }
   return Math.trunc(parsed);
+};
+
+const parseResolutionParam = (value: QueryValue): number => {
+  if (value === undefined) {
+    return HOTSPOT_DEFAULT_RESOLUTION;
+  }
+
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw === '') {
+    return HOTSPOT_DEFAULT_RESOLUTION;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) {
+    throw HttpError.badRequest("Query parameter 'resolution' must be an integer between 1 and 8.");
+  }
+
+  if (parsed < HOTSPOT_MIN_RESOLUTION || parsed > HOTSPOT_MAX_RESOLUTION) {
+    throw HttpError.badRequest(
+      `Query parameter 'resolution' must be between ${HOTSPOT_MIN_RESOLUTION} and ${HOTSPOT_MAX_RESOLUTION}.`
+    );
+  }
+
+  const cellSize = HOTSPOT_CELL_SIZE_BY_RESOLUTION[parsed];
+  if (!cellSize) {
+    throw HttpError.badRequest('Resolution not supported for hotspot grid.');
+  }
+
+  return parsed;
+};
+
+const getCellSizeMetersForResolution = (resolution: number): number => {
+  const cellSize = HOTSPOT_CELL_SIZE_BY_RESOLUTION[resolution];
+  if (!cellSize) {
+    throw HttpError.badRequest('Resolution not supported for hotspot grid.');
+  }
+  return cellSize;
+};
+
+const parseGeoJson = <T>(input: unknown): T | null => {
+  if (input === null || input === undefined) {
+    return null;
+  }
+  if (typeof input === 'string') {
+    try {
+      return JSON.parse(input) as T;
+    } catch {
+      return null;
+    }
+  }
+  return input as T;
+};
+
+const parseCoordinateArray = (candidate: unknown): [number, number] | null => {
+  if (!Array.isArray(candidate) || candidate.length < 2) {
+    return null;
+  }
+  const typedCandidate: readonly unknown[] = candidate;
+  const lngCandidate = typedCandidate[0];
+  const latCandidate = typedCandidate[1];
+  if (typeof lngCandidate === 'number' && typeof latCandidate === 'number') {
+    return [lngCandidate, latCandidate];
+  }
+  return null;
+};
+
+const parseCoordinatePair = (value: unknown): [number, number] | null => {
+  const fromArray = parseCoordinateArray(value);
+  if (fromArray) {
+    return fromArray;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parseCoordinateArray(parsed);
+    } catch {
+      return null;
+    }
+  }
+  return null;
 };
 
 const toIsoString = (date: Date): string => date.toISOString();
@@ -656,6 +774,83 @@ export class StrategicAnalyticsService {
           return b.total - a.total;
         }),
       } satisfies TypeTimelineResponse;
+    });
+  }
+
+  public async getHotspots(query: Record<string, QueryValue>): Promise<HotspotResponse> {
+    const filters = this.getFilters(query);
+    const resolution = parseResolutionParam(query.resolution);
+    const cellSizeMeters = getCellSizeMetersForResolution(resolution);
+
+    const cacheKey = buildCacheKey('strategic:hotspots', filters, { resolution });
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getIncidentHotspotAggregates(filters, {
+        cellSizeMeters,
+        resolution,
+      });
+
+      if (!rows.length) {
+        return {
+          metadata: {
+            resolution,
+            cellSizeMeters,
+            cellAreaSquareMeters: cellSizeMeters * cellSizeMeters,
+            totalIncidents: 0,
+            maxIncidentCount: 0,
+            cellCount: 0,
+            generatedAt: new Date().toISOString(),
+          },
+          cells: [],
+        } satisfies HotspotResponse;
+      }
+
+      const totalIncidents = rows.reduce((sum, row) => sum + row.incidentCount, 0);
+      const maxIncidentCount = rows.reduce((max, row) => Math.max(max, row.incidentCount), 0);
+
+      const cells: HotspotCell[] = rows.map((row) => {
+        const polygonGeometry = parseGeoJson<{
+          type: string;
+          coordinates: number[][][];
+        }>(row.geometry);
+
+        const geometry: GeoJsonPolygon = {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: polygonGeometry?.coordinates ?? [],
+          },
+        };
+
+        const coordinates = parseCoordinatePair(row.centroidCoordinates) ?? [0, 0];
+        const [longitude, latitude] = coordinates;
+        const intensity = maxIncidentCount > 0 ? row.incidentCount / maxIncidentCount : 0;
+
+        return {
+          cellId: row.cellId,
+          geometry,
+          centroid: {
+            latitude,
+            longitude,
+          },
+          incidentCount: row.incidentCount,
+          intensity: Number(intensity.toFixed(4)),
+        } satisfies HotspotCell;
+      });
+
+      return {
+        metadata: {
+          resolution,
+          cellSizeMeters,
+          cellAreaSquareMeters: cellSizeMeters * cellSizeMeters,
+          totalIncidents,
+          maxIncidentCount,
+          cellCount: cells.length,
+          generatedAt: new Date().toISOString(),
+        },
+        cells,
+      } satisfies HotspotResponse;
     });
   }
 }

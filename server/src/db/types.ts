@@ -1,7 +1,8 @@
-import type { Feature, Point, MultiPolygon } from 'geojson';
+import type { Feature, Point, Polygon, MultiPolygon } from 'geojson';
 
 export type GeoJsonPoint = Feature<Point>;
 export type GeoJsonMultiPolygon = Feature<MultiPolygon>;
+export type GeoJsonPolygon = Feature<Polygon>;
 
 export type IncidentSortField = 'reportedAt' | 'occurrenceAt' | 'severityPriority';
 

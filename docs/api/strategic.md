@@ -147,3 +147,68 @@ curl "http://localhost:3000/api/strategic/trends/types?months=18&severityCodes=C
 - When the requested window exceeds available historical data, missing months/quarters are returned with `count: 0` and deltas are computed only when baseline periods exist.
 - Invalid or out-of-range `months`/`quarters` parameters respond with `400 BAD_REQUEST` and descriptive messages.
 - Caching is in-memory but packaged so the service can be swapped to Redis or another store without changing controllers.
+
+## `GET /api/strategic/hotspots`
+
+Aggregates incidents into square grid cells (Web Mercator projection) for heatmap overlays. Each cell reports raw counts and an intensity value normalized to the highest-count cell in the result set.
+
+### Query parameters
+
+- `resolution` _(optional, default `4`, allowed `1–8`)_ — Controls cell size; higher resolution yields smaller cells. Resolution `4` is roughly a 500 m square in Web Mercator.
+- Shared incident filters (optional) — `typeCodes`, `severityCodes`, `statusCodes`, `startDate`, `endDate`, `isActive`, `incidentNumber`.
+
+### Response shape
+
+```json
+{
+  "metadata": {
+    "resolution": 4,
+    "cellSizeMeters": 500,
+    "cellAreaSquareMeters": 250000,
+    "totalIncidents": 300,
+    "maxIncidentCount": 12,
+    "cellCount": 48,
+    "generatedAt": "2025-10-05T19:48:13.214Z"
+  },
+  "cells": [
+    {
+      "cellId": "sq_-108528_408312_r4",
+      "incidentCount": 12,
+      "intensity": 1,
+      "centroid": { "latitude": 37.772, "longitude": -122.425 },
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [-122.4273, 37.7707],
+              [-122.4273, 37.7744],
+              [-122.4227, 37.7744],
+              [-122.4227, 37.7707],
+              [-122.4273, 37.7707]
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+### Example requests
+
+```bash
+# Default city-wide intensity grid
+curl "http://localhost:3000/api/strategic/hotspots"
+
+# Higher resolution overlay filtered to critical incidents in September
+curl "http://localhost:3000/api/strategic/hotspots?resolution=6&severityCodes=CRITICAL&startDate=2025-09-01&endDate=2025-09-30"
+```
+
+### Notes
+
+- Resolutions outside `1–8` respond with `400 BAD_REQUEST`.
+- The service caches results per filter/resolution combo for five minutes (same policy as the trend endpoints).
+- Cell geometries are generated via PostGIS Web Mercator tiling; no additional extensions are required beyond PostGIS.

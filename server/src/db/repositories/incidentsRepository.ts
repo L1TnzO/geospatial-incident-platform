@@ -143,6 +143,20 @@ interface IncidentTypeTimelineRow {
   total: string | number;
 }
 
+interface HotspotAggregateRow {
+  cellId: string;
+  geometry: unknown;
+  centroidCoordinates: unknown;
+  incidentCount: number;
+}
+
+interface RawHotspotAggregateRow {
+  cellId: string;
+  geometry: unknown;
+  centroidCoordinates: unknown;
+  incidentCount: number | string;
+}
+
 type RecentIncidentRow = IncidentRowBase;
 
 export class IncidentLookupError extends Error {
@@ -1169,6 +1183,56 @@ export class IncidentRepository {
         type: createLookup(row.typeCode as string, row.typeName, row.typeDescription),
         count: coerceCount(row.total),
       }));
+  }
+
+  public async getIncidentHotspotAggregates(
+    filters: IncidentListFilters,
+    options: { cellSizeMeters: number; resolution: number }
+  ): Promise<HotspotAggregateRow[]> {
+    const cellSize = Math.max(options.cellSizeMeters, 1);
+
+    const filteredQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select(['i.id as incidentId', this.db.raw('ST_Transform(i.location, 3857) as geom')]);
+
+    applyFilters(filteredQuery, filters);
+
+    const rawRows = (await this.db
+      .with('filtered', filteredQuery)
+      .with('binned', (qb) => {
+        qb.select([
+          this.db.raw('geom'),
+          this.db.raw('FLOOR(ST_X(geom) / ?) as cell_x', [cellSize]),
+          this.db.raw('FLOOR(ST_Y(geom) / ?) as cell_y', [cellSize]),
+        ]).from('filtered');
+      })
+      .from('binned')
+      .select<RawHotspotAggregateRow[]>([
+        this.db.raw("CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', ?) as \"cellId\"", [
+          options.resolution,
+        ]),
+        this.db.raw(
+          'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_MakeEnvelope(\n                  cell_x * ?,\n                  cell_y * ?,\n                  (cell_x + 1) * ?,\n                  (cell_y + 1) * ?,\n                  3857\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json as "geometry"',
+          [cellSize, cellSize, cellSize, cellSize]
+        ),
+        this.db.raw(
+          'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_Point(\n                  (cell_x + 0.5) * ?,\n                  (cell_y + 0.5) * ?\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json -> \'coordinates\' as "centroidCoordinates"',
+          [cellSize, cellSize]
+        ),
+        this.db.raw('COUNT(*)::int as "incidentCount"'),
+      ])
+      .groupBy(['cell_x', 'cell_y'])
+      .orderBy('incidentCount', 'desc')) as RawHotspotAggregateRow[];
+
+    return rawRows.map((row) => ({
+      cellId: row.cellId,
+      geometry: row.geometry,
+      centroidCoordinates: row.centroidCoordinates,
+      incidentCount:
+        typeof row.incidentCount === 'number' ? row.incidentCount : Number(row.incidentCount),
+    }));
   }
 
   public async listRecentIncidents(
