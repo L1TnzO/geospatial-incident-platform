@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
@@ -217,12 +217,16 @@ describe('DashboardPage analytics integration', () => {
     await waitFor(() => expect(screen.queryByText(/loading kpi metrics/i)).not.toBeInTheDocument());
 
     expect(screen.getByRole('heading', { name: /dashboard analytics/i })).toBeInTheDocument();
-    expect(screen.getByText(/incidents \(last 24h\)/i)).toBeInTheDocument();
-    expect(screen.getByText('18')).toBeInTheDocument();
-    expect(screen.getByText('+4')).toBeInTheDocument();
-    expect(screen.getByText('+28.6%')).toBeInTheDocument();
-    expect(screen.getByText(/vs previous 24h/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /refresh kpi/i })).toBeInTheDocument();
+    const kpiHeading = screen.getByText(/incidents \(last 24h\)/i);
+    const kpiCard = kpiHeading.closest('article');
+    expect(kpiCard).not.toBeNull();
+    const kpi = within(kpiCard as HTMLElement);
+    expect(kpi.getByText(/incidents \(last 24h\)/i)).toBeInTheDocument();
+    expect(kpi.getByText('18')).toBeInTheDocument();
+    expect(kpi.getByText('+4')).toBeInTheDocument();
+    expect(kpi.getByText('+28.6%')).toBeInTheDocument();
+    expect(kpi.getByText(/vs previous 24h/i)).toBeInTheDocument();
+    expect(kpi.getByRole('button', { name: /refresh kpi/i })).toBeInTheDocument();
     expect(screen.getByText(/structure fire/i)).toBeInTheDocument();
     expect(
       screen.getByRole('listitem', { name: /structure fire: 12 incidents \(75\.0%\)/i })
@@ -244,6 +248,9 @@ describe('DashboardPage analytics integration', () => {
       'aria-pressed',
       'true'
     );
+    expect(screen.getByRole('figure', { name: /incident counts per day/i })).toBeInTheDocument();
+    expect(screen.getByText(/7-day trend:/i)).toBeInTheDocument();
+    expect(screen.getByText(/current 7-day total/i)).toBeInTheDocument();
     expect(screen.getByText('Warehouse Fire')).toBeInTheDocument();
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
   });
@@ -264,7 +271,7 @@ describe('DashboardPage analytics integration', () => {
     render(<DashboardPage />);
 
     await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
-    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(4);
     expect(
       screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
     ).toBeInTheDocument();

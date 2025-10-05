@@ -83,7 +83,7 @@ describe('DashboardLayout', () => {
     expect(screen.getByText(/loading kpi metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/loading incident type distribution/i)).toBeInTheDocument();
     expect(screen.getByText(/loading severity distribution/i)).toBeInTheDocument();
-    expect(screen.getByText(/loading daily trend/i)).toBeInTheDocument();
+    expect(screen.getByText(/loading incident daily trend/i)).toBeInTheDocument();
     expect(screen.getByText(/loading recent incidents/i)).toBeInTheDocument();
   });
 

@@ -35,7 +35,7 @@ npm run test:watch # Run Vitest in watch mode
 - Incident search bar (`src/components/IncidentSearchBar.tsx`) that hydrates `/api/incidents/meta` for UX hints, debounces `/api/incidents/search` lookups, recenters the map with `useMapStore`, drives the detail modal, and syncs the table filter plus recent history cache
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend cursor helpers for filterable pagination
 - Incident detail modal (`src/components/IncidentDetailModal.tsx`) backed by `useIncidentDetailStore`, which prefetches `/api/incidents/{incidentNumber}` payloads, caches responses per incident, persists the most recent 25 detail payloads to localStorage, and exposes retry/loading/error states shared between the map and table entry points
-- Dashboard analytics surface (`src/layouts/DashboardLayout.tsx`) with the **Incidents (Last 24h)** KPI card (trend arrow, signed delta, percentage change, in-card refresh), an incidents-by-type bar chart featuring count/percentage toggle + tooltips, severity mix donut chart keyed to backend colour swatches, daily trend summary, and recent incident feed powered by `/api/dashboard/*` hooks (`useDashboardLast24HoursKpi`, `useDashboardTypeDistribution`, `useDashboardSeverityDistribution`, `useDashboardDailyTrend`, `useDashboardRecentIncidents`) while sharing the same filter state as the incidents table
+- Dashboard analytics surface (`src/layouts/DashboardLayout.tsx`) with the **Incidents (Last 24h)** KPI card (trend arrow, signed delta, percentage change, in-card refresh), an incidents-by-type bar chart featuring count/percentage toggle + tooltips, severity mix donut chart keyed to backend colour swatches, daily trend line chart with highlighted 7-day window, and recent incident feed powered by `/api/dashboard/*` hooks (`useDashboardLast24HoursKpi`, `useDashboardTypeDistribution`, `useDashboardSeverityDistribution`, `useDashboardDailyTrend`, `useDashboardRecentIncidents`) while sharing the same filter state as the incidents table
 - Responsive layout styling via shared SCSS entrypoints (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -54,7 +54,7 @@ When introducing a new surface area, add a dedicated partial under `src/styles/`
 ## Documentation & testing resources
 
 - [Map Experience Guide](../docs/frontend/map.md) — Interaction walkthrough, state/data flow, troubleshooting tips, and navigation hand-off to the dashboard.
-- [Dashboard Analytics Guide](../docs/frontend/dashboard.md) — Route layout, KPI card, incidents-by-type chart toggle, severity donut chart, and integration points for upcoming analytics work.
+- [Dashboard Analytics Guide](../docs/frontend/dashboard.md) — Route layout, KPI card, incidents-by-type chart toggle, severity donut chart, daily trend line chart, and integration points for upcoming analytics work.
 - [Incidents & Stations API Reference](../docs/api/incidents-and-stations.md) — REST payloads consumed by the map and supporting dashboards.
 - [Testing & Quality Gates](../docs/operations/testing.md) — Commands for running lint/unit/integration suites, including `MapView.integration.test.tsx`.
 

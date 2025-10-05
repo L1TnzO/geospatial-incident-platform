@@ -1,6 +1,7 @@
 @use './kpi';
 @use './type-chart';
 @use './severity-chart';
+@use './daily-trend';
 
 /* Dashboard layout scaffolding */
 .dashboard-page {

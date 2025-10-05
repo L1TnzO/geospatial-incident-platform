@@ -611,6 +611,10 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await expect(lowItem.locator('.dashboard-severity-chart__legend-value')).toHaveText(
     /4 · 22\.2%/i
   );
+  const trendFigure = page.getByRole('figure', { name: /incident counts per day/i });
+  await expect(trendFigure).toBeVisible();
+  await expect(page.getByText(/7-day trend:/i)).toBeVisible();
+  await expect(page.getByText(/current 7-day total/i)).toBeVisible();
 
   await page.getByRole('button', { name: /percentage/i }).click();
   await expect(page.getByRole('button', { name: /percentage/i })).toHaveAttribute(

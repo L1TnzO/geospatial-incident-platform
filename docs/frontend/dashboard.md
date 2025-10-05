@@ -52,6 +52,14 @@ The chart renders each incident type as a horizontal bar with responsive widths 
 
 The donut chart visualises severity buckets via a conic-gradient slice keyed to the backend-provided `colorHex` palette. The centre callout highlights the total incident count, while the legend lists `{severity} · {count} · {percentage}` entries with matching swatches. Loading/error/empty states mirror the other widgets, and the **Refresh data** button reissues the request with cache-busting semantics. Tooltip labels and `aria-label`s expose the severity metadata for assistive technologies.
 
+### Daily trend line chart
+
+- **Component:** `DashboardDailyTrendChart.tsx`
+- **Hook:** `useDashboardDailyTrend`
+- **Endpoint:** `GET /api/dashboard/incidents/daily-trend`
+
+The line chart renders the last 30 days of incident counts using a declarative SVG path. A translucent highlight and dashed overlay call out the most recent 7-day window, while the summary copy beneath the chart reiterates the `currentTotal`, `previousTotal`, signed delta, and trend direction (up, down, flat). Hover/focus tooltips use `<title>` nodes so every point exposes `{date}: {count} incidents`, and the bottom axis ticks surface start/mid/end dates for quick orientation. The refresh control mirrors other widgets and keeps timestamps in sync.
+
 ## Styling & responsiveness
 
 Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are already imported through `index.scss`. The grid layout:
@@ -66,6 +74,7 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 - **Unit:** `DashboardKPIRow.test.tsx` exercises KPI loading, success (up & flat trends), and error retry flows against mocked hook state.
 - **Unit:** `DashboardTypeDistributionChart.test.tsx` covers loading, error, empty, and toggle/tooltip behaviour for the type chart.
 - **Unit:** `DashboardSeverityDistributionChart.test.tsx` validates loading/error/empty cases and legend rendering for the severity donut.
+- **Unit:** `DashboardDailyTrendChart.test.tsx` covers loading/error/empty flows and ensures the line chart and trend summary render correctly.
 - **Routing:** `AppRouting.test.tsx` asserts the Overview⇄Dashboard navigation flow and `aria-current` handling in the header.
 - **E2E:** `tests/e2e/dashboard.spec.ts` now includes a smoke test that visits `/dashboard`, ensures the nav tab is active, and checks that stub data renders.
 
