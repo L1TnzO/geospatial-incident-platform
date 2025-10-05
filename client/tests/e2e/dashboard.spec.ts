@@ -101,7 +101,7 @@ const INCIDENTS: IncidentListEntry[] = [
     type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
     source: null,
     weather: null,
-    primaryStation: { stationCode: 'ST-102', name: 'Station 102' },
+    primaryStation: { stationCode: 'FS21', name: 'Fire Station 21' },
   },
   {
     incidentNumber: 'INC-300',
@@ -292,7 +292,7 @@ const DASHBOARD_RECENT_INCIDENTS = [
     },
     status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
     type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
-    primaryStation: { stationCode: 'ST-102', name: 'Station 102' },
+    primaryStation: { stationCode: 'FS21', name: 'Fire Station 21' },
   },
   {
     incidentNumber: 'INC-300',
@@ -641,6 +641,25 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await page.getByRole('button', { name: /download again/i }).click();
   await page.getByRole('button', { name: /dismiss/i }).click();
   await page.waitForSelector('text=Export ready', { state: 'detached' });
+
+  const recentItem = page.getByRole('listitem', { name: /INC-200/i });
+  await expect(recentItem).toBeVisible();
+  await expect(recentItem.locator('.dashboard-recent__station')).toHaveText(
+    /Fire Station 21 \(FS21\)/i
+  );
+  await recentItem.getByRole('button', { name: /view on map/i }).click();
+  await page.getByRole('link', { name: /overview/i }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.waitForSelector('table[role="table"] tbody tr');
+  await expect(page.locator('.incident-table__row--selected')).toContainText('INC-200');
+  await page.getByRole('link', { name: /dashboard/i }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  const dashboardRecentItem = page.getByRole('listitem', { name: /INC-200/i });
+  await expect(dashboardRecentItem).toBeVisible();
+  await dashboardRecentItem.getByRole('button', { name: /open details/i }).click();
+  await expect(page.getByRole('dialog')).toContainText('INC-200');
+  await page.getByRole('button', { name: /^close$/i }).click();
+  await page.waitForSelector('[role="dialog"]', { state: 'detached' });
 
   await page.getByRole('button', { name: /percentage/i }).click();
   await expect(page.getByRole('button', { name: /percentage/i })).toHaveAttribute(

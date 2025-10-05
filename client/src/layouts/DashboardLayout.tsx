@@ -1,6 +1,7 @@
 import DashboardChartsGrid from '@/components/dashboard/DashboardChartsGrid';
 import DashboardKPIRow from '@/components/dashboard/DashboardKPIRow';
 import DashboardRecentIncidents from '@/components/dashboard/DashboardRecentIncidents';
+import IncidentDetailModal from '@/components/IncidentDetailModal';
 import { useDashboardDailyTrend } from '@/hooks/useDashboardDailyTrend';
 import { useDashboardLast24HoursKpi } from '@/hooks/useDashboardLast24HoursKpi';
 import { useDashboardRecentIncidents } from '@/hooks/useDashboardRecentIncidents';
@@ -147,6 +148,7 @@ const DashboardLayout = () => {
           <p>Latest incidents aligned with the active filter set.</p>
         </div>
         <DashboardRecentIncidents recent={recent} />
+        <IncidentDetailModal />
       </section>
     </div>
   );

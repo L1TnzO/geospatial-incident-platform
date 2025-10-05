@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
@@ -12,7 +12,7 @@ import type {
   DashboardTypeDistribution,
 } from '@/types/dashboard';
 import { clearIncidentMetadataCache } from '@/services/incidentsMetaService';
-import { resetIncidentDetailStore } from '@/store/useIncidentDetailStore';
+import { resetIncidentDetailStore, useIncidentDetailStore } from '@/store/useIncidentDetailStore';
 import { resetMapPreferencesStore } from '@/store/useMapPreferencesStore';
 import { useMapStore } from '@/store/useMapStore';
 
@@ -172,9 +172,47 @@ const DASHBOARD_RECENT_INCIDENTS: DashboardRecentIncident[] = [
     },
     status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
     type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
-    primaryStation: null,
+    primaryStation: { stationCode: 'FS21', name: 'Fire Station 21' },
   },
 ];
+
+const INCIDENT_DETAIL_RESPONSE = {
+  incidentNumber: 'INC-200',
+  title: 'Warehouse Fire',
+  occurrenceAt: '2025-01-08T11:58:00Z',
+  reportedAt: '2025-01-08T12:04:00Z',
+  dispatchAt: null,
+  arrivalAt: null,
+  resolvedAt: null,
+  isActive: true,
+  casualtyCount: 0,
+  responderInjuries: 0,
+  estimatedDamageAmount: null,
+  location: {
+    type: 'Feature' as const,
+    geometry: { type: 'Point' as const, coordinates: [-122.41, 37.79] },
+    properties: {},
+  },
+  locationGeohash: null,
+  externalReference: null,
+  type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+  severity: {
+    code: 'CRITICAL',
+    name: 'Critical',
+    description: null,
+    priority: 4,
+    colorHex: '#dc2626',
+  },
+  status: { code: 'ON_SCENE', name: 'On Scene', description: null, isTerminal: false },
+  source: null,
+  weather: null,
+  primaryStation: { stationCode: 'FS21', name: 'Fire Station 21' },
+  narrative: null,
+  metadata: { source: 'integration-test' },
+  units: [],
+  assets: [],
+  notes: [],
+};
 
 const exportRequests: string[] = [];
 
@@ -193,6 +231,12 @@ const server = setupServer(
   ),
   http.get('*/api/dashboard/incidents/daily-trend', () => HttpResponse.json(DASHBOARD_DAILY_TREND)),
   http.get('*/api/dashboard/incidents/recent', () => HttpResponse.json(DASHBOARD_RECENT_INCIDENTS)),
+  http.get('*/api/incidents/:incidentNumber', ({ params }) => {
+    if ((params?.incidentNumber ?? '').toString().toUpperCase() === 'INC-200') {
+      return HttpResponse.json(INCIDENT_DETAIL_RESPONSE);
+    }
+    return HttpResponse.json({ error: 'Not found' }, { status: 404 });
+  }),
   http.get('*/api/dashboard/export', ({ request }) => {
     exportRequests.push(request.url);
     return new HttpResponse('id,title\nINC-100,Uptown Electrical Fire', {
@@ -221,9 +265,11 @@ describe('DashboardPage analytics integration', () => {
     server.resetHandlers();
     clearIncidentMetadataCache();
     localStorage.clear();
-    resetIncidentDetailStore({ clearStorage: true });
-    resetMapPreferencesStore();
-    useMapStore.setState({ center: [40.7128, -74.006], zoom: 11 });
+    act(() => {
+      resetIncidentDetailStore({ clearStorage: true });
+      resetMapPreferencesStore();
+      useMapStore.setState({ center: [40.7128, -74.006], zoom: 11 });
+    });
     exportRequests.length = 0;
     createObjectUrlMock.mockClear();
     revokeObjectUrlMock.mockClear();
@@ -289,6 +335,34 @@ describe('DashboardPage analytics integration', () => {
     expect(createObjectUrlMock).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
     await waitFor(() => expect(screen.queryByText(/export ready/i)).not.toBeInTheDocument());
+
+    const recentItem = screen.getByRole('listitem', { name: /INC-200/i });
+    expect(within(recentItem).getByText(/Fire Station 21 \(FS21\)/i)).toBeInTheDocument();
+
+    const viewOnMapButton = within(recentItem).getByRole('button', { name: /view on map/i });
+    await act(async () => {
+      fireEvent.click(viewOnMapButton);
+    });
+    await waitFor(() => {
+      const mapState = useMapStore.getState();
+      expect(mapState.center[0]).toBeCloseTo(37.79, 2);
+      expect(mapState.center[1]).toBeCloseTo(-122.41, 2);
+      expect(mapState.zoom).toBe(14);
+    });
+    await waitFor(() =>
+      expect(useIncidentDetailStore.getState().selectedIncident?.incidentNumber).toBe('INC-200')
+    );
+
+    const openDetailsButton = within(recentItem).getByRole('button', { name: /open details/i });
+    await act(async () => {
+      fireEvent.click(openDetailsButton);
+    });
+    const dialog = await screen.findByRole('dialog', undefined, { timeout: 3000 });
+    expect(dialog).toHaveTextContent('INC-200');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: /^close$/i }));
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('surfaces error states when dashboard endpoints fail', async () => {
@@ -308,7 +382,7 @@ describe('DashboardPage analytics integration', () => {
     render(<DashboardPage />);
 
     await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
-    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(5);
     expect(
       screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
     ).toBeInTheDocument();

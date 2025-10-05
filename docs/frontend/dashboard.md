@@ -14,7 +14,7 @@ The dashboard route (`/dashboard`) hosts the analytics surface that complements 
 | ---------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | KPI row          | `DashboardKPIRow.tsx`          | Renders the **Incidents (Last 24h)** KPI card with trend arrow, signed delta, percentage change, comparison tooltip, and manual refresh button backed by `/api/dashboard/kpi/last-24h`.                           |
 | Charts grid      | `DashboardChartsGrid.tsx`      | Hosts the type distribution bar chart, severity donut chart, and daily trend summary. Each widget consumes its own endpoint (`/incidents/by-type`, `/incidents/severity-distribution`, `/incidents/daily-trend`). |
-| Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/incidents/recent`, including severity/status chips and localized timestamps.                                                                               |
+| Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/incidents/recent`, rendering severity badges, status/station metadata, and quick actions that recenter the map or open the incident detail modal.          |
 
 All widgets accept result objects from their respective hooks, ensuring we can drop in real charting/visualization libraries in Tasks 5.3+ without rewriting container logic.
 
@@ -61,6 +61,14 @@ The donut chart visualises severity buckets via a conic-gradient slice keyed to 
 
 The line chart renders the last 30 days of incident counts using a declarative SVG path. A translucent highlight and dashed overlay call out the most recent 7-day window, while the summary copy beneath the chart reiterates the `currentTotal`, `previousTotal`, signed delta, and trend direction (up, down, flat). Hover/focus tooltips use `<title>` nodes so every point exposes `{date}: {count} incidents`, and the bottom axis ticks surface start/mid/end dates for quick orientation. The refresh control mirrors other widgets and keeps timestamps in sync.
 
+### Recent incidents panel
+
+- **Component:** `DashboardRecentIncidents.tsx`
+- **Hook:** `useDashboardRecentIncidents`
+- **Endpoint:** `GET /api/dashboard/incidents/recent`
+
+The panel surfaces the latest incidents as rich cards showing severity badges (colour-coded via the backend `colorHex`), the incident number, current status, assigned station, and a localized reported timestamp. Each card exposes **View on map** (recentres the Leaflet map, highlights the corresponding incident row, and preserves the modal state) and **Open details** (launches the shared incident detail modal after recentering). Loading states render a skeleton list, errors surface a retry button, and empty states explain that activity will appear once incidents arrive.
+
 ### Filtered CSV export
 
 - **Hook:** `useDashboardExport.ts`
@@ -76,7 +84,7 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 - Uses `grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))` to collapse charts into a single column on narrow viewports.
 - Adapts paddings for tablet screens (`max-width: 768px`) and keeps KPI/Recent cards legible on touch devices.
 - Defines shared utility classes (`.dashboard-placeholder`, `.dashboard-error`, `.dashboard-empty`, `.dashboard-loading`) for consistent skeleton and error messaging.
-- Adds `.dashboard-export`, `.dashboard-export-cancel`, and `.dashboard-export-banner*` styles so the export controls align with the existing pill buttons and emphasise success/error states.
+- Adds `.dashboard-export`, `.dashboard-export-cancel`, `.dashboard-export-banner*`, and the `_recent-incidents.scss` partial so export controls and the recent incidents interactions align with the existing pill buttons and emphasise success/error states.
 
 ## Testing
 
@@ -85,11 +93,12 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 - **Unit:** `DashboardTypeDistributionChart.test.tsx` covers loading, error, empty, and toggle/tooltip behaviour for the type chart.
 - **Unit:** `DashboardSeverityDistributionChart.test.tsx` validates loading/error/empty cases and legend rendering for the severity donut.
 - **Unit:** `DashboardDailyTrendChart.test.tsx` covers loading/error/empty flows and ensures the line chart and trend summary render correctly.
+- **Unit:** `DashboardRecentIncidents.test.tsx` validates loading/error states, map recentering, modal launch actions, and disabled controls when coordinates are missing.
 - **Unit:** `dashboardService.test.ts` asserts CSV filename resolution, fallback naming, and error handling for the export helper.
 - **Unit:** `useDashboardExport.test.ts` exercises success, error, and cancellation flows while verifying download triggers.
 - **Routing:** `AppRouting.test.tsx` asserts the Overview⇄Dashboard navigation flow and `aria-current` handling in the header.
-- **Integration:** `DashboardPage.integration.test.tsx` validates happy-path rendering, export success (including download retry/dismiss), and error surfacing when the export endpoint returns 500 responses.
-- **E2E:** `tests/e2e/dashboard.spec.ts` now covers the export button lifecycle by stubbing the CSV endpoint, checking the disabled “Exporting…” state, verifying banner actions, and ensuring other widgets still behave.
+- **Integration:** `DashboardPage.integration.test.tsx` validates happy-path rendering, export success (including download retry/dismiss), recenter behaviour for the recent incidents actions, and error surfacing when the export endpoint returns 500 responses.
+- **E2E:** `tests/e2e/dashboard.spec.ts` now covers the export button lifecycle, verifies recent incident quick actions (table highlight + modal open), and ensures the surrounding widgets still behave.
 
 Run the tests with:
 
