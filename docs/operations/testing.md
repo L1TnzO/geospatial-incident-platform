@@ -35,7 +35,18 @@ Backend tests under `server/tests/db/` seed fixtures that tie incidents and stat
 - `incidents.filters.int.test.ts` — exercises pagination, combined filters (type/severity/status/date/isActive), validation errors, and the 5 000-record window guard.
 - `incidents.crud.int.test.ts` — covers `POST /api/incidents` success, timeline validation, lookup failures, and duplicate handling, ensuring caches reset after inserts.
 - `incidents.api.test.ts` — baseline list/detail, metadata refresh, and search coverage shared with previous milestones.
-- `dashboard.api.test.ts` — verifies the analytics endpoints (KPI, distributions, trend timeline, recents) and the filtered CSV export stream, including limit enforcement and custom column selection.
+- `dashboard.api.test.ts` — consolidates QA coverage for dashboard analytics. Tests exercise filter combinations, cache refresh behaviour, zero-data windows, CSV streaming metadata, and guardrails for export limits/column selection.
+
+#### Dashboard analytics QA suite
+
+- Run the full integration suite after provisioning the PostGIS test database:
+  ```bash
+  npm --prefix server run test:db
+  ```
+- To iterate on just the analytics specs, add `-- --runTestsByPath tests/db/dashboard.api.test.ts` to the command above.
+- The fixtures pull lookup tables from the baseline seeds and then generate synthetic incidents covering multiple severities, statuses, active flags, and recent/older timestamps. Ensure the standard seeds have run via `make db-seed` (or `npm --prefix server run db:seed`) before executing the suite.
+- The analytics tests insert additional batches during runtime to validate cache refresh and export limits. They clean up automatically, but if you abort early run `npm --prefix server run db:reset` to restore a clean state.
+- When running outside Docker, export `DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres` (or your local credentials) so the backend knows how to reach PostGIS. Optional overrides such as `PGHOST`, `PGPORT`, and `PGSSLMODE` are respected if you need customised connectivity.
 
 Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose already configures this for the backend container. When the variable is not set or the database is offline, the suites log a warning and skip assertions so local development can proceed.
 

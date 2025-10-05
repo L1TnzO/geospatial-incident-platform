@@ -925,7 +925,10 @@ export class IncidentRepository {
       return 0;
     }
 
-    const query = this.db('incidents as i');
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
     applyFilters(query, filters);
     query.whereBetween('i.reported_at', [range.start, range.end]);
 
@@ -939,6 +942,8 @@ export class IncidentRepository {
   ): Promise<IncidentTypeBucket[]> {
     const query = this.db('incidents as i')
       .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
       .select<
         IncidentTypeCountRow[]
       >(['it.type_code as typeCode', 'it.name as typeName', 'it.description as typeDescription'])
@@ -971,6 +976,9 @@ export class IncidentRepository {
     }
 
     const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
       .select<IncidentDailyCountRow[]>([
         this.db.raw('DATE_TRUNC(\'day\', i.reported_at) as "bucketDate"'),
       ])
@@ -993,7 +1001,9 @@ export class IncidentRepository {
     filters: IncidentListFilters
   ): Promise<IncidentSeverityBucket[]> {
     const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
       .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
       .select<
         IncidentSeverityCountRow[]
       >(['isv.severity_code as severityCode', 'isv.name as severityName', 'isv.description as severityDescription', 'isv.priority as severityPriority', 'isv.color_hex as severityColorHex'])
