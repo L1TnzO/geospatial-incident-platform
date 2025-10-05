@@ -190,4 +190,111 @@ describe('Dashboard API', () => {
     const error = invalid.body as DashboardErrorResponse;
     expect(error.error.code).toBe('BAD_REQUEST');
   });
+
+  test('streams CSV export with metadata and default columns', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    jest.useRealTimers();
+
+    const response = await request(app).get('/api/dashboard/export');
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/csv');
+    expect(response.headers['content-disposition']).toMatch(
+      /attachment; filename="incidents-export-/u
+    );
+    expect(response.headers['x-export-total']).toBeDefined();
+
+    const lines = response.text.split(/\r?\n/u).filter((line) => line.length > 0);
+    expect(lines[0]).toMatch(/^# Generated At:/u);
+    expect(lines[1]).toMatch(/^# Record Count:/u);
+    expect(lines[2]).toMatch(/^# Filters:/u);
+
+    const headerLine = lines.find((line) => !line.startsWith('#'));
+    expect(headerLine).toBeDefined();
+    const headers = (headerLine as string).split(',');
+    expect(headers).toEqual(
+      expect.arrayContaining(['Incident Number', 'Severity Code', 'Primary Station Code'])
+    );
+  });
+
+  test('applies filters when exporting incidents as CSV', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    jest.useRealTimers();
+
+    const response = await request(app)
+      .get('/api/dashboard/export')
+      .query({ severityCodes: 'CRITICAL' });
+
+    expect(response.status).toBe(200);
+
+    const dataLines = response.text
+      .split(/\r?\n/u)
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+    const header = dataLines.shift();
+    expect(header).toBeDefined();
+    const headers = (header as string).split(',');
+    const severityIndex = headers.indexOf('Severity Code');
+    expect(severityIndex).toBeGreaterThan(-1);
+
+    for (const line of dataLines) {
+      const cells = line.split(',');
+      expect(cells[severityIndex]).toBe('CRITICAL');
+    }
+  });
+
+  test('enforces export limit guardrails', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    jest.useRealTimers();
+
+    const response = await request(app).get('/api/dashboard/export').query({ limit: 5 });
+
+    expect(response.status).toBe(400);
+    const body = response.body as DashboardErrorResponse;
+    expect(body.error.code).toBe('BAD_REQUEST');
+  });
+
+  test('validates includeColumns parameter for export', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    jest.useRealTimers();
+
+    const response = await request(app)
+      .get('/api/dashboard/export')
+      .query({ includeColumns: 'incidentNumber,severityCode' });
+
+    expect(response.status).toBe(200);
+    const lines = response.text
+      .split(/\r?\n/u)
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+    const header = lines[0];
+    expect(header).toBe('Incident Number,Severity Code');
+  });
+
+  test('rejects unknown export columns', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    jest.useRealTimers();
+
+    const response = await request(app)
+      .get('/api/dashboard/export')
+      .query({ includeColumns: 'unknownColumn' });
+
+    expect(response.status).toBe(400);
+    const body = response.body as DashboardErrorResponse;
+    expect(body.error.code).toBe('BAD_REQUEST');
+  });
 });

@@ -5,6 +5,7 @@ import {
   getLast24HoursKpi,
   getRecentIncidents,
   getSeverityDistribution,
+  exportIncidentsCsv,
 } from '../controllers/dashboardController';
 
 const router = Router();
@@ -14,5 +15,6 @@ router.get('/incidents/by-type', getIncidentsByType);
 router.get('/incidents/daily-trend', getDailyTrend);
 router.get('/incidents/severity-distribution', getSeverityDistribution);
 router.get('/incidents/recent', getRecentIncidents);
+router.get('/export', exportIncidentsCsv);
 
 export default router;

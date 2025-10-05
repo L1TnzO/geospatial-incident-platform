@@ -1,11 +1,14 @@
 import {
   incidentRepository,
   type IncidentDailyCount,
+  type IncidentListItem,
   type IncidentSeverityBucket,
   type IncidentTypeBucket,
   type RecentIncidentSummary,
 } from '../db';
 import { incidentService, type IncidentFilterOptions } from './incidentsService';
+import { HttpError } from '../errors/httpError';
+import { PassThrough, Transform } from 'stream';
 
 const DASHBOARD_CACHE_TTL_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -61,6 +64,236 @@ export interface SeverityDistribution {
   buckets: SeverityDistributionBucket[];
 }
 
+export interface IncidentCsvExportMetadata {
+  stream: NodeJS.ReadableStream;
+  filename: string;
+  total: number;
+  selectedColumns: ExportColumnDefinition[];
+  filters: IncidentFilterOptions;
+}
+
+interface ExportColumnDefinition {
+  key: string;
+  header: string;
+  accessor: (item: IncidentListItem) => string;
+}
+
+const CSV_NEWLINE = '\r\n';
+const MAX_EXPORT_ROWS = 5000;
+const EXPORT_THROTTLE_DELAY_MS = 0;
+
+const EXPORT_COLUMN_DEFINITIONS = new Map<string, ExportColumnDefinition>([
+  [
+    'incidentnumber',
+    {
+      key: 'incidentNumber',
+      header: 'Incident Number',
+      accessor: (item) => item.incidentNumber,
+    },
+  ],
+  [
+    'title',
+    {
+      key: 'title',
+      header: 'Title',
+      accessor: (item) => item.title,
+    },
+  ],
+  [
+    'occurrenceat',
+    {
+      key: 'occurrenceAt',
+      header: 'Occurrence At',
+      accessor: (item) => item.occurrenceAt,
+    },
+  ],
+  [
+    'reportedat',
+    {
+      key: 'reportedAt',
+      header: 'Reported At',
+      accessor: (item) => item.reportedAt,
+    },
+  ],
+  [
+    'dispatchat',
+    {
+      key: 'dispatchAt',
+      header: 'Dispatch At',
+      accessor: (item) => item.dispatchAt ?? '',
+    },
+  ],
+  [
+    'arrivalat',
+    {
+      key: 'arrivalAt',
+      header: 'Arrival At',
+      accessor: (item) => item.arrivalAt ?? '',
+    },
+  ],
+  [
+    'resolvedat',
+    {
+      key: 'resolvedAt',
+      header: 'Resolved At',
+      accessor: (item) => item.resolvedAt ?? '',
+    },
+  ],
+  [
+    'typecode',
+    {
+      key: 'typeCode',
+      header: 'Type Code',
+      accessor: (item) => item.type.code,
+    },
+  ],
+  [
+    'typename',
+    {
+      key: 'typeName',
+      header: 'Type Name',
+      accessor: (item) => item.type.name,
+    },
+  ],
+  [
+    'severitycode',
+    {
+      key: 'severityCode',
+      header: 'Severity Code',
+      accessor: (item) => item.severity.code,
+    },
+  ],
+  [
+    'severityname',
+    {
+      key: 'severityName',
+      header: 'Severity Name',
+      accessor: (item) => item.severity.name,
+    },
+  ],
+  [
+    'severitypriority',
+    {
+      key: 'severityPriority',
+      header: 'Severity Priority',
+      accessor: (item) => String(item.severity.priority),
+    },
+  ],
+  [
+    'statuscode',
+    {
+      key: 'statusCode',
+      header: 'Status Code',
+      accessor: (item) => item.status.code,
+    },
+  ],
+  [
+    'statusname',
+    {
+      key: 'statusName',
+      header: 'Status Name',
+      accessor: (item) => item.status.name,
+    },
+  ],
+  [
+    'isactive',
+    {
+      key: 'isActive',
+      header: 'Is Active',
+      accessor: (item) => (item.isActive ? 'true' : 'false'),
+    },
+  ],
+  [
+    'casualtycount',
+    {
+      key: 'casualtyCount',
+      header: 'Casualty Count',
+      accessor: (item) => String(item.casualtyCount),
+    },
+  ],
+  [
+    'responderinjuries',
+    {
+      key: 'responderInjuries',
+      header: 'Responder Injuries',
+      accessor: (item) => String(item.responderInjuries),
+    },
+  ],
+  [
+    'estimateddamage',
+    {
+      key: 'estimatedDamageAmount',
+      header: 'Estimated Damage Amount',
+      accessor: (item) => item.estimatedDamageAmount ?? '',
+    },
+  ],
+  [
+    'primarystationcode',
+    {
+      key: 'primaryStationCode',
+      header: 'Primary Station Code',
+      accessor: (item) => item.primaryStation?.stationCode ?? '',
+    },
+  ],
+  [
+    'primarystationname',
+    {
+      key: 'primaryStationName',
+      header: 'Primary Station Name',
+      accessor: (item) => item.primaryStation?.name ?? '',
+    },
+  ],
+  [
+    'sourcecode',
+    {
+      key: 'sourceCode',
+      header: 'Source Code',
+      accessor: (item) => item.source?.code ?? '',
+    },
+  ],
+  [
+    'weathercode',
+    {
+      key: 'weatherCode',
+      header: 'Weather Code',
+      accessor: (item) => item.weather?.code ?? '',
+    },
+  ],
+  [
+    'longitude',
+    {
+      key: 'longitude',
+      header: 'Longitude',
+      accessor: (item) => formatCoordinate(item.location.geometry.coordinates?.[0]),
+    },
+  ],
+  [
+    'latitude',
+    {
+      key: 'latitude',
+      header: 'Latitude',
+      accessor: (item) => formatCoordinate(item.location.geometry.coordinates?.[1]),
+    },
+  ],
+]);
+
+const DEFAULT_EXPORT_COLUMN_KEYS = [
+  'incidentnumber',
+  'title',
+  'occurrenceat',
+  'reportedat',
+  'typecode',
+  'typename',
+  'severitycode',
+  'severitypriority',
+  'statuscode',
+  'isactive',
+  'latitude',
+  'longitude',
+  'primarystationcode',
+  'primarystationname',
+];
+
 const normalizeArray = (input?: string[]): string[] | undefined => {
   if (!input) {
     return undefined;
@@ -109,6 +342,101 @@ const clampPercentage = (value: number): number => {
   }
   return rounded;
 };
+
+const formatCoordinate = (value: unknown): string => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '';
+  }
+  return value.toFixed(6);
+};
+
+type CsvPrimitive = string | number | boolean | null | undefined;
+
+const csvEscape = (value: CsvPrimitive): string => {
+  if (value == null) {
+    return '';
+  }
+  const stringValue = String(value);
+  if (/[",\r\n]/u.test(stringValue)) {
+    return `"${stringValue.replace(/"/gu, '""')}"`;
+  }
+  return stringValue;
+};
+
+const parseIncludeColumns = (value: QueryValue): string[] | undefined => {
+  if (value == null) {
+    return undefined;
+  }
+
+  const raw = Array.isArray(value) ? value : value.split(',');
+  const normalized = raw
+    .flatMap((entry) => entry.split(','))
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  return normalized.length ? normalized : undefined;
+};
+
+const parseExportLimit = (value: QueryValue): number | undefined => {
+  if (value == null) {
+    return undefined;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined) {
+    return undefined;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw HttpError.badRequest("Query parameter 'limit' must be a positive integer.");
+  }
+  if (parsed > MAX_EXPORT_ROWS) {
+    throw HttpError.badRequest(`Query parameter 'limit' cannot exceed ${MAX_EXPORT_ROWS}.`);
+  }
+  return Math.floor(parsed);
+};
+
+const formatFilterSummary = (filters: IncidentFilterOptions): string => {
+  const segments: string[] = [];
+  if (filters.incidentNumber) {
+    segments.push(`incidentNumber=${filters.incidentNumber}`);
+  }
+  if (filters.typeCodes?.length) {
+    segments.push(`typeCodes=${filters.typeCodes.join('|')}`);
+  }
+  if (filters.severityCodes?.length) {
+    segments.push(`severityCodes=${filters.severityCodes.join('|')}`);
+  }
+  if (filters.statusCodes?.length) {
+    segments.push(`statusCodes=${filters.statusCodes.join('|')}`);
+  }
+  if (typeof filters.isActive === 'boolean') {
+    segments.push(`isActive=${filters.isActive}`);
+  }
+  if (filters.startDate) {
+    segments.push(`startDate=${filters.startDate}`);
+  }
+  if (filters.endDate) {
+    segments.push(`endDate=${filters.endDate}`);
+  }
+  return segments.length ? segments.join('; ') : 'none';
+};
+
+const formatFilenameTimestamp = (input: Date): string => {
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  return `${input.getUTCFullYear()}${pad(input.getUTCMonth() + 1)}${pad(input.getUTCDate())}-${pad(input.getUTCHours())}${pad(input.getUTCMinutes())}${pad(input.getUTCSeconds())}`;
+};
+
+const createThrottleTransform = (delayMs: number) =>
+  new Transform({
+    objectMode: true,
+    transform(chunk, _encoding, callback) {
+      if (delayMs > 0) {
+        setTimeout(() => callback(null, chunk), delayMs);
+        return;
+      }
+      setImmediate(() => callback(null, chunk));
+    },
+  });
 
 export class DashboardService {
   private readonly cache = new Map<string, CacheEntry<unknown>>();
@@ -347,6 +675,92 @@ export class DashboardService {
     return this.withCache(cacheKey, refresh, async () =>
       this.repository.listRecentIncidents(filters, limit)
     );
+  }
+
+  private resolveExportColumns(includeColumns: QueryValue): ExportColumnDefinition[] {
+    const requestedKeys = parseIncludeColumns(includeColumns) ?? DEFAULT_EXPORT_COLUMN_KEYS;
+    const seen = new Set<string>();
+    const columns: ExportColumnDefinition[] = [];
+    const supported = Array.from(
+      new Set(Array.from(EXPORT_COLUMN_DEFINITIONS.values()).map((col) => col.key))
+    ).join(', ');
+
+    for (const key of requestedKeys) {
+      const normalizedKey = key.toLowerCase();
+      const definition = EXPORT_COLUMN_DEFINITIONS.get(normalizedKey);
+      if (!definition) {
+        throw HttpError.badRequest(`Unknown column '${key}'. Supported columns: ${supported}.`);
+      }
+      if (!seen.has(definition.key)) {
+        columns.push(definition);
+        seen.add(definition.key);
+      }
+    }
+
+    return columns;
+  }
+
+  public async prepareIncidentsExport(
+    query: Record<string, QueryValue>,
+    now: Date = new Date()
+  ): Promise<IncidentCsvExportMetadata> {
+    const filters = this.getFilters(query);
+    const limitParam = parseExportLimit(query.limit);
+    const columns = this.resolveExportColumns(query.includeColumns);
+
+    const total = await this.repository.countIncidents(filters);
+    const effectiveLimit = Math.min(limitParam ?? MAX_EXPORT_ROWS, MAX_EXPORT_ROWS);
+
+    if (total > effectiveLimit) {
+      throw HttpError.badRequest(
+        `Filtered export matches ${total} incidents which exceeds the export limit of ${effectiveLimit}. Please refine your filters or request a smaller result set.`
+      );
+    }
+
+    const exportStream = this.repository.createIncidentExportStream(filters, {
+      limit: effectiveLimit,
+      sortBy: filters.sortBy,
+      sortDirection: filters.sortDirection,
+    });
+
+    const throttled = exportStream.pipe(createThrottleTransform(EXPORT_THROTTLE_DELAY_MS));
+    const csvStream = new PassThrough();
+
+    const metadataLines = [
+      `Generated At: ${now.toISOString()}`,
+      `Record Count: ${total}`,
+      `Filters: ${formatFilterSummary(filters)}`,
+      `Columns: ${columns.map((column) => column.header).join(', ')}`,
+    ];
+
+    for (const line of metadataLines) {
+      csvStream.write(`# ${line}${CSV_NEWLINE}`);
+    }
+    csvStream.write(columns.map((column) => csvEscape(column.header)).join(',') + CSV_NEWLINE);
+
+    throttled.on('data', (item: IncidentListItem) => {
+      const row = columns.map((column) => csvEscape(column.accessor(item))).join(',');
+      if (!csvStream.write(row + CSV_NEWLINE)) {
+        throttled.pause();
+        csvStream.once('drain', () => throttled.resume());
+      }
+    });
+
+    throttled.on('end', () => csvStream.end());
+    throttled.on('error', (error) => {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      csvStream.destroy(normalizedError);
+    });
+
+    const filename = `incidents-export-${formatFilenameTimestamp(now)}.csv`;
+
+    return {
+      stream: csvStream,
+      filename,
+      total,
+      selectedColumns: columns,
+      filters,
+    };
   }
 }
 

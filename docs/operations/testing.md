@@ -35,7 +35,7 @@ Backend tests under `server/tests/db/` seed fixtures that tie incidents and stat
 - `incidents.filters.int.test.ts` — exercises pagination, combined filters (type/severity/status/date/isActive), validation errors, and the 5 000-record window guard.
 - `incidents.crud.int.test.ts` — covers `POST /api/incidents` success, timeline validation, lookup failures, and duplicate handling, ensuring caches reset after inserts.
 - `incidents.api.test.ts` — baseline list/detail, metadata refresh, and search coverage shared with previous milestones.
-- `dashboard.api.test.ts` — verifies the analytics endpoints (KPI, distributions, trend timeline, and recents) plus cache refresh semantics.
+- `dashboard.api.test.ts` — verifies the analytics endpoints (KPI, distributions, trend timeline, recents) and the filtered CSV export stream, including limit enforcement and custom column selection.
 
 Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose already configures this for the backend container. When the variable is not set or the database is offline, the suites log a warning and skip assertions so local development can proceed.
 

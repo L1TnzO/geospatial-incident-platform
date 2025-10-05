@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { dashboardService } from '../services/dashboardService';
 import { HttpError } from '../errors/httpError';
+import type { NextFunction } from 'express';
 
 const parseRefreshFlag = (refresh: unknown): boolean => {
   if (refresh === undefined) {
@@ -71,4 +72,33 @@ export const getRecentIncidents = async (req: Request, res: Response): Promise<v
     limit
   );
   res.json(result);
+};
+
+export const exportIncidentsCsv = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await dashboardService.prepareIncidentsExport(
+      req.query as Record<string, string | string[] | undefined>
+    );
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Export-Total', String(result.total));
+    res.status(200);
+
+    result.stream.once('error', (error) => {
+      if (!res.headersSent) {
+        next(error);
+      } else {
+        res.destroy(error as Error);
+      }
+    });
+
+    result.stream.pipe(res);
+  } catch (error) {
+    next(error);
+  }
 };

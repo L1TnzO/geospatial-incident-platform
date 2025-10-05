@@ -1,4 +1,5 @@
 import type { Knex } from 'knex';
+import { Readable, Transform, type TransformCallback } from 'stream';
 import { getDb } from '../client';
 import {
   type GeoJsonPoint,
@@ -10,6 +11,7 @@ import {
   type IncidentSearchResult,
   type IncidentSeverity,
   type IncidentSeverityBucket,
+  type IncidentSortField,
   type IncidentStatus,
   type IncidentSource,
   type IncidentTypeBucket,
@@ -519,6 +521,115 @@ export class IncidentRepository {
       sortBy,
       sortDirection,
     };
+  }
+
+  public async countIncidents(filters: IncidentListFilters = {}): Promise<number> {
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+
+    applyFilters(query, filters);
+
+    const result = await query
+      .clone()
+      .clearSelect()
+      .clearOrder()
+      .countDistinct<{ total: string }>('i.id as total')
+      .first();
+
+    return Number(result?.total ?? 0);
+  }
+
+  public createIncidentExportStream(
+    filters: IncidentListFilters = {},
+    options: { limit: number; sortBy?: IncidentSortField; sortDirection?: 'asc' | 'desc' }
+  ): Readable {
+    const sortBy = options.sortBy ?? filters.sortBy ?? 'reportedAt';
+    const sortDirection = options.sortDirection ?? filters.sortDirection ?? 'desc';
+
+    const sortColumn = (() => {
+      switch (sortBy) {
+        case 'occurrenceAt':
+          return 'i.occurrence_at';
+        case 'severityPriority':
+          return 'isv.priority';
+        case 'reportedAt':
+        default:
+          return 'i.reported_at';
+      }
+    })();
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .leftJoin('incident_sources as iso', 'i.source_id', 'iso.id')
+      .leftJoin('weather_conditions as iwc', 'i.weather_condition_id', 'iwc.id')
+      .leftJoin('stations as ps', 'i.primary_station_id', 'ps.id')
+      .select([
+        'i.id as incidentId',
+        'i.incident_number as incidentNumber',
+        'i.external_reference as externalReference',
+        'i.title as title',
+        'i.occurrence_at as occurrenceAt',
+        'i.reported_at as reportedAt',
+        'i.dispatch_at as dispatchAt',
+        'i.arrival_at as arrivalAt',
+        'i.resolved_at as resolvedAt',
+        'i.is_active as isActive',
+        'i.casualty_count as casualtyCount',
+        'i.responder_injuries as responderInjuries',
+        'i.estimated_damage_amount as estimatedDamageAmount',
+        'i.location_geohash as locationGeohash',
+        'it.type_code as typeCode',
+        'it.name as typeName',
+        'it.description as typeDescription',
+        'isv.severity_code as severityCode',
+        'isv.name as severityName',
+        'isv.description as severityDescription',
+        'isv.priority as severityPriority',
+        'isv.color_hex as severityColorHex',
+        'ist.status_code as statusCode',
+        'ist.name as statusName',
+        'ist.description as statusDescription',
+        'ist.is_terminal as statusIsTerminal',
+        'iso.source_code as sourceCode',
+        'iso.name as sourceName',
+        'iso.description as sourceDescription',
+        'iwc.condition_code as weatherCode',
+        'iwc.name as weatherName',
+        'iwc.description as weatherDescription',
+        'ps.station_code as primaryStationCode',
+        'ps.name as primaryStationName',
+      ])
+      .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
+      .orderBy(sortColumn, sortDirection)
+      .orderBy('i.id', sortDirection)
+      .limit(Math.max(0, options.limit));
+
+    applyFilters(query, filters);
+
+    const rawStream = query.stream();
+    const mapper = new Transform({
+      objectMode: true,
+      transform(chunk: IncidentRowBase, _encoding, callback: TransformCallback) {
+        try {
+          const item = mapIncidentRow(chunk);
+          callback(null, item);
+        } catch (error) {
+          const normalizedError = error instanceof Error ? error : new Error(String(error));
+          callback(normalizedError);
+        }
+      },
+    });
+
+    rawStream.on('error', (error) => {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      mapper.destroy(normalizedError);
+    });
+
+    return rawStream.pipe(mapper);
   }
 
   public async createIncident(input: CreateIncidentInput): Promise<IncidentDetail> {

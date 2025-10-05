@@ -99,3 +99,23 @@ Lists the latest incidents (default 10, configurable via `limit` up to 25) with 
   }
 ]
 ```
+
+## `GET /api/dashboard/export`
+
+Streams a CSV export of incidents that match the supplied filters. The endpoint shares the query parameters from `/api/incidents` plus:
+
+- `limit` — optional maximum row count (default and hard cap: 5,000). When the filtered result exceeds the limit, the request is rejected with `400` rather than truncating silently.
+- `includeColumns` — optional comma-separated list of column keys (case-insensitive). Supported keys include `incidentNumber`, `title`, `occurrenceAt`, `reportedAt`, `typeCode`, `typeName`, `severityCode`, `severityPriority`, `statusCode`, `isActive`, `latitude`, `longitude`, `primaryStationCode`, `primaryStationName`, `sourceCode`, `weatherCode`, and more. Omitted or unknown keys result in `400` responses.
+
+Responses include metadata comment lines followed by the CSV header and data rows:
+
+```
+# Generated At: 2025-10-05T09:30:00.000Z
+# Record Count: 18
+# Filters: severityCodes=CRITICAL; isActive=true
+# Columns: Incident Number,Title,Severity Code,Severity Priority
+Incident Number,Title,Severity Code,Severity Priority
+GIP-INC-0001,Critical Medical Incident,CRITICAL,4
+```
+
+`Content-Disposition` is set to `attachment` with a timestamped filename (e.g. `incidents-export-20251005-093000.csv`) so browsers immediately download the file.
