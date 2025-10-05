@@ -123,6 +123,26 @@ interface IncidentDailyCountRow {
   total: string | number;
 }
 
+interface IncidentMonthlyCountRow {
+  bucketMonth: Date;
+  total: string | number;
+}
+
+interface IncidentQuarterCountRow {
+  bucketQuarter: Date;
+  year: number | string;
+  quarter: number | string;
+  total: string | number;
+}
+
+interface IncidentTypeTimelineRow {
+  bucketMonth: Date;
+  typeCode: string | null;
+  typeName: string | null;
+  typeDescription: string | null;
+  total: string | number;
+}
+
 type RecentIncidentRow = IncidentRowBase;
 
 export class IncidentLookupError extends Error {
@@ -1031,6 +1051,124 @@ export class IncidentRepository {
         count: coerceCount(row.total),
       }))
       .filter((bucket) => bucket.count > 0);
+  }
+
+  public async getIncidentCountsByReportedMonth(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<Array<{ periodStart: string; count: number }>> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const filtersWithRange: IncidentListFilters = {
+      ...filters,
+      startDate: filters.startDate ?? range.start,
+      endDate: filters.endDate ?? range.end,
+    };
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select<IncidentMonthlyCountRow[]>([
+        this.db.raw('DATE_TRUNC(\'month\', i.reported_at) as "bucketMonth"'),
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw("DATE_TRUNC('month', i.reported_at)")
+      .orderByRaw("DATE_TRUNC('month', i.reported_at)");
+
+    applyFilters(query, filtersWithRange);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as IncidentMonthlyCountRow[];
+    return rows.map((row) => ({
+      periodStart: new Date(row.bucketMonth).toISOString(),
+      count: coerceCount(row.total),
+    }));
+  }
+
+  public async getIncidentCountsByReportedQuarter(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<Array<{ periodStart: string; year: number; quarter: number; count: number }>> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const filtersWithRange: IncidentListFilters = {
+      ...filters,
+      startDate: filters.startDate ?? range.start,
+      endDate: filters.endDate ?? range.end,
+    };
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select<IncidentQuarterCountRow[]>([
+        this.db.raw('DATE_TRUNC(\'quarter\', i.reported_at) as "bucketQuarter"'),
+        this.db.raw('EXTRACT(YEAR FROM i.reported_at) as year'),
+        this.db.raw('EXTRACT(QUARTER FROM i.reported_at) as quarter'),
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw(
+        "DATE_TRUNC('quarter', i.reported_at), EXTRACT(YEAR FROM i.reported_at), EXTRACT(QUARTER FROM i.reported_at)"
+      )
+      .orderByRaw("DATE_TRUNC('quarter', i.reported_at)");
+
+    applyFilters(query, filtersWithRange);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as IncidentQuarterCountRow[];
+    return rows.map((row) => ({
+      periodStart: new Date(row.bucketQuarter).toISOString(),
+      year: Number(row.year),
+      quarter: Number(row.quarter),
+      count: coerceCount(row.total),
+    }));
+  }
+
+  public async getIncidentTypeTimeline(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<Array<{ periodStart: string; type: IncidentLookupValue; count: number }>> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const filtersWithRange: IncidentListFilters = {
+      ...filters,
+      startDate: filters.startDate ?? range.start,
+      endDate: filters.endDate ?? range.end,
+    };
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select<IncidentTypeTimelineRow[]>([
+        this.db.raw('DATE_TRUNC(\'month\', i.reported_at) as "bucketMonth"'),
+        'it.type_code as typeCode',
+        'it.name as typeName',
+        'it.description as typeDescription',
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw("DATE_TRUNC('month', i.reported_at), it.type_code, it.name, it.description")
+      .orderByRaw("DATE_TRUNC('month', i.reported_at)")
+      .orderBy('it.type_code', 'asc');
+
+    applyFilters(query, filtersWithRange);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as IncidentTypeTimelineRow[];
+    return rows
+      .filter((row) => row.typeCode)
+      .map((row) => ({
+        periodStart: new Date(row.bucketMonth).toISOString(),
+        type: createLookup(row.typeCode as string, row.typeName, row.typeDescription),
+        count: coerceCount(row.total),
+      }));
   }
 
   public async listRecentIncidents(

@@ -36,6 +36,7 @@ Backend tests under `server/tests/db/` seed fixtures that tie incidents and stat
 - `incidents.crud.int.test.ts` — covers `POST /api/incidents` success, timeline validation, lookup failures, and duplicate handling, ensuring caches reset after inserts.
 - `incidents.api.test.ts` — baseline list/detail, metadata refresh, and search coverage shared with previous milestones.
 - `dashboard.api.test.ts` — consolidates QA coverage for dashboard analytics. Tests exercise filter combinations, cache refresh behaviour, zero-data windows, CSV streaming metadata, and guardrails for export limits/column selection.
+- `strategic.api.test.ts` — verifies strategic monthly, quarterly, and type timeline aggregations across multi-year fixtures, including window validations and filter propagation.
 
 #### Dashboard analytics QA suite
 
