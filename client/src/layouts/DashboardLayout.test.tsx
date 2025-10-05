@@ -8,12 +8,14 @@ const {
   mockUseDashboardSeverityDistribution,
   mockUseDashboardDailyTrend,
   mockUseDashboardRecentIncidents,
+  mockUseDashboardExport,
 } = vi.hoisted(() => ({
   mockUseDashboardLast24HoursKpi: vi.fn(),
   mockUseDashboardTypeDistribution: vi.fn(),
   mockUseDashboardSeverityDistribution: vi.fn(),
   mockUseDashboardDailyTrend: vi.fn(),
   mockUseDashboardRecentIncidents: vi.fn(),
+  mockUseDashboardExport: vi.fn(),
 }));
 
 vi.mock('@/hooks/useDashboardLast24HoursKpi', () => ({
@@ -36,8 +38,23 @@ vi.mock('@/hooks/useDashboardRecentIncidents', () => ({
   useDashboardRecentIncidents: () => mockUseDashboardRecentIncidents(),
 }));
 
+vi.mock('@/hooks/useDashboardExport', () => ({
+  useDashboardExport: () => mockUseDashboardExport(),
+}));
+
 describe('DashboardLayout', () => {
   it('renders loading placeholders for dashboard sections', () => {
+    mockUseDashboardExport.mockReturnValue({
+      status: 'idle',
+      isExporting: false,
+      error: null,
+      filename: null,
+      completedAt: null,
+      startExport: vi.fn(),
+      cancelExport: vi.fn(),
+      resetExport: vi.fn(),
+      downloadAgain: vi.fn(),
+    });
     mockUseDashboardLast24HoursKpi.mockReturnValue({
       status: 'loading',
       data: null,
@@ -80,6 +97,8 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
+    expect(screen.getByRole('button', { name: /export csv/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /cancel export/i })).not.toBeInTheDocument();
     expect(screen.getByText(/loading kpi metrics/i)).toBeInTheDocument();
     expect(screen.getByText(/loading incident type distribution/i)).toBeInTheDocument();
     expect(screen.getByText(/loading severity distribution/i)).toBeInTheDocument();
@@ -88,6 +107,17 @@ describe('DashboardLayout', () => {
   });
 
   it('renders empty states when data is missing', () => {
+    mockUseDashboardExport.mockReturnValue({
+      status: 'success',
+      isExporting: false,
+      error: null,
+      filename: 'incidents.csv',
+      completedAt: '2025-01-11T12:05:00Z',
+      startExport: vi.fn(),
+      cancelExport: vi.fn(),
+      resetExport: vi.fn(),
+      downloadAgain: vi.fn(),
+    });
     mockUseDashboardLast24HoursKpi.mockReturnValue({
       status: 'success',
       data: {
@@ -146,6 +176,9 @@ describe('DashboardLayout', () => {
 
     render(<DashboardLayout />);
 
+    expect(screen.getByText(/export ready/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download again/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /dismiss/i })).toBeInTheDocument();
     expect(screen.getByText(/incidents \(last 24h\)/i)).toBeInTheDocument();
     expect(screen.getByText(/no type data yet/i)).toBeInTheDocument();
     expect(screen.getByText(/no severity data yet/i)).toBeInTheDocument();

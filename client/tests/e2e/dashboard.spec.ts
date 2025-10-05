@@ -367,7 +367,11 @@ const filterIncidents = (params: SearchParams) => {
   return items;
 };
 
-const configureApiRoutes = async (page: Page, incidentsRequests: string[]) => {
+const configureApiRoutes = async (
+  page: Page,
+  incidentsRequests: string[],
+  exportRequests?: string[]
+) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
     sessionStorage.clear();
@@ -416,6 +420,18 @@ const configureApiRoutes = async (page: Page, incidentsRequests: string[]) => {
       body: JSON.stringify(DASHBOARD_RECENT_INCIDENTS),
     })
   );
+
+  await page.route('**/api/dashboard/export**', async (route: Route) => {
+    exportRequests?.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/csv',
+      headers: {
+        'Content-Disposition': 'attachment; filename="incidents-export.csv"',
+      },
+      body: 'id,title\nINC-200,Warehouse Fire',
+    });
+  });
 
   await page.route('**/api/incidents/meta', (route: Route) =>
     route.fulfill({
@@ -558,7 +574,8 @@ test('filters incidents, searches by number, and opens detail modal', async ({ p
 
 test('dashboard analytics screen renders navigation and placeholders', async ({ page }) => {
   const incidentsRequests: string[] = [];
-  await configureApiRoutes(page, incidentsRequests);
+  const exportRequests: string[] = [];
+  await configureApiRoutes(page, incidentsRequests, exportRequests);
 
   await page.goto('/dashboard');
   await page.waitForLoadState('networkidle');
@@ -615,6 +632,15 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await expect(trendFigure).toBeVisible();
   await expect(page.getByText(/7-day trend:/i)).toBeVisible();
   await expect(page.getByText(/current 7-day total/i)).toBeVisible();
+
+  const exportButton = page.getByRole('button', { name: /export csv/i });
+  await expect(exportButton).toBeEnabled();
+  await exportButton.click();
+  await expect(page.getByText(/export ready/i)).toBeVisible();
+  expect(exportRequests).toHaveLength(1);
+  await page.getByRole('button', { name: /download again/i }).click();
+  await page.getByRole('button', { name: /dismiss/i }).click();
+  await page.waitForSelector('text=Export ready', { state: 'detached' });
 
   await page.getByRole('button', { name: /percentage/i }).click();
   await expect(page.getByRole('button', { name: /percentage/i })).toHaveAttribute(

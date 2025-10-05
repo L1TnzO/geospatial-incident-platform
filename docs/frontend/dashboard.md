@@ -24,7 +24,8 @@ All widgets accept result objects from their respective hooks, ensuring we can d
 - `useDashboardLast24HoursKpi.ts`, `useDashboardTypeDistribution.ts`, `useDashboardSeverityDistribution.ts`, and `useDashboardDailyTrend.ts` each call their respective `/api/dashboard/*` endpoints while exposing a common status shape.
 - `useDashboardAggregations.ts` simply composes the granular hooks above for scenarios where a single selector is still convenient.
 - `useDashboardRecentIncidents.ts` reads `/api/dashboard/incidents/recent` with the same filter set and lifecycle handling.
-- `dashboardService.ts` centralizes API helpers and typed payloads defined in `types/dashboard.ts`.
+- `useDashboardExport.ts` wraps the CSV export lifecycle—deriving filters, managing the abort controller, surfacing status/metadata, and triggering the download via `triggerBrowserDownload`.
+- `dashboardService.ts` centralizes API helpers and typed payloads defined in `types/dashboard.ts`, including `exportDashboardCsv` which calls `/api/dashboard/export` and resolves filename metadata.
 
 Each hook returns plain objects, making them easy to mock in Vitest or swap with MSW handlers during local development.
 
@@ -60,6 +61,14 @@ The donut chart visualises severity buckets via a conic-gradient slice keyed to 
 
 The line chart renders the last 30 days of incident counts using a declarative SVG path. A translucent highlight and dashed overlay call out the most recent 7-day window, while the summary copy beneath the chart reiterates the `currentTotal`, `previousTotal`, signed delta, and trend direction (up, down, flat). Hover/focus tooltips use `<title>` nodes so every point exposes `{date}: {count} incidents`, and the bottom axis ticks surface start/mid/end dates for quick orientation. The refresh control mirrors other widgets and keeps timestamps in sync.
 
+### Filtered CSV export
+
+- **Hook:** `useDashboardExport.ts`
+- **Service:** `exportDashboardCsv` (`dashboardService.ts`)
+- **Endpoint:** `GET /api/dashboard/export`
+
+The dashboard header now exposes an **Export CSV** pill button that respects the currently active dashboard filters. On click the button disables, renders as “Exporting…”, and the hook issues a `fetch` with `Response.blob()` to stream the CSV. Successful responses infer the filename from `Content-Disposition` (falling back to `incidents-yyyyMMdd-HHmm.csv`), trigger a browser download via `URL.createObjectURL`, and surface a toast-like banner with “Download again” / “Dismiss” actions. Errors flip the banner into an alert that explains the failure (including the 5 000 record cap) and offers a **Retry export** button. Users can cancel a long-running request via **Cancel export**, which aborts the underlying `AbortController`.
+
 ## Styling & responsiveness
 
 Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are already imported through `index.scss`. The grid layout:
@@ -67,6 +76,7 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 - Uses `grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))` to collapse charts into a single column on narrow viewports.
 - Adapts paddings for tablet screens (`max-width: 768px`) and keeps KPI/Recent cards legible on touch devices.
 - Defines shared utility classes (`.dashboard-placeholder`, `.dashboard-error`, `.dashboard-empty`, `.dashboard-loading`) for consistent skeleton and error messaging.
+- Adds `.dashboard-export`, `.dashboard-export-cancel`, and `.dashboard-export-banner*` styles so the export controls align with the existing pill buttons and emphasise success/error states.
 
 ## Testing
 
@@ -75,14 +85,17 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 - **Unit:** `DashboardTypeDistributionChart.test.tsx` covers loading, error, empty, and toggle/tooltip behaviour for the type chart.
 - **Unit:** `DashboardSeverityDistributionChart.test.tsx` validates loading/error/empty cases and legend rendering for the severity donut.
 - **Unit:** `DashboardDailyTrendChart.test.tsx` covers loading/error/empty flows and ensures the line chart and trend summary render correctly.
+- **Unit:** `dashboardService.test.ts` asserts CSV filename resolution, fallback naming, and error handling for the export helper.
+- **Unit:** `useDashboardExport.test.ts` exercises success, error, and cancellation flows while verifying download triggers.
 - **Routing:** `AppRouting.test.tsx` asserts the Overview⇄Dashboard navigation flow and `aria-current` handling in the header.
-- **E2E:** `tests/e2e/dashboard.spec.ts` now includes a smoke test that visits `/dashboard`, ensures the nav tab is active, and checks that stub data renders.
+- **Integration:** `DashboardPage.integration.test.tsx` validates happy-path rendering, export success (including download retry/dismiss), and error surfacing when the export endpoint returns 500 responses.
+- **E2E:** `tests/e2e/dashboard.spec.ts` now covers the export button lifecycle by stubbing the CSV endpoint, checking the disabled “Exporting…” state, verifying banner actions, and ensuring other widgets still behave.
 
 Run the tests with:
 
 ```bash
-npm --prefix client run test -- DashboardLayout.test.tsx AppRouting.test.tsx
-npm --prefix client run test:e2e -- dashboard
+npm --prefix client run test:client
+npm --prefix client run test:client:e2e -- dashboard
 ```
 
 (Replace the filenames with `--run` filters as needed.)

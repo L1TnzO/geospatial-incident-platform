@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import DashboardPage from '@/pages/DashboardPage';
@@ -176,6 +176,8 @@ const DASHBOARD_RECENT_INCIDENTS: DashboardRecentIncident[] = [
   },
 ];
 
+const exportRequests: string[] = [];
+
 const server = setupServer(
   http.get('*/api/incidents', () => HttpResponse.json(INCIDENTS_RESPONSE)),
   http.get('*/api/incidents/meta', () => HttpResponse.json(INCIDENT_METADATA)),
@@ -190,11 +192,28 @@ const server = setupServer(
     HttpResponse.json(DASHBOARD_SEVERITY_DISTRIBUTION)
   ),
   http.get('*/api/dashboard/incidents/daily-trend', () => HttpResponse.json(DASHBOARD_DAILY_TREND)),
-  http.get('*/api/dashboard/incidents/recent', () => HttpResponse.json(DASHBOARD_RECENT_INCIDENTS))
+  http.get('*/api/dashboard/incidents/recent', () => HttpResponse.json(DASHBOARD_RECENT_INCIDENTS)),
+  http.get('*/api/dashboard/export', ({ request }) => {
+    exportRequests.push(request.url);
+    return new HttpResponse('id,title\nINC-100,Uptown Electrical Fire', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="incidents-export.csv"',
+      },
+    });
+  })
 );
+
+const originalCreateObjectURL = global.URL.createObjectURL;
+const originalRevokeObjectURL = global.URL.revokeObjectURL;
+const createObjectUrlMock = vi.fn(() => 'blob:dashboard-export');
+const revokeObjectUrlMock = vi.fn();
 
 describe('DashboardPage analytics integration', () => {
   beforeAll(() => {
+    global.URL.createObjectURL = createObjectUrlMock;
+    global.URL.revokeObjectURL = revokeObjectUrlMock;
     server.listen();
   });
 
@@ -205,9 +224,14 @@ describe('DashboardPage analytics integration', () => {
     resetIncidentDetailStore({ clearStorage: true });
     resetMapPreferencesStore();
     useMapStore.setState({ center: [40.7128, -74.006], zoom: 11 });
+    exportRequests.length = 0;
+    createObjectUrlMock.mockClear();
+    revokeObjectUrlMock.mockClear();
   });
 
   afterAll(() => {
+    global.URL.createObjectURL = originalCreateObjectURL;
+    global.URL.revokeObjectURL = originalRevokeObjectURL;
     server.close();
   });
 
@@ -253,6 +277,18 @@ describe('DashboardPage analytics integration', () => {
     expect(screen.getByText(/current 7-day total/i)).toBeInTheDocument();
     expect(screen.getByText('Warehouse Fire')).toBeInTheDocument();
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
+
+    const exportButton = screen.getByRole('button', { name: /export csv/i });
+    fireEvent.click(exportButton);
+    expect(screen.getByRole('button', { name: /exporting…/i })).toBeDisabled();
+    await screen.findByText(/export ready/i);
+    expect(exportRequests).toHaveLength(1);
+    expect(exportRequests[0]).toContain('/api/dashboard/export');
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: /download again/i }));
+    expect(createObjectUrlMock).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
+    await waitFor(() => expect(screen.queryByText(/export ready/i)).not.toBeInTheDocument());
   });
 
   it('surfaces error states when dashboard endpoints fail', async () => {
@@ -265,7 +301,8 @@ describe('DashboardPage analytics integration', () => {
       http.get('*/api/dashboard/incidents/daily-trend', () =>
         HttpResponse.text('', { status: 500 })
       ),
-      http.get('*/api/dashboard/incidents/recent', () => HttpResponse.text('', { status: 500 }))
+      http.get('*/api/dashboard/incidents/recent', () => HttpResponse.text('', { status: 500 })),
+      http.get('*/api/dashboard/export', () => HttpResponse.text('Export failed', { status: 500 }))
     );
 
     render(<DashboardPage />);
@@ -284,5 +321,8 @@ describe('DashboardPage analytics integration', () => {
     expect(
       screen.getByText(/failed to fetch dashboard recent incidents \(status 500\)/i)
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }));
+    await screen.findByText(/export failed/i);
+    expect(screen.getByRole('button', { name: /retry export/i })).toBeInTheDocument();
   });
 });

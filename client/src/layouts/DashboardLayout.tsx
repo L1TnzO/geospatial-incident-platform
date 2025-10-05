@@ -6,6 +6,7 @@ import { useDashboardLast24HoursKpi } from '@/hooks/useDashboardLast24HoursKpi';
 import { useDashboardRecentIncidents } from '@/hooks/useDashboardRecentIncidents';
 import { useDashboardSeverityDistribution } from '@/hooks/useDashboardSeverityDistribution';
 import { useDashboardTypeDistribution } from '@/hooks/useDashboardTypeDistribution';
+import { useDashboardExport } from '@/hooks/useDashboardExport';
 
 const DashboardLayout = () => {
   const kpi = useDashboardLast24HoursKpi();
@@ -13,6 +14,17 @@ const DashboardLayout = () => {
   const severityDistribution = useDashboardSeverityDistribution();
   const dailyTrend = useDashboardDailyTrend();
   const recent = useDashboardRecentIncidents();
+  const {
+    status: exportStatus,
+    isExporting,
+    error: exportError,
+    filename: exportFilename,
+    completedAt: exportCompletedAt,
+    startExport,
+    cancelExport,
+    resetExport,
+    downloadAgain,
+  } = useDashboardExport();
 
   const lastUpdated =
     kpi.lastUpdated ||
@@ -41,6 +53,19 @@ const DashboardLayout = () => {
           <button type="button" className="dashboard-refresh" onClick={handleRefresh}>
             Refresh data
           </button>
+          <button
+            type="button"
+            className="dashboard-export"
+            onClick={startExport}
+            disabled={isExporting}
+          >
+            {isExporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+          {isExporting && (
+            <button type="button" className="dashboard-export-cancel" onClick={cancelExport}>
+              Cancel export
+            </button>
+          )}
           {lastUpdated && (
             <p className="dashboard-shell__timestamp">
               Last updated{' '}
@@ -49,6 +74,55 @@ const DashboardLayout = () => {
           )}
         </div>
       </header>
+      {(exportStatus === 'success' || exportStatus === 'error') && (
+        <div
+          className={`dashboard-export-banner${
+            exportStatus === 'error' ? ' dashboard-export-banner--error' : ''
+          }`}
+          role={exportStatus === 'error' ? 'alert' : 'status'}
+          aria-live={exportStatus === 'error' ? 'assertive' : 'polite'}
+        >
+          {exportStatus === 'success' ? (
+            <>
+              <div>
+                <p>
+                  Export ready: <strong>{exportFilename}</strong>
+                </p>
+                {exportCompletedAt && (
+                  <p className="dashboard-export-banner__meta">
+                    Generated {new Date(exportCompletedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <div className="dashboard-export-banner__actions">
+                <button type="button" onClick={downloadAgain}>
+                  Download again
+                </button>
+                <button type="button" onClick={resetExport}>
+                  Dismiss
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <p>{exportError ?? 'Unable to export incidents.'}</p>
+                <p className="dashboard-export-banner__meta">
+                  Check your filters or try narrowing the timeframe (exports cap at 5,000 records).
+                </p>
+              </div>
+              <div className="dashboard-export-banner__actions">
+                <button type="button" onClick={startExport}>
+                  Retry export
+                </button>
+                <button type="button" onClick={resetExport}>
+                  Dismiss
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <section aria-labelledby="dashboard-kpis" className="dashboard-shell__section">
         <div className="dashboard-section__header">
           <h2 id="dashboard-kpis">Key Performance Indicators</h2>

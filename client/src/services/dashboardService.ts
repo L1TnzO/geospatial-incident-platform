@@ -106,6 +106,51 @@ const buildRequestInit = (signal?: AbortSignal): RequestInit => ({
   signal,
 });
 
+const buildExportRequestInit = (signal?: AbortSignal): RequestInit => ({
+  method: 'GET',
+  headers: {
+    Accept: 'text/csv',
+  },
+  credentials: 'same-origin',
+  signal,
+});
+
+const parseContentDispositionFilename = (value: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch (error) {
+      console.warn('[dashboardService] Failed to decode UTF-8 filename:', error);
+    }
+  }
+
+  const quotedMatch = value.match(/filename="?([^";]+)"?/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  return null;
+};
+
+const buildFallbackExportFilename = () => {
+  const now = new Date();
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  const parts = [
+    now.getUTCFullYear(),
+    pad(now.getUTCMonth() + 1),
+    pad(now.getUTCDate()),
+    '-',
+    pad(now.getUTCHours()),
+    pad(now.getUTCMinutes()),
+  ];
+  return `incidents-${parts.join('')}.csv`;
+};
+
 const handleResponse = async <T>(response: Response, errorMessage: string): Promise<T> => {
   if (!response.ok) {
     const message = await response.text();
@@ -170,4 +215,28 @@ export const fetchRecentIncidents = async ({
   );
   const response = await fetch(url.toString(), buildRequestInit(signal));
   return handleResponse(response, 'Failed to fetch dashboard recent incidents');
+};
+
+interface ExportDashboardCsvOptions {
+  signal?: AbortSignal;
+  refresh?: boolean;
+}
+
+export const exportDashboardCsv = async (
+  filters: DashboardFilterParams = {},
+  { signal, refresh }: ExportDashboardCsvOptions = {}
+): Promise<{ blob: Blob; filename: string }> => {
+  const url = buildUrl('/dashboard/export', buildQueryParams(filters, { refresh }));
+  const response = await fetch(url.toString(), buildExportRequestInit(signal));
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to export dashboard incidents (status ${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers?.get('Content-Disposition');
+  const filename = parseContentDispositionFilename(disposition) ?? buildFallbackExportFilename();
+
+  return { blob, filename };
 };
