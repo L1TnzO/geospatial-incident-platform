@@ -218,7 +218,11 @@ describe('DashboardPage analytics integration', () => {
 
     expect(screen.getByRole('heading', { name: /dashboard analytics/i })).toBeInTheDocument();
     expect(screen.getByText(/incidents \(last 24h\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/net change/i)).toBeInTheDocument();
+    expect(screen.getByText('18')).toBeInTheDocument();
+    expect(screen.getByText('+4')).toBeInTheDocument();
+    expect(screen.getByText('+28.6%')).toBeInTheDocument();
+    expect(screen.getByText(/vs previous 24h/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /refresh kpi/i })).toBeInTheDocument();
     expect(screen.getByText(/structure fire/i)).toBeInTheDocument();
     expect(screen.getByText('Warehouse Fire')).toBeInTheDocument();
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
@@ -240,6 +244,7 @@ describe('DashboardPage analytics integration', () => {
     render(<DashboardPage />);
 
     await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
     expect(
       screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
     ).toBeInTheDocument();

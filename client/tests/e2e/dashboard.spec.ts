@@ -570,6 +570,10 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await expect(page.getByRole('heading', { name: /dashboard analytics/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /key performance indicators/i })).toBeVisible();
   await expect(page.getByText('Incidents (last 24h)')).toBeVisible();
+  await expect(page.getByText('+4')).toBeVisible();
+  await expect(page.getByText('+28.6%')).toBeVisible();
+  await expect(page.getByText(/vs previous 24h/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /refresh kpi/i })).toBeVisible();
   await expect(page.getByText(/structure fire/i)).toBeVisible();
   await expect(page.getByText('INC-200')).toBeVisible();
 });

@@ -12,7 +12,7 @@ The dashboard route (`/dashboard`) hosts the analytics surface that complements 
 
 | Component        | Path                           | Purpose                                                                                                                                                                                                                      |
 | ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| KPI row          | `DashboardKPIRow.tsx`          | Shows three cards that render loading, error, empty, or formatted KPI values sourced from `/api/dashboard/kpi/last-24h`.                                                                                                     |
+| KPI row          | `DashboardKPIRow.tsx`          | Renders the **Incidents (Last 24h)** KPI card with trend arrow, signed delta, percentage change, comparison tooltip, and manual refresh button backed by `/api/dashboard/kpi/last-24h`.                                      |
 | Charts grid      | `DashboardChartsGrid.tsx`      | Renders three lightweight cards (type mix, severity mix, daily trend) with accessible list semantics. Each card calls its own endpoint (`/incidents/by-type`, `/incidents/severity-distribution`, `/incidents/daily-trend`). |
 | Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/incidents/recent`, including severity/status chips and localized timestamps.                                                                                          |
 
@@ -28,6 +28,14 @@ All widgets accept result objects from their respective hooks, ensuring we can d
 
 Each hook returns plain objects, making them easy to mock in Vitest or swap with MSW handlers during local development.
 
+### Incidents (Last 24h) KPI card
+
+- **Component:** `DashboardKPIRow.tsx`
+- **Hook:** `useDashboardLast24HoursKpi`
+- **Endpoint:** `GET /api/dashboard/kpi/last-24h`
+
+The card formats the current incident count, highlights the difference and percentage change versus the previous 24-hour window, and exposes both top-level timestamps and trend direction via semantic colours and accessible labels. Loading renders shimmer placeholders, errors surface the service message with a retry button, and empty states explain that activity has not been detected yet. The inline **Refresh KPI** button calls the hook’s `refresh()` method, which reissues the API request with `refresh=true` to bust any caches.
+
 ## Styling & responsiveness
 
 Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are already imported through `index.scss`. The grid layout:
@@ -39,6 +47,7 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 ## Testing
 
 - **Unit:** `DashboardLayout.test.tsx` verifies loading and empty states for the three sections by mocking the data hooks.
+- **Unit:** `DashboardKPIRow.test.tsx` exercises KPI loading, success (up & flat trends), and error retry flows against mocked hook state.
 - **Routing:** `AppRouting.test.tsx` asserts the Overview⇄Dashboard navigation flow and `aria-current` handling in the header.
 - **E2E:** `tests/e2e/dashboard.spec.ts` now includes a smoke test that visits `/dashboard`, ensures the nav tab is active, and checks that stub data renders.
 
