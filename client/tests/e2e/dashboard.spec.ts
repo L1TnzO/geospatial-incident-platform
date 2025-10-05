@@ -589,6 +589,29 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await expect(hazmatItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('4');
   await expect(medicalItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('2');
 
+  const severityChart = page.getByRole('img', { name: /incident counts by severity/i });
+  await expect(severityChart).toBeVisible();
+  const criticalItem = page.getByRole('listitem', {
+    name: /critical: 8 incidents \(44\.4%\)/i,
+  });
+  const moderateItem = page.getByRole('listitem', {
+    name: /moderate: 6 incidents \(33\.3%\)/i,
+  });
+  const lowItem = page.getByRole('listitem', { name: /low: 4 incidents \(22\.2%\)/i });
+
+  await expect(criticalItem).toBeVisible();
+  await expect(moderateItem).toBeVisible();
+  await expect(lowItem).toBeVisible();
+  await expect(criticalItem.locator('.dashboard-severity-chart__legend-value')).toHaveText(
+    /8 · 44\.4%/i
+  );
+  await expect(moderateItem.locator('.dashboard-severity-chart__legend-value')).toHaveText(
+    /6 · 33\.3%/i
+  );
+  await expect(lowItem.locator('.dashboard-severity-chart__legend-value')).toHaveText(
+    /4 · 22\.2%/i
+  );
+
   await page.getByRole('button', { name: /percentage/i }).click();
   await expect(page.getByRole('button', { name: /percentage/i })).toHaveAttribute(
     'aria-pressed',

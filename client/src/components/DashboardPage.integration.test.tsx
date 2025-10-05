@@ -230,6 +230,13 @@ describe('DashboardPage analytics integration', () => {
     expect(
       screen.getByRole('listitem', { name: /hazmat: 4 incidents \(25\.0%\)/i })
     ).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /incident counts by severity/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('listitem', { name: /critical: 8 incidents \(57\.1%\)/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('listitem', { name: /moderate: 6 incidents \(42\.9%\)/i })
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /percentage/i }));
     expect(screen.getByText(/75.0%/i)).toBeInTheDocument();
     expect(screen.getByText(/25.0%/i)).toBeInTheDocument();
@@ -257,7 +264,7 @@ describe('DashboardPage analytics integration', () => {
     render(<DashboardPage />);
 
     await screen.findByText(/failed to fetch dashboard last-24-hours kpi \(status 500\)/i);
-    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /try again/i })).toHaveLength(3);
     expect(
       screen.getByText(/failed to fetch dashboard incidents by type \(status 500\)/i)
     ).toBeInTheDocument();

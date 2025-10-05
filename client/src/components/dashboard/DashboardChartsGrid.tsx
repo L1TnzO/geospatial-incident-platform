@@ -1,5 +1,6 @@
 import type { DashboardQueryState } from '@/hooks/useDashboardQuery';
 import DashboardTypeDistributionChart from '@/components/dashboard/DashboardTypeDistributionChart';
+import DashboardSeverityDistributionChart from '@/components/dashboard/DashboardSeverityDistributionChart';
 import type {
   DashboardDailyTrend,
   DashboardSeverityDistribution,
@@ -13,32 +14,6 @@ interface DashboardChartsGridProps {
 }
 
 const formatPercentage = (value: number): string => `${value.toFixed(1)}%`;
-
-const renderDistributionList = (
-  items: { id: string; label: string; count: number; percentage: number }[],
-  emptyMessage: string
-) => {
-  if (items.length === 0) {
-    return <p className="dashboard-empty">{emptyMessage}</p>;
-  }
-
-  return (
-    <ul className="dashboard-distribution" role="list">
-      {items.map((item) => (
-        <li key={item.id}>
-          <span>{item.label}</span>
-          <strong>
-            {item.count.toLocaleString()}
-            <span className="dashboard-distribution__percentage">
-              {' '}
-              ({formatPercentage(item.percentage)})
-            </span>
-          </strong>
-        </li>
-      ))}
-    </ul>
-  );
-};
 
 const renderTrendList = (trend: DashboardDailyTrend | null) => {
   if (!trend || trend.points.length === 0) {
@@ -75,30 +50,6 @@ const DashboardChartsGrid = ({
   severityDistribution,
   dailyTrend,
 }: DashboardChartsGridProps) => {
-  const renderSeveritySection = () => {
-    if (severityDistribution.status === 'loading' || severityDistribution.status === 'idle') {
-      return <p className="dashboard-loading">Loading severity distribution…</p>;
-    }
-
-    if (severityDistribution.status === 'error') {
-      return (
-        <div className="dashboard-error">
-          {severityDistribution.error ?? 'Unable to load severity distribution.'}
-        </div>
-      );
-    }
-
-    return renderDistributionList(
-      (severityDistribution.data?.buckets ?? []).map((bucket) => ({
-        id: bucket.severity.code,
-        label: bucket.severity.name,
-        count: bucket.count,
-        percentage: bucket.percentage,
-      })),
-      'No severity data yet. Adjust timeframe filters if needed.'
-    );
-  };
-
   const renderTrendSection = () => {
     if (dailyTrend.status === 'loading' || dailyTrend.status === 'idle') {
       return <p className="dashboard-loading">Loading daily trend…</p>;
@@ -118,10 +69,7 @@ const DashboardChartsGrid = ({
   return (
     <div className="dashboard-charts-grid" role="list">
       <DashboardTypeDistributionChart distribution={typeDistribution} />
-      <section className="dashboard-chart-card" aria-label="Severity distribution" role="listitem">
-        <h3>Severity Mix</h3>
-        {renderSeveritySection()}
-      </section>
+      <DashboardSeverityDistributionChart distribution={severityDistribution} />
       <section className="dashboard-chart-card" aria-label="Daily trend" role="listitem">
         <h3>Daily Trend</h3>
         {renderTrendSection()}

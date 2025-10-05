@@ -10,11 +10,11 @@ The dashboard route (`/dashboard`) hosts the analytics surface that complements 
 
 ## Placeholder widgets
 
-| Component        | Path                           | Purpose                                                                                                                                                                                                        |
-| ---------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| KPI row          | `DashboardKPIRow.tsx`          | Renders the **Incidents (Last 24h)** KPI card with trend arrow, signed delta, percentage change, comparison tooltip, and manual refresh button backed by `/api/dashboard/kpi/last-24h`.                        |
-| Charts grid      | `DashboardChartsGrid.tsx`      | Hosts the type distribution bar chart, severity mix list, and daily trend summary. Each widget consumes its own endpoint (`/incidents/by-type`, `/incidents/severity-distribution`, `/incidents/daily-trend`). |
-| Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/incidents/recent`, including severity/status chips and localized timestamps.                                                                            |
+| Component        | Path                           | Purpose                                                                                                                                                                                                           |
+| ---------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| KPI row          | `DashboardKPIRow.tsx`          | Renders the **Incidents (Last 24h)** KPI card with trend arrow, signed delta, percentage change, comparison tooltip, and manual refresh button backed by `/api/dashboard/kpi/last-24h`.                           |
+| Charts grid      | `DashboardChartsGrid.tsx`      | Hosts the type distribution bar chart, severity donut chart, and daily trend summary. Each widget consumes its own endpoint (`/incidents/by-type`, `/incidents/severity-distribution`, `/incidents/daily-trend`). |
+| Recent incidents | `DashboardRecentIncidents.tsx` | Lists the latest incidents returned by `/api/dashboard/incidents/recent`, including severity/status chips and localized timestamps.                                                                               |
 
 All widgets accept result objects from their respective hooks, ensuring we can drop in real charting/visualization libraries in Tasks 5.3+ without rewriting container logic.
 
@@ -44,6 +44,14 @@ The card formats the current incident count, highlights the difference and perce
 
 The chart renders each incident type as a horizontal bar with responsive widths in either absolute counts or percentage mode. A segmented toggle switches the measurement, tooltips expose `{count} incidents ({percentage})`, and the footer includes refresh controls plus last-updated timestamps. Loading states display skeletons, errors surface retry buttons, and empty states nudge users to adjust filters.
 
+### Severity distribution donut chart
+
+- **Component:** `DashboardSeverityDistributionChart.tsx`
+- **Hook:** `useDashboardSeverityDistribution`
+- **Endpoint:** `GET /api/dashboard/incidents/severity-distribution`
+
+The donut chart visualises severity buckets via a conic-gradient slice keyed to the backend-provided `colorHex` palette. The centre callout highlights the total incident count, while the legend lists `{severity} · {count} · {percentage}` entries with matching swatches. Loading/error/empty states mirror the other widgets, and the **Refresh data** button reissues the request with cache-busting semantics. Tooltip labels and `aria-label`s expose the severity metadata for assistive technologies.
+
 ## Styling & responsiveness
 
 Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are already imported through `index.scss`. The grid layout:
@@ -57,6 +65,7 @@ Dashboard-specific styles live in `src/styles/dashboard/dashboard.scss` and are 
 - **Unit:** `DashboardLayout.test.tsx` verifies loading and empty states for the three sections by mocking the data hooks.
 - **Unit:** `DashboardKPIRow.test.tsx` exercises KPI loading, success (up & flat trends), and error retry flows against mocked hook state.
 - **Unit:** `DashboardTypeDistributionChart.test.tsx` covers loading, error, empty, and toggle/tooltip behaviour for the type chart.
+- **Unit:** `DashboardSeverityDistributionChart.test.tsx` validates loading/error/empty cases and legend rendering for the severity donut.
 - **Routing:** `AppRouting.test.tsx` asserts the Overview⇄Dashboard navigation flow and `aria-current` handling in the header.
 - **E2E:** `tests/e2e/dashboard.spec.ts` now includes a smoke test that visits `/dashboard`, ensures the nav tab is active, and checks that stub data renders.
 
