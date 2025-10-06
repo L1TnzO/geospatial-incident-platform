@@ -12,5 +12,6 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/incident overview/i);
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /strategic/i })).toBeInTheDocument();
   });
 });

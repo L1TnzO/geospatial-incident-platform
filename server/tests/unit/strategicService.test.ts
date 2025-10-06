@@ -1,6 +1,8 @@
 import {
   StrategicAnalyticsService,
   type HotspotResponse,
+  type ResponseMetricStationGroup,
+  type PriorityScoreStationGroup,
 } from '../../src/services/strategicService';
 import type { IncidentFilterOptions } from '../../src/services/incidentsService';
 import type { IncidentLookupValue } from '../../src/db';
@@ -13,6 +15,8 @@ const createService = (
       getIncidentCountsByReportedQuarter: jest.Mock;
       getIncidentTypeTimeline: jest.Mock;
       getIncidentHotspotAggregates: jest.Mock;
+      getResponseTimeMetrics: jest.Mock;
+      getPriorityScores: jest.Mock;
     }>;
     incidentSvc?: Partial<{
       buildFilterOptions: jest.Mock;
@@ -25,6 +29,8 @@ const createService = (
     getIncidentCountsByReportedQuarter: jest.fn().mockResolvedValue([]),
     getIncidentTypeTimeline: jest.fn().mockResolvedValue([]),
     getIncidentHotspotAggregates: jest.fn().mockResolvedValue([]),
+    getResponseTimeMetrics: jest.fn().mockResolvedValue([]),
+    getPriorityScores: jest.fn().mockResolvedValue([]),
     ...(overrides.repository ?? {}),
   };
 
@@ -211,5 +217,109 @@ describe('StrategicAnalyticsService', () => {
     await expect(service.getHotspots({ resolution: '0' })).rejects.toThrow(HttpError);
     await expect(service.getHotspots({ resolution: '9' })).rejects.toThrow(HttpError);
     await expect(service.getHotspots({ resolution: 'abc' })).rejects.toThrow(HttpError);
+  });
+
+  it('computes response metrics normalization for station grouping', async () => {
+    const { service, repository } = createService({
+      repository: {
+        getResponseTimeMetrics: jest.fn().mockResolvedValue([
+          {
+            groupType: 'station',
+            stationCode: 'STATION_A',
+            stationName: 'Station A',
+            sampleSize: 10,
+            averageSeconds: 300,
+            medianSeconds: 280,
+            p90Seconds: 420,
+          },
+          {
+            groupType: 'station',
+            stationCode: 'STATION_B',
+            stationName: 'Station B',
+            sampleSize: 2,
+            averageSeconds: 450,
+            medianSeconds: 440,
+            p90Seconds: 600,
+          },
+        ]),
+      },
+    });
+
+    const result = await service.getResponseMetrics({ groupBy: 'station' });
+
+    expect(repository.getResponseTimeMetrics).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ groupBy: 'station' })
+    );
+    expect(result.metadata.groupBy).toBe('station');
+    expect(result.groups).toHaveLength(2);
+    const stationGroups = result.groups.filter(
+      (group): group is ResponseMetricStationGroup => group.groupType === 'station'
+    );
+    expect(stationGroups).toHaveLength(2);
+    const first = stationGroups.find((group) => group.station.code === 'STATION_A');
+    const second = stationGroups.find((group) => group.station.code === 'STATION_B');
+    expect(first?.normalizedAverage).toBe(1);
+    expect(first?.insufficientSample).toBe(false);
+    expect(second?.normalizedAverage).toBe(0);
+    expect(second?.insufficientSample).toBe(true);
+    expect(result.metadata.minAverageSeconds).toBe(300);
+    expect(result.metadata.maxAverageSeconds).toBe(450);
+  });
+
+  it('computes priority scores with normalization and decay options', async () => {
+    const { service, repository } = createService({
+      repository: {
+        getPriorityScores: jest.fn().mockResolvedValue([
+          {
+            groupType: 'station',
+            stationCode: 'STATION_A',
+            stationName: 'Station A',
+            totalIncidents: 12,
+            rawScore: 48,
+            weightSum: 12,
+            averageSeverity: 4,
+          },
+          {
+            groupType: 'station',
+            stationCode: 'STATION_B',
+            stationName: 'Station B',
+            totalIncidents: 8,
+            rawScore: 12,
+            weightSum: 8,
+            averageSeverity: 1.5,
+          },
+        ]),
+      },
+    });
+
+    const result = await service.getPriorityScores({ groupBy: 'station', decayHalfLifeDays: '30' });
+
+    expect(repository.getPriorityScores).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        groupBy: 'station',
+        decayHalfLifeDays: 30,
+      })
+    );
+    expect(result.groups).toHaveLength(2);
+    const stationScores = result.groups.filter(
+      (group): group is PriorityScoreStationGroup => group.groupType === 'station'
+    );
+    const topScore = stationScores.find((group) => group.station.code === 'STATION_A');
+    expect(topScore?.normalizedScore).toBe(1);
+    const lowestScore = stationScores.find((group) => group.station.code === 'STATION_B');
+    expect(lowestScore?.normalizedScore).toBe(0);
+    expect(result.metadata.decayHalfLifeDays).toBe(30);
+  });
+
+  it('rejects invalid response metric groupBy', async () => {
+    const { service } = createService();
+    await expect(service.getResponseMetrics({ groupBy: 'unknown' })).rejects.toThrow(HttpError);
+  });
+
+  it('rejects invalid priority score decay', async () => {
+    const { service } = createService();
+    await expect(service.getPriorityScores({ decayHalfLifeDays: '0' })).rejects.toThrow(HttpError);
   });
 });

@@ -226,4 +226,71 @@ describe('Strategic Analytics API', () => {
 
     expect(response.status).toBe(400);
   });
+
+  test('returns response metrics grouped by station', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/strategic/response-metrics')
+      .query({ groupBy: 'station' });
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      metadata: { groupBy: string; totalGroups: number };
+      groups: Array<{
+        groupType: string;
+        station?: { code: string };
+        sampleSize: number;
+        normalizedAverage: number;
+        percentileRank: number;
+      }>;
+    };
+
+    expect(body.metadata.groupBy).toBe('station');
+    expect(body.metadata.totalGroups).toBeGreaterThan(0);
+    const stationGroup = body.groups.find((group) => group.groupType === 'station');
+    expect(stationGroup).toBeDefined();
+    if (stationGroup) {
+      expect(stationGroup.station?.code).toMatch(/^TEST_TASK_6_1_STATION_/);
+      expect(stationGroup.sampleSize).toBeGreaterThan(0);
+      expect(stationGroup.normalizedAverage).toBeGreaterThanOrEqual(0);
+      expect(stationGroup.normalizedAverage).toBeLessThanOrEqual(1);
+      expect(stationGroup.percentileRank).toBeGreaterThanOrEqual(0);
+      expect(stationGroup.percentileRank).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('returns priority scores grouped by station with normalized weights', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/strategic/priority-scores')
+      .query({ groupBy: 'station', decayHalfLifeDays: 45 });
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      metadata: { decayHalfLifeDays: number | null };
+      groups: Array<{
+        groupType: string;
+        station?: { code: string };
+        normalizedScore: number;
+        weightSum: number;
+      }>;
+    };
+
+    expect(body.metadata.decayHalfLifeDays).toBe(45);
+    expect(body.groups.length).toBeGreaterThan(0);
+    const stationGroup = body.groups.find((group) => group.groupType === 'station');
+    expect(stationGroup).toBeDefined();
+    if (stationGroup) {
+      expect(stationGroup.station?.code).toMatch(/^TEST_TASK_6_1_STATION_/);
+      expect(stationGroup.weightSum).toBeGreaterThan(0);
+      expect(stationGroup.normalizedScore).toBeGreaterThanOrEqual(0);
+      expect(stationGroup.normalizedScore).toBeLessThanOrEqual(1);
+    }
+  });
 });

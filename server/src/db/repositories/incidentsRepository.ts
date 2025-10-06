@@ -157,6 +157,52 @@ interface RawHotspotAggregateRow {
   incidentCount: number | string;
 }
 
+interface ResponseMetricStationRow {
+  groupType: 'station';
+  stationCode: string;
+  stationName: string | null;
+  sampleSize: number | string;
+  averageSeconds: number | string;
+  medianSeconds: number | string;
+  p90Seconds: number | string;
+}
+
+interface ResponseMetricGridRow {
+  groupType: 'grid';
+  cellId: string;
+  geometry: unknown;
+  centroidCoordinates: unknown;
+  sampleSize: number | string;
+  averageSeconds: number | string;
+  medianSeconds: number | string;
+  p90Seconds: number | string;
+}
+
+type ResponseMetricRow = ResponseMetricStationRow | ResponseMetricGridRow;
+
+interface PriorityScoreStationRow {
+  groupType: 'station';
+  stationCode: string;
+  stationName: string | null;
+  totalIncidents: number | string;
+  rawScore: number | string;
+  weightSum: number | string;
+  averageSeverity: number | string;
+}
+
+interface PriorityScoreGridRow {
+  groupType: 'grid';
+  cellId: string;
+  geometry: unknown;
+  centroidCoordinates: unknown;
+  totalIncidents: number | string;
+  rawScore: number | string;
+  weightSum: number | string;
+  averageSeverity: number | string;
+}
+
+type PriorityScoreRow = PriorityScoreStationRow | PriorityScoreGridRow;
+
 type RecentIncidentRow = IncidentRowBase;
 
 export class IncidentLookupError extends Error {
@@ -1232,6 +1278,225 @@ export class IncidentRepository {
       centroidCoordinates: row.centroidCoordinates,
       incidentCount:
         typeof row.incidentCount === 'number' ? row.incidentCount : Number(row.incidentCount),
+    }));
+  }
+
+  public async getResponseTimeMetrics(
+    filters: IncidentListFilters,
+    options: { groupBy: 'station' | 'grid'; cellSizeMeters?: number; resolution?: number }
+  ): Promise<ResponseMetricRow[]> {
+    const baseQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .leftJoin('stations as ps', 'i.primary_station_id', 'ps.id')
+      .select([
+        'i.id as incidentId',
+        'ps.station_code as stationCode',
+        'ps.name as stationName',
+        this.db.raw('EXTRACT(EPOCH FROM (i.arrival_at - i.dispatch_at)) as responseSeconds'),
+        this.db.raw('ST_Transform(i.location, 3857) as geom'),
+      ])
+      .whereNotNull('i.dispatch_at')
+      .whereNotNull('i.arrival_at');
+
+    applyFilters(baseQuery, filters);
+
+    const responseDataAlias = 'response_data';
+
+    if (options.groupBy === 'station') {
+      const rows = (await this.db
+        .with(responseDataAlias, baseQuery)
+        .from<ResponseMetricStationRow>(responseDataAlias)
+        .whereNotNull('stationCode')
+        .where('responseSeconds', '>', 0)
+        .select([
+          this.db.raw('\'station\'::text as "groupType"'),
+          'stationCode',
+          'stationName',
+          this.db.raw('COUNT(*)::int as "sampleSize"'),
+          this.db.raw('AVG(responseSeconds) as "averageSeconds"'),
+          this.db.raw(
+            'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY responseSeconds) as "medianSeconds"'
+          ),
+          this.db.raw(
+            'PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY responseSeconds) as "p90Seconds"'
+          ),
+        ])
+        .groupBy(['stationCode', 'stationName'])
+        .orderBy('stationCode', 'asc')) as ResponseMetricStationRow[];
+
+      return rows.map((row) => ({
+        groupType: 'station',
+        stationCode: row.stationCode,
+        stationName: row.stationName,
+        sampleSize: Number(row.sampleSize ?? 0),
+        averageSeconds: Number(row.averageSeconds ?? 0),
+        medianSeconds: Number(row.medianSeconds ?? 0),
+        p90Seconds: Number(row.p90Seconds ?? 0),
+      }));
+    }
+
+    const cellSize = Math.max(options.cellSizeMeters ?? 1, 1);
+    const resolution = options.resolution ?? 4;
+
+    const rows = (await this.db
+      .with(responseDataAlias, baseQuery)
+      .with('binned', (qb) => {
+        qb.select([
+          this.db.raw('geom'),
+          this.db.raw('responseSeconds'),
+          this.db.raw('FLOOR(ST_X(geom) / ?) as cell_x', [cellSize]),
+          this.db.raw('FLOOR(ST_Y(geom) / ?) as cell_y', [cellSize]),
+        ])
+          .from(responseDataAlias)
+          .where('responseSeconds', '>', 0);
+      })
+      .from<ResponseMetricGridRow>('binned')
+      .select([
+        this.db.raw('\'grid\'::text as "groupType"'),
+        this.db.raw("CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', ?) as \"cellId\"", [
+          resolution,
+        ]),
+        this.db.raw(
+          'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_MakeEnvelope(\n                  cell_x * ?,\n                  cell_y * ?,\n                  (cell_x + 1) * ?,\n                  (cell_y + 1) * ?,\n                  3857\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json as "geometry"',
+          [cellSize, cellSize, cellSize, cellSize]
+        ),
+        this.db.raw(
+          'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_Point(\n                  (cell_x + 0.5) * ?,\n                  (cell_y + 0.5) * ?\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json -> \'coordinates\' as "centroidCoordinates"',
+          [cellSize, cellSize]
+        ),
+        this.db.raw('COUNT(*)::int as "sampleSize"'),
+        this.db.raw('AVG(responseSeconds) as "averageSeconds"'),
+        this.db.raw(
+          'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY responseSeconds) as "medianSeconds"'
+        ),
+        this.db.raw('PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY responseSeconds) as "p90Seconds"'),
+      ])
+      .groupBy(['cell_x', 'cell_y'])
+      .orderBy('sampleSize', 'desc')) as ResponseMetricGridRow[];
+
+    return rows.map((row) => ({
+      groupType: 'grid',
+      cellId: row.cellId,
+      geometry: row.geometry,
+      centroidCoordinates: row.centroidCoordinates,
+      sampleSize: Number(row.sampleSize ?? 0),
+      averageSeconds: Number(row.averageSeconds ?? 0),
+      medianSeconds: Number(row.medianSeconds ?? 0),
+      p90Seconds: Number(row.p90Seconds ?? 0),
+    }));
+  }
+
+  public async getPriorityScores(
+    filters: IncidentListFilters,
+    options: {
+      groupBy: 'station' | 'grid';
+      cellSizeMeters?: number;
+      resolution?: number;
+      decayHalfLifeDays?: number | null;
+    }
+  ): Promise<PriorityScoreRow[]> {
+    const weightColumn =
+      options.decayHalfLifeDays && options.decayHalfLifeDays > 0
+        ? this.db.raw(
+            'POWER(0.5, GREATEST(0, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - i.occurrence_at)) / (? * 86400))) as "weightFactor"',
+            [options.decayHalfLifeDays]
+          )
+        : this.db.raw('1.0 as "weightFactor"');
+
+    const baseQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .leftJoin('stations as ps', 'i.primary_station_id', 'ps.id')
+      .select([
+        this.db.raw('i.id as "incidentId"'),
+        this.db.raw('ps.station_code as "stationCode"'),
+        this.db.raw('ps.name as "stationName"'),
+        this.db.raw('COALESCE(isv.priority, 0)::numeric as "severityPriority"'),
+        this.db.raw('i.occurrence_at as "occurrenceAt"'),
+        this.db.raw('ST_Transform(i.location, 3857) as geom'),
+        weightColumn,
+      ]);
+
+    applyFilters(baseQuery, filters);
+
+    const baseAlias = 'priority_base';
+
+    if (options.groupBy === 'station') {
+      const rows = (await this.db
+        .with(baseAlias, baseQuery)
+        .from<PriorityScoreStationRow>(baseAlias)
+        .whereNotNull('stationCode')
+        .select([
+          this.db.raw('\'station\'::text as "groupType"'),
+          'stationCode',
+          'stationName',
+          this.db.raw('COUNT(*)::int as "totalIncidents"'),
+          this.db.raw('SUM("severityPriority" * "weightFactor") as "rawScore"'),
+          this.db.raw('SUM("weightFactor") as "weightSum"'),
+          this.db.raw('AVG("severityPriority") as "averageSeverity"'),
+        ])
+        .groupBy(['stationCode', 'stationName'])
+        .orderBy('stationCode', 'asc')) as PriorityScoreStationRow[];
+
+      return rows.map((row) => ({
+        groupType: 'station',
+        stationCode: row.stationCode,
+        stationName: row.stationName,
+        totalIncidents: Number(row.totalIncidents ?? 0),
+        rawScore: Number(row.rawScore ?? 0),
+        weightSum: Number(row.weightSum ?? 0),
+        averageSeverity: Number(row.averageSeverity ?? 0),
+      }));
+    }
+
+    const cellSize = Math.max(options.cellSizeMeters ?? 1, 1);
+    const resolution = options.resolution ?? 4;
+
+    const rows = (await this.db
+      .with(baseAlias, baseQuery)
+      .with('binned', (qb) => {
+        qb.select([
+          'geom',
+          this.db.raw('"severityPriority"'),
+          this.db.raw('"weightFactor"'),
+          this.db.raw('FLOOR(ST_X(geom) / ?) as cell_x', [cellSize]),
+          this.db.raw('FLOOR(ST_Y(geom) / ?) as cell_y', [cellSize]),
+        ]).from(baseAlias);
+      })
+      .from<PriorityScoreGridRow>('binned')
+      .select([
+        this.db.raw('\'grid\'::text as "groupType"'),
+        this.db.raw("CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', ?) as \"cellId\"", [
+          resolution,
+        ]),
+        this.db.raw(
+          'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_MakeEnvelope(\n                  cell_x * ?,\n                  cell_y * ?,\n                  (cell_x + 1) * ?,\n                  (cell_y + 1) * ?,\n                  3857\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json as "geometry"',
+          [cellSize, cellSize, cellSize, cellSize]
+        ),
+        this.db.raw(
+          'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_Point(\n                  (cell_x + 0.5) * ?,\n                  (cell_y + 0.5) * ?\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json -> \'coordinates\' as "centroidCoordinates"',
+          [cellSize, cellSize]
+        ),
+        this.db.raw('COUNT(*)::int as "totalIncidents"'),
+        this.db.raw('SUM("severityPriority" * "weightFactor") as "rawScore"'),
+        this.db.raw('SUM("weightFactor") as "weightSum"'),
+        this.db.raw('AVG("severityPriority") as "averageSeverity"'),
+      ])
+      .groupBy(['cell_x', 'cell_y'])
+      .orderBy('totalIncidents', 'desc')) as PriorityScoreGridRow[];
+
+    return rows.map((row) => ({
+      groupType: 'grid',
+      cellId: row.cellId,
+      geometry: row.geometry,
+      centroidCoordinates: row.centroidCoordinates,
+      totalIncidents: Number(row.totalIncidents ?? 0),
+      rawScore: Number(row.rawScore ?? 0),
+      weightSum: Number(row.weightSum ?? 0),
+      averageSeverity: Number(row.averageSeverity ?? 0),
     }));
   }
 

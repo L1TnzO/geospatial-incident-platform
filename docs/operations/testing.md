@@ -36,8 +36,7 @@ Backend tests under `server/tests/db/` seed fixtures that tie incidents and stat
 - `incidents.crud.int.test.ts` — covers `POST /api/incidents` success, timeline validation, lookup failures, and duplicate handling, ensuring caches reset after inserts.
 - `incidents.api.test.ts` — baseline list/detail, metadata refresh, and search coverage shared with previous milestones.
 - `dashboard.api.test.ts` — consolidates QA coverage for dashboard analytics. Tests exercise filter combinations, cache refresh behaviour, zero-data windows, CSV streaming metadata, and guardrails for export limits/column selection.
-- `strategic.api.test.ts` — verifies strategic monthly, quarterly, and type timeline aggregations across multi-year fixtures, including window validations and filter propagation.
-- `strategic.hotspots` (in `strategic.api.test.ts`) — seeds multi-cell fixtures and validates `/api/strategic/hotspots` grid counts, intensities, and resolution validation.
+- `strategic.api.test.ts` — verifies strategic monthly, quarterly, and type timeline aggregations, hotspot grids, and the new response-metric/priority-score endpoints (including percentile and normalization outputs) across multi-year fixtures.
 
 #### Dashboard analytics QA suite
 
@@ -47,15 +46,11 @@ Backend tests under `server/tests/db/` seed fixtures that tie incidents and stat
   ```
 - To iterate on just the analytics specs, add `-- --runTestsByPath tests/db/dashboard.api.test.ts` to the command above.
 - To target hotspot analytics specifically, run `npm --prefix server run test:db -- --runTestsByPath tests/db/strategic.api.test.ts -t hotspots`.
-- The fixtures pull lookup tables from the baseline seeds and then generate synthetic incidents covering multiple severities, statuses, active flags, and recent/older timestamps. Ensure the standard seeds have run via `make db-seed` (or `npm --prefix server run db:seed`) before executing the suite.
-- The analytics tests insert additional batches during runtime to validate cache refresh and export limits. They clean up automatically, but if you abort early run `npm --prefix server run db:reset` to restore a clean state.
-- When running outside Docker, export `DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres` (or your local credentials) so the backend knows how to reach PostGIS. Optional overrides such as `PGHOST`, `PGPORT`, and `PGSSLMODE` are respected if you need customised connectivity.
+- To focus on the new response-metric or priority-score assertions, reuse the command above with `-t response` or `-t priority` respectively.
 
 Ensure `DATABASE_URL` points at a database with PostGIS enabled—Docker Compose already configures this for the backend container. When the variable is not set or the database is offline, the suites log a warning and skip assertions so local development can proceed.
 
 > **Coverage thresholds:** Jest now enforces a minimum of 85 % for statements/functions/lines and 80 % for branches at the backend level. Failing to meet these numbers will break the CI build, so keep specs in sync with new features.
-
-### Frontend integration coverage
 
 Vitest integration specs live alongside the components they exercise and run headless in Node:
 

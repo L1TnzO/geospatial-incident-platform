@@ -31,7 +31,7 @@ npm run test:e2e:headed # Run Playwright E2E suite in headed mode
 
 ## Frontend features
 
-- React Router with a shared shell layout (`src/layouts/AppLayout.tsx`) that exposes both the map-driven **Overview** (`/` and `/overview`) and analytics **Dashboard** (`/dashboard`) routes
+- React Router with a shared shell layout (`src/layouts/AppLayout.tsx`) that exposes the map-driven **Overview** (`/` and `/overview`), operational analytics **Dashboard** (`/dashboard`), and executive-facing **Strategic** (`/strategic`) routes
 - Zustand store (`src/store/useMapStore.ts`) for map view state
 - Leaflet incident map (`src/components/MapView.tsx`) that streams `/api/incidents` data, clusters up to 5,000 markers with [Supercluster](https://github.com/mapbox/supercluster), surfaces a cap indicator when additional records are available, exposes a "View details" trigger wired through the cached incident detail store, and overlays toggleable fire station markers fetched from `/api/stations`
 - Incidents table card (`src/components/IncidentTable.tsx`) that consumes the table data hook to render paginated rows with loading, error, and empty states alongside pagination controls, severity/status multi-selects, occurrence date range filters, synchronized row highlighting driven by `useIncidentDetailStore`, and localStorage-backed filter persistence so user preferences survive reloads
@@ -39,7 +39,8 @@ npm run test:e2e:headed # Run Playwright E2E suite in headed mode
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend cursor helpers for filterable pagination
 - Incident detail modal (`src/components/IncidentDetailModal.tsx`) backed by `useIncidentDetailStore`, which prefetches `/api/incidents/{incidentNumber}` payloads, caches responses per incident, persists the most recent 25 detail payloads to localStorage, and exposes retry/loading/error states shared between the map and table entry points
 - Dashboard analytics surface (`src/layouts/DashboardLayout.tsx`) with the **Incidents (Last 24h)** KPI card (trend arrow, signed delta, percentage change, in-card refresh), incidents-by-type bar chart featuring count/percentage toggle + tooltips, severity mix donut chart keyed to backend colour swatches, daily trend line chart with highlighted 7-day window, and a recent incidents panel that renders severity badges, station metadata, and quick actions wired to recenter the map or open the incident detail modal. All widgets consume `/api/dashboard/*` hooks (`useDashboardLast24HoursKpi`, `useDashboardTypeDistribution`, `useDashboardSeverityDistribution`, `useDashboardDailyTrend`, `useDashboardRecentIncidents`, `useDashboardExport`) while sharing the same filter state as the incidents table and offering a filter-aware CSV export control with success/error banners
-- Strategic analytics foundation (`src/services/strategicAnalyticsService.ts` + hooks under `src/hooks/useStrategic*.ts`) that wires the new Phase 6 `/api/strategic/*` endpoints into reusable React hooks. The services mirror dashboard query-string helpers, accept shared filter context, expose manual/TTL-based refresh controls, and surface typed results (monthly and quarterly trends, incident type timelines, hotspot grids) for upcoming executive dashboards
+- Strategic analytics layout (`src/layouts/StrategicLayout.tsx`) that stitches together monthly trend, quarterly comparison, type timeline, and hotspot summary cards backed by the strategic hooks, auto-refreshes every five minutes, exposes per-card retry controls, and reserves slots for upcoming executive widgets
+- Strategic analytics foundation (`src/services/strategicAnalyticsService.ts` + hooks under `src/hooks/useStrategic*.ts`) that wires the new Phase 6 `/api/strategic/*` endpoints into reusable React hooks. The services mirror dashboard query-string helpers, accept shared filter context, expose manual/TTL-based refresh controls, and surface typed results (monthly and quarterly trends, incident type timelines, hotspot grids) ready for the `/strategic` route and future executive dashboards
 - Responsive layout styling via shared SCSS entrypoints (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -59,13 +60,14 @@ npm run test:e2e:headed # Run Playwright E2E suite in headed mode
 
 ## Styles
 
-- `src/styles/index.scss` loads every feature bundle and is the only stylesheet imported by `main.tsx`.
-- `src/styles/global.scss` contains shared layout primitives (`.app-shell`, `.app-main`, not-found screen, etc.).
-- `src/styles/dashboard/dashboard.scss` owns dashboard-level layout wrappers.
-- `src/styles/search/search.scss` scopes the incident search card and its dropdown suggestions.
-- `src/styles/map/map.scss` styles the map card, toolbar, overlays, and Leaflet marker popups.
-- `src/styles/table/table.scss` contains the incident table card, filters, and table classes.
-- `src/styles/modal/incident-detail.scss` styles the incident detail modal.
+`src/styles/index.scss` loads every feature bundle and is the only stylesheet imported by `main.tsx`.
+`src/styles/global.scss` contains shared layout primitives (`.app-shell`, `.app-main`, not-found screen, etc.).
+`src/styles/dashboard/dashboard.scss` owns dashboard-level layout wrappers.
+`src/styles/strategic/strategic.scss` scopes the strategic analytics shell, cards, and placeholder widgets.
+`src/styles/search/search.scss` scopes the incident search card and its dropdown suggestions.
+`src/styles/map/map.scss` styles the map card, toolbar, overlays, and Leaflet marker popups.
+`src/styles/table/table.scss` contains the incident table card, filters, and table classes.
+`src/styles/modal/incident-detail.scss` styles the incident detail modal.
 
 When introducing a new surface area, add a dedicated partial under `src/styles/` (e.g., `analytics/analytics.scss`) and wire it through `index.scss` instead of modifying an unrelated bundle.
 
@@ -113,8 +115,9 @@ The React hook (`src/hooks/useIncidentTableData.ts`) wraps that service with loc
 ## Testing the dashboard
 
 ```bash
-npm run test:client:integration -- DashboardPage.integration.test.tsx
+npm run test:client:integration -- DashboardPage.integration.test.tsx StrategicPage.integration.test.tsx
 npm run test:client:e2e -- dashboard
+npm run test:client:e2e -- strategic
 ```
 
 - The integration command runs just the MSW-backed dashboard suite; omit the `--` filter to execute the full integration matrix.

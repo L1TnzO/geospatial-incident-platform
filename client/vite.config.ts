@@ -18,5 +18,12 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
     globals: true,
     exclude: ['tests/e2e/**', '**/node_modules/**', '**/dist/**'],
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        maxThreads: 1,
+        minThreads: 1,
+      },
+    },
   },
 });

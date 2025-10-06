@@ -148,6 +148,98 @@ curl "http://localhost:3000/api/strategic/trends/types?months=18&severityCodes=C
 - Invalid or out-of-range `months`/`quarters` parameters respond with `400 BAD_REQUEST` and descriptive messages.
 - Caching is in-memory but packaged so the service can be swapped to Redis or another store without changing controllers.
 
+## `GET /api/strategic/response-metrics`
+
+Summarises turnout/response times grouped either by primary station or by the hotspot grid used in the strategic heatmap. Returns per-group averages, medians, 90th-percentiles, and normalized rankings to support percentile visualisations.
+
+### Query parameters
+
+- `groupBy` _(optional, default `station`, values `station` or `grid`)_ — Selects the aggregation dimension.
+- `resolution` _(grid only, optional, default `4`, allowed `1–8`)_ — Same semantics as hotspot resolution; controls grid cell size.
+- Shared incident filters (optional).
+
+### Response shape
+
+```json
+{
+  "metadata": {
+    "groupBy": "station",
+    "sampleThreshold": 3,
+    "totalGroups": 12,
+    "minAverageSeconds": 240,
+    "maxAverageSeconds": 520,
+    "generatedAt": "2025-10-06T15:12:33.512Z"
+  },
+  "groups": [
+    {
+      "groupType": "station",
+      "station": { "code": "STATION_101", "name": "Station 101" },
+      "sampleSize": 18,
+      "averageSeconds": 260,
+      "medianSeconds": 250,
+      "p90Seconds": 420,
+      "normalizedAverage": 1,
+      "percentileRank": 1,
+      "insufficientSample": false
+    }
+  ]
+}
+```
+
+Grid responses mirror the hotspot payload (`cell.cellId`, GeoJSON, centroid) while still returning the same metric fields and normalized rankings per cell.
+
+### Notes
+
+- Groups with fewer than three samples are flagged with `insufficientSample: true` so UIs can downplay low-confidence metrics.
+- Normalized averages and percentile ranks are pre-rounded to four decimal places to keep payloads compact.
+- Cached for five minutes per unique filter/groupBy/resolution tuple.
+
+## `GET /api/strategic/priority-scores`
+
+Calculates severity-weighted activity scores for stations or grid cells. Scores are normalized to a 0–1 range and optional time decay can reduce influence from older incidents.
+
+### Query parameters
+
+- `groupBy` _(optional, default `station`, values `station` or `grid`)_ — Aggregation dimension.
+- `resolution` _(grid only, optional, default `4`, allowed `1–8`)_ — Grid cell sizing, identical to hotspot usage.
+- `decayHalfLifeDays` _(optional)_ — Positive number. Applies an exponential half-life to incident contributions using `CURRENT_TIMESTAMP` as the reference.
+- Shared incident filters (optional).
+
+### Response shape
+
+```json
+{
+  "metadata": {
+    "groupBy": "station",
+    "totalGroups": 12,
+    "minRawScore": 6,
+    "maxRawScore": 84,
+    "decayHalfLifeDays": 45,
+    "generatedAt": "2025-10-06T15:16:41.929Z"
+  },
+  "groups": [
+    {
+      "groupType": "station",
+      "station": { "code": "STATION_101", "name": "Station 101" },
+      "totalIncidents": 22,
+      "rawScore": 84,
+      "normalizedScore": 1,
+      "percentileRank": 1,
+      "weightSum": 19.5,
+      "averageSeverity": 4.2
+    }
+  ]
+}
+```
+
+Grid responses provide the same cell metadata as `response-metrics`/`hotspots`.
+
+### Notes
+
+- Raw scores combine severity priority with the optional decay factor; a weight sum of zero results in a normalized score of `0`.
+- Invalid `groupBy`, `resolution`, or non-positive `decayHalfLifeDays` values return `400 BAD_REQUEST`.
+- Cached for five minutes per filter/groupBy/resolution/decay combination.
+
 ## `GET /api/strategic/hotspots`
 
 Aggregates incidents into square grid cells (Web Mercator projection) for heatmap overlays. Each cell reports raw counts and an intensity value normalized to the highest-count cell in the result set.

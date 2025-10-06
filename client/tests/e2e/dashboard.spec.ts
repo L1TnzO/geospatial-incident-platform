@@ -318,6 +318,260 @@ const DASHBOARD_RECENT_INCIDENTS = [
   },
 ];
 
+const STRATEGIC_MONTHLY = {
+  range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
+  series: [
+    {
+      month: '2024-10',
+      label: 'Oct 2024',
+      start: '2024-10-01T00:00:00Z',
+      end: '2024-10-31T23:59:59Z',
+      count: 210,
+      previousMonthCount: 190,
+      monthOverMonthDelta: 20,
+      monthOverMonthPercentage: 10.53,
+      previousYearCount: 170,
+      yearOverYearDelta: 40,
+      yearOverYearPercentage: 23.53,
+    },
+    {
+      month: '2024-11',
+      label: 'Nov 2024',
+      start: '2024-11-01T00:00:00Z',
+      end: '2024-11-30T23:59:59Z',
+      count: 240,
+      previousMonthCount: 210,
+      monthOverMonthDelta: 30,
+      monthOverMonthPercentage: 14.29,
+      previousYearCount: 200,
+      yearOverYearDelta: 40,
+      yearOverYearPercentage: 20,
+    },
+    {
+      month: '2024-12',
+      label: 'Dec 2024',
+      start: '2024-12-01T00:00:00Z',
+      end: '2024-12-31T23:59:59Z',
+      count: 280,
+      previousMonthCount: 240,
+      monthOverMonthDelta: 40,
+      monthOverMonthPercentage: 16.67,
+      previousYearCount: 220,
+      yearOverYearDelta: 60,
+      yearOverYearPercentage: 27.27,
+    },
+  ],
+  totals: {
+    currentPeriodTotal: 730,
+    previousPeriodTotal: 600,
+    periodDelta: 130,
+    periodPercentage: 21.67,
+  },
+};
+
+const STRATEGIC_QUARTERLY = {
+  range: { start: '2023-04-01T00:00:00Z', end: '2024-03-31T23:59:59Z', quarters: 4 },
+  series: [
+    {
+      year: 2023,
+      quarter: 4,
+      label: 'Q4 2023',
+      start: '2023-10-01T00:00:00Z',
+      end: '2023-12-31T23:59:59Z',
+      count: 600,
+      previousQuarterCount: 560,
+      quarterOverQuarterDelta: 40,
+      quarterOverQuarterPercentage: 7.14,
+      previousYearCount: 520,
+      yearOverYearDelta: 80,
+      yearOverYearPercentage: 15.38,
+    },
+    {
+      year: 2024,
+      quarter: 1,
+      label: 'Q1 2024',
+      start: '2024-01-01T00:00:00Z',
+      end: '2024-03-31T23:59:59Z',
+      count: 640,
+      previousQuarterCount: 600,
+      quarterOverQuarterDelta: 40,
+      quarterOverQuarterPercentage: 6.67,
+      previousYearCount: 540,
+      yearOverYearDelta: 100,
+      yearOverYearPercentage: 18.52,
+    },
+  ],
+  summary: {
+    current: {
+      year: 2024,
+      quarter: 1,
+      label: 'Q1 2024',
+      start: '2024-01-01T00:00:00Z',
+      end: '2024-03-31T23:59:59Z',
+      count: 640,
+      previousQuarterCount: 600,
+      quarterOverQuarterDelta: 40,
+      quarterOverQuarterPercentage: 6.67,
+      previousYearCount: 540,
+      yearOverYearDelta: 100,
+      yearOverYearPercentage: 18.52,
+    },
+    previous: {
+      year: 2023,
+      quarter: 4,
+      label: 'Q4 2023',
+      start: '2023-10-01T00:00:00Z',
+      end: '2023-12-31T23:59:59Z',
+      count: 600,
+      previousQuarterCount: 560,
+      quarterOverQuarterDelta: 40,
+      quarterOverQuarterPercentage: 7.14,
+      previousYearCount: 520,
+      yearOverYearDelta: 80,
+      yearOverYearPercentage: 15.38,
+    },
+    delta: 40,
+    percentage: 6.67,
+    yearOverYearReference: {
+      year: 2023,
+      quarter: 1,
+      label: 'Q1 2023',
+      start: '2023-01-01T00:00:00Z',
+      end: '2023-03-31T23:59:59Z',
+      count: 540,
+      previousQuarterCount: 520,
+      quarterOverQuarterDelta: 20,
+      quarterOverQuarterPercentage: 3.85,
+      previousYearCount: 500,
+      yearOverYearDelta: 40,
+      yearOverYearPercentage: 8,
+    },
+    yearOverYearDelta: 100,
+    yearOverYearPercentage: 18.52,
+  },
+};
+
+const STRATEGIC_TYPE_TIMELINES = {
+  range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
+  totalsByMonth: [
+    { month: '2024-11', start: '2024-11-01T00:00:00Z', end: '2024-11-30T23:59:59Z', count: 240 },
+    { month: '2024-12', start: '2024-12-01T00:00:00Z', end: '2024-12-31T23:59:59Z', count: 280 },
+  ],
+  types: [
+    {
+      type: { code: 'FIRE_STRUCTURE', name: 'Structure Fire', description: null },
+      total: 420,
+      points: [
+        {
+          month: '2024-11',
+          start: '2024-11-01T00:00:00Z',
+          end: '2024-11-30T23:59:59Z',
+          count: 190,
+        },
+        {
+          month: '2024-12',
+          start: '2024-12-01T00:00:00Z',
+          end: '2024-12-31T23:59:59Z',
+          count: 230,
+        },
+      ],
+    },
+    {
+      type: { code: 'HAZMAT', name: 'Hazmat', description: null },
+      total: 180,
+      points: [
+        { month: '2024-11', start: '2024-11-01T00:00:00Z', end: '2024-11-30T23:59:59Z', count: 80 },
+        {
+          month: '2024-12',
+          start: '2024-12-01T00:00:00Z',
+          end: '2024-12-31T23:59:59Z',
+          count: 100,
+        },
+      ],
+    },
+  ],
+};
+
+const STRATEGIC_HOTSPOTS = {
+  metadata: {
+    resolution: 4,
+    cellSizeMeters: 500,
+    cellAreaSquareMeters: 250000,
+    totalIncidents: 950,
+    maxIncidentCount: 120,
+    cellCount: 42,
+    generatedAt: '2025-01-11T12:00:00Z',
+  },
+  cells: [
+    {
+      cellId: 'cell-100',
+      geometry: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-122.42, 37.79],
+              [-122.41, 37.79],
+              [-122.41, 37.78],
+              [-122.42, 37.78],
+              [-122.42, 37.79],
+            ],
+          ],
+        },
+      },
+      centroid: { latitude: 37.785, longitude: -122.415 },
+      incidentCount: 120,
+      intensity: 1,
+    },
+    {
+      cellId: 'cell-101',
+      geometry: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-122.4, 37.77],
+              [-122.39, 37.77],
+              [-122.39, 37.76],
+              [-122.4, 37.76],
+              [-122.4, 37.77],
+            ],
+          ],
+        },
+      },
+      centroid: { latitude: 37.765, longitude: -122.395 },
+      incidentCount: 95,
+      intensity: 0.79,
+    },
+    {
+      cellId: 'cell-102',
+      geometry: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-122.38, 37.75],
+              [-122.37, 37.75],
+              [-122.37, 37.74],
+              [-122.38, 37.74],
+              [-122.38, 37.75],
+            ],
+          ],
+        },
+      },
+      centroid: { latitude: 37.745, longitude: -122.375 },
+      incidentCount: 72,
+      intensity: 0.6,
+    },
+  ],
+};
+
 type SearchParams = URLSearchParams;
 
 const buildListResponse = (items: IncidentListEntry[]) => ({
@@ -418,6 +672,38 @@ const configureApiRoutes = async (
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(DASHBOARD_RECENT_INCIDENTS),
+    })
+  );
+
+  await page.route('**/api/strategic/trends/monthly**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_MONTHLY),
+    })
+  );
+
+  await page.route('**/api/strategic/trends/quarters**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_QUARTERLY),
+    })
+  );
+
+  await page.route('**/api/strategic/trends/types**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_TYPE_TIMELINES),
+    })
+  );
+
+  await page.route('**/api/strategic/hotspots**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_HOTSPOTS),
     })
   );
 
@@ -672,4 +958,41 @@ test('dashboard analytics screen renders navigation and placeholders', async ({ 
   await expect(hazmatItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('22.2%');
   await expect(medicalItem.locator('.dashboard-type-chart__bar-value span')).toHaveText('11.1%');
   await expect(page.getByText('INC-200')).toBeVisible();
+});
+
+test('strategic analytics screen renders trend, composition, and refresh controls', async ({
+  page,
+}) => {
+  const incidentsRequests: string[] = [];
+  await configureApiRoutes(page, incidentsRequests);
+
+  await page.goto('/strategic');
+  await page.waitForLoadState('networkidle');
+
+  await expect(page.getByRole('link', { name: /strategic/i })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
+
+  await expect(page.getByRole('heading', { name: /strategic analytics/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /trend intelligence/i })).toBeVisible();
+  await expect(page.getByRole('article', { name: /monthly trendline/i })).toContainText('730');
+  await expect(page.getByRole('article', { name: /quarterly comparison/i })).toContainText(
+    /quarter-over-quarter change/i
+  );
+  await expect(page.getByRole('article', { name: /incident type timelines/i })).toContainText(
+    /structure fire/i
+  );
+  await expect(page.getByRole('article', { name: /hotspot heatmap preview/i })).toContainText(
+    /120 incidents/i
+  );
+
+  const refreshAll = page.getByRole('button', { name: /refresh all/i });
+  await refreshAll.click();
+
+  await expect(refreshAll).toBeEnabled();
+  await expect(page.getByText(/last updated/i)).toBeVisible();
+
+  await page.getByRole('link', { name: /dashboard/i }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
 });

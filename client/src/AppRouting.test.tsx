@@ -9,6 +9,10 @@ const mockUseDashboardTypeDistribution = vi.fn();
 const mockUseDashboardSeverityDistribution = vi.fn();
 const mockUseDashboardDailyTrend = vi.fn();
 const mockUseDashboardRecentIncidents = vi.fn();
+const mockUseStrategicMonthlyTrends = vi.fn();
+const mockUseStrategicQuarterlyTrends = vi.fn();
+const mockUseStrategicTypeTimelines = vi.fn();
+const mockUseStrategicHotspots = vi.fn();
 
 vi.mock('@/hooks/useDashboardLast24HoursKpi', () => ({
   useDashboardLast24HoursKpi: () => mockUseDashboardLast24HoursKpi(),
@@ -30,8 +34,36 @@ vi.mock('@/hooks/useDashboardRecentIncidents', () => ({
   useDashboardRecentIncidents: () => mockUseDashboardRecentIncidents(),
 }));
 
+vi.mock('@/hooks/useStrategicMonthlyTrends', () => ({
+  useStrategicMonthlyTrends: () => mockUseStrategicMonthlyTrends(),
+}));
+
+vi.mock('@/hooks/useStrategicQuarterlyTrends', () => ({
+  useStrategicQuarterlyTrends: () => mockUseStrategicQuarterlyTrends(),
+}));
+
+vi.mock('@/hooks/useStrategicTypeTimelines', () => ({
+  useStrategicTypeTimelines: () => mockUseStrategicTypeTimelines(),
+}));
+
+vi.mock('@/hooks/useStrategicHotspots', () => ({
+  useStrategicHotspots: () => mockUseStrategicHotspots(),
+}));
+
 describe('App routing', () => {
   let App: FC;
+
+  const createSuccessState = <T,>(data: T) => ({
+    status: 'success' as const,
+    data,
+    error: null,
+    lastUpdated: '2025-01-11T12:05:00Z',
+    refresh: vi.fn(),
+    isIdle: false,
+    isLoading: false,
+    isSuccess: true,
+    isError: false,
+  });
 
   beforeEach(async () => {
     mockUseDashboardLast24HoursKpi.mockReset();
@@ -39,41 +71,30 @@ describe('App routing', () => {
     mockUseDashboardSeverityDistribution.mockReset();
     mockUseDashboardDailyTrend.mockReset();
     mockUseDashboardRecentIncidents.mockReset();
+    mockUseStrategicMonthlyTrends.mockReset();
+    mockUseStrategicQuarterlyTrends.mockReset();
+    mockUseStrategicTypeTimelines.mockReset();
+    mockUseStrategicHotspots.mockReset();
 
-    mockUseDashboardLast24HoursKpi.mockReturnValue({
-      status: 'success',
-      data: {
+    mockUseDashboardLast24HoursKpi.mockReturnValue(
+      createSuccessState({
         window: { start: '2025-01-10T12:00:00Z', end: '2025-01-11T12:00:00Z' },
         previousWindow: { start: '2025-01-09T12:00:00Z', end: '2025-01-10T12:00:00Z' },
         currentCount: 18,
         previousCount: 14,
         delta: 4,
         deltaPercentage: 28.57,
-      },
-      error: null,
-      lastUpdated: '2025-01-11T12:05:00Z',
-      refresh: vi.fn(),
-    });
+      })
+    );
 
-    mockUseDashboardTypeDistribution.mockReturnValue({
-      status: 'success',
-      data: { total: 0, buckets: [] },
-      error: null,
-      lastUpdated: '2025-01-11T12:05:00Z',
-      refresh: vi.fn(),
-    });
+    mockUseDashboardTypeDistribution.mockReturnValue(createSuccessState({ total: 0, buckets: [] }));
 
-    mockUseDashboardSeverityDistribution.mockReturnValue({
-      status: 'success',
-      data: { total: 0, buckets: [] },
-      error: null,
-      lastUpdated: '2025-01-11T12:05:00Z',
-      refresh: vi.fn(),
-    });
+    mockUseDashboardSeverityDistribution.mockReturnValue(
+      createSuccessState({ total: 0, buckets: [] })
+    );
 
-    mockUseDashboardDailyTrend.mockReturnValue({
-      status: 'success',
-      data: {
+    mockUseDashboardDailyTrend.mockReturnValue(
+      createSuccessState({
         points: [],
         trend: {
           currentTotal: 0,
@@ -82,24 +103,124 @@ describe('App routing', () => {
           percentageChange: null,
           direction: 'flat',
         },
-      },
-      error: null,
-      lastUpdated: '2025-01-11T12:05:00Z',
-      refresh: vi.fn(),
-    });
+      })
+    );
 
-    mockUseDashboardRecentIncidents.mockReturnValue({
-      status: 'success',
-      data: [],
-      error: null,
-      lastUpdated: '2025-01-11T12:05:00Z',
-      refresh: vi.fn(),
-    });
+    mockUseDashboardRecentIncidents.mockReturnValue(createSuccessState([]));
+
+    mockUseStrategicMonthlyTrends.mockReturnValue(
+      createSuccessState({
+        range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
+        series: [
+          {
+            month: '2024-12',
+            label: 'Dec 2024',
+            start: '2024-12-01T00:00:00Z',
+            end: '2024-12-31T23:59:59Z',
+            count: 320,
+            previousMonthCount: 300,
+            monthOverMonthDelta: 20,
+            monthOverMonthPercentage: 6.67,
+            previousYearCount: 280,
+            yearOverYearDelta: 40,
+            yearOverYearPercentage: 14.29,
+          },
+        ],
+        totals: {
+          currentPeriodTotal: 320,
+          previousPeriodTotal: 280,
+          periodDelta: 40,
+          periodPercentage: 14.29,
+        },
+      })
+    );
+
+    mockUseStrategicQuarterlyTrends.mockReturnValue(
+      createSuccessState({
+        range: { start: '2023-04-01T00:00:00Z', end: '2024-03-31T23:59:59Z', quarters: 4 },
+        series: [],
+        summary: {
+          current: null,
+          previous: null,
+          delta: null,
+          percentage: null,
+          yearOverYearReference: null,
+          yearOverYearDelta: null,
+          yearOverYearPercentage: null,
+        },
+      })
+    );
+
+    mockUseStrategicTypeTimelines.mockReturnValue(
+      createSuccessState({
+        range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
+        totalsByMonth: [
+          {
+            month: '2024-12',
+            start: '2024-12-01T00:00:00Z',
+            end: '2024-12-31T23:59:59Z',
+            count: 320,
+          },
+        ],
+        types: [
+          {
+            type: { code: 'FIRE', name: 'Fire', description: null },
+            total: 200,
+            points: [
+              {
+                month: '2024-12',
+                start: '2024-12-01T00:00:00Z',
+                end: '2024-12-31T23:59:59Z',
+                count: 200,
+              },
+            ],
+          },
+        ],
+      })
+    );
+
+    mockUseStrategicHotspots.mockReturnValue(
+      createSuccessState({
+        metadata: {
+          resolution: 4,
+          cellSizeMeters: 500,
+          cellAreaSquareMeters: 250_000,
+          totalIncidents: 12,
+          maxIncidentCount: 5,
+          cellCount: 3,
+          generatedAt: '2025-01-11T12:04:00Z',
+        },
+        cells: [
+          {
+            cellId: 'A1',
+            geometry: {
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'Polygon',
+                coordinates: [
+                  [
+                    [-122.41, 37.79],
+                    [-122.4, 37.79],
+                    [-122.4, 37.78],
+                    [-122.41, 37.78],
+                    [-122.41, 37.79],
+                  ],
+                ],
+              },
+            },
+            centroid: { latitude: 37.785, longitude: -122.405 },
+            incidentCount: 5,
+            intensity: 1,
+          },
+        ],
+      })
+    );
 
     ({ default: App } = await import('./App'));
   });
 
-  it('navigates between overview and dashboard routes', async () => {
+  it('navigates between overview, dashboard, and strategic routes', async () => {
     const user = userEvent.setup();
 
     render(
@@ -115,5 +236,10 @@ describe('App routing', () => {
 
     expect(screen.getByRole('heading', { name: /dashboard analytics/i })).toBeInTheDocument();
     expect(screen.getByText(/key performance indicators/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: /strategic/i }));
+
+    expect(screen.getByRole('heading', { name: /strategic analytics/i })).toBeInTheDocument();
+    expect(screen.getByText(/trend intelligence/i)).toBeInTheDocument();
   });
 });

@@ -36,6 +36,11 @@ const HOTSPOT_CELL_SIZE_BY_RESOLUTION: Record<number, number> = {
   8: 30,
 };
 
+const RESPONSE_SAMPLE_THRESHOLD = 3;
+const NORMALIZATION_DECIMALS = 4;
+
+export type StrategicGroupBy = 'station' | 'grid';
+
 type QueryValue = string | string[] | undefined;
 
 type CacheEntry<T> = {
@@ -155,6 +160,99 @@ export interface HotspotResponse {
     generatedAt: string;
   };
   cells: HotspotCell[];
+}
+
+interface ResponseMetricGroupBase {
+  groupType: StrategicGroupBy;
+  sampleSize: number;
+  averageSeconds: number;
+  medianSeconds: number;
+  p90Seconds: number;
+  normalizedAverage: number;
+  percentileRank: number;
+  insufficientSample: boolean;
+}
+
+export interface ResponseMetricStationGroup extends ResponseMetricGroupBase {
+  groupType: 'station';
+  station: {
+    code: string;
+    name: string | null;
+  };
+}
+
+export interface ResponseMetricGridGroup extends ResponseMetricGroupBase {
+  groupType: 'grid';
+  cell: {
+    cellId: string;
+    geometry: GeoJsonPolygon;
+    centroid: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+}
+
+export type ResponseMetricGroup = ResponseMetricStationGroup | ResponseMetricGridGroup;
+
+export interface ResponseMetricsResponse {
+  metadata: {
+    groupBy: StrategicGroupBy;
+    sampleThreshold: number;
+    totalGroups: number;
+    minAverageSeconds: number | null;
+    maxAverageSeconds: number | null;
+    resolution?: number;
+    cellSizeMeters?: number;
+    generatedAt: string;
+  };
+  groups: ResponseMetricGroup[];
+}
+
+interface PriorityScoreGroupBase {
+  groupType: StrategicGroupBy;
+  totalIncidents: number;
+  rawScore: number;
+  normalizedScore: number;
+  percentileRank: number;
+  weightSum: number;
+  averageSeverity: number;
+}
+
+export interface PriorityScoreStationGroup extends PriorityScoreGroupBase {
+  groupType: 'station';
+  station: {
+    code: string;
+    name: string | null;
+  };
+}
+
+export interface PriorityScoreGridGroup extends PriorityScoreGroupBase {
+  groupType: 'grid';
+  cell: {
+    cellId: string;
+    geometry: GeoJsonPolygon;
+    centroid: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+}
+
+export type PriorityScoreGroup = PriorityScoreStationGroup | PriorityScoreGridGroup;
+
+export interface PriorityScoreResponse {
+  metadata: {
+    groupBy: StrategicGroupBy;
+    totalGroups: number;
+    minRawScore: number | null;
+    maxRawScore: number | null;
+    decayHalfLifeDays: number | null;
+    resolution?: number;
+    cellSizeMeters?: number;
+    generatedAt: string;
+  };
+  groups: PriorityScoreGroup[];
 }
 
 const normalizeArray = (input?: string[]): string[] | undefined => {
@@ -342,6 +440,70 @@ const parseCoordinatePair = (value: unknown): [number, number] | null => {
 };
 
 const toIsoString = (date: Date): string => date.toISOString();
+
+const parseGroupByParam = (value: QueryValue, defaultValue: StrategicGroupBy): StrategicGroupBy => {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) {
+    return defaultValue;
+  }
+  const normalized = String(raw).toLowerCase();
+  if (normalized === 'station') {
+    return 'station';
+  }
+  if (normalized === 'grid') {
+    return 'grid';
+  }
+  throw HttpError.badRequest("Query parameter 'groupBy' must be either 'station' or 'grid'.");
+};
+
+const parseHalfLifeParam = (value: QueryValue): number | null => {
+  if (value === undefined) {
+    return null;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw === '') {
+    return null;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw HttpError.badRequest("Query parameter 'decayHalfLifeDays' must be a positive number.");
+  }
+  return parsed;
+};
+
+const normalizeValue = (value: number, min: number, max: number, invert = false): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return 0;
+  }
+  if (max === min) {
+    return 1;
+  }
+  const ratio = (value - min) / (max - min);
+  const normalized = invert ? 1 - ratio : ratio;
+  return Number(Math.max(0, Math.min(1, normalized)).toFixed(NORMALIZATION_DECIMALS));
+};
+
+const computePercentileRanks = (values: number[], invert = false): number[] => {
+  if (values.length === 0) {
+    return [];
+  }
+  const indexed = values.map((value, index) => ({ value, index }));
+  indexed.sort((a, b) => (a.value === b.value ? a.index - b.index : a.value - b.value));
+  const ranks = new Array<number>(values.length).fill(0);
+  const denominator = values.length - 1;
+  for (let position = 0; position < indexed.length; position += 1) {
+    const { index } = indexed[position];
+    const percentile = denominator <= 0 ? 1 : position / denominator;
+    ranks[index] = Number((invert ? 1 - percentile : percentile).toFixed(NORMALIZATION_DECIMALS));
+  }
+  return ranks;
+};
 
 export class StrategicAnalyticsService {
   private readonly cache = new Map<string, CacheEntry<unknown>>();
@@ -851,6 +1013,256 @@ export class StrategicAnalyticsService {
         },
         cells,
       } satisfies HotspotResponse;
+    });
+  }
+
+  public async getResponseMetrics(
+    query: Record<string, QueryValue>
+  ): Promise<ResponseMetricsResponse> {
+    const filters = this.getFilters(query);
+    const groupBy = parseGroupByParam(query.groupBy, 'station');
+
+    let resolution: number | undefined;
+    let cellSizeMeters: number | undefined;
+    if (groupBy === 'grid') {
+      resolution = parseResolutionParam(query.resolution);
+      cellSizeMeters = getCellSizeMetersForResolution(resolution);
+    }
+
+    const cacheKey = buildCacheKey('strategic:responseMetrics', filters, {
+      groupBy,
+      resolution: resolution ?? null,
+      cellSizeMeters: cellSizeMeters ?? null,
+    });
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getResponseTimeMetrics(filters, {
+        groupBy,
+        cellSizeMeters,
+        resolution,
+      });
+
+      if (!rows.length) {
+        return {
+          metadata: {
+            groupBy,
+            sampleThreshold: RESPONSE_SAMPLE_THRESHOLD,
+            totalGroups: 0,
+            minAverageSeconds: null,
+            maxAverageSeconds: null,
+            resolution,
+            cellSizeMeters,
+            generatedAt: new Date().toISOString(),
+          },
+          groups: [],
+        } satisfies ResponseMetricsResponse;
+      }
+
+      const averages = rows.map((row) => Number(row.averageSeconds ?? 0));
+      const minAverage = Math.min(...averages);
+      const maxAverage = Math.max(...averages);
+      const percentileRanks = computePercentileRanks(averages, true);
+
+      const groups: ResponseMetricGroup[] = rows.map((row, index) => {
+        const averageSeconds = Number(row.averageSeconds ?? 0);
+        const medianSeconds = Number(row.medianSeconds ?? 0);
+        const p90Seconds = Number(row.p90Seconds ?? 0);
+        const sampleSize = Number(row.sampleSize ?? 0);
+        const normalizedAverage = normalizeValue(averageSeconds, minAverage, maxAverage, true);
+        const percentileRank = percentileRanks[index];
+        const insufficientSample = sampleSize < RESPONSE_SAMPLE_THRESHOLD;
+
+        if (row.groupType === 'station') {
+          return {
+            groupType: 'station',
+            station: {
+              code: row.stationCode,
+              name: row.stationName ?? null,
+            },
+            sampleSize,
+            averageSeconds,
+            medianSeconds,
+            p90Seconds,
+            normalizedAverage,
+            percentileRank,
+            insufficientSample,
+          } satisfies ResponseMetricStationGroup;
+        }
+
+        const polygonGeometry = parseGeoJson<{
+          type: string;
+          coordinates: number[][][];
+        }>(row.geometry);
+
+        const geometry: GeoJsonPolygon = {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: polygonGeometry?.coordinates ?? [],
+          },
+        };
+
+        const coordinates = parseCoordinatePair(row.centroidCoordinates) ?? [0, 0];
+
+        return {
+          groupType: 'grid',
+          cell: {
+            cellId: row.cellId,
+            geometry,
+            centroid: {
+              latitude: coordinates[1],
+              longitude: coordinates[0],
+            },
+          },
+          sampleSize,
+          averageSeconds,
+          medianSeconds,
+          p90Seconds,
+          normalizedAverage,
+          percentileRank,
+          insufficientSample,
+        } satisfies ResponseMetricGridGroup;
+      });
+
+      return {
+        metadata: {
+          groupBy,
+          sampleThreshold: RESPONSE_SAMPLE_THRESHOLD,
+          totalGroups: groups.length,
+          minAverageSeconds: minAverage,
+          maxAverageSeconds: maxAverage,
+          resolution,
+          cellSizeMeters,
+          generatedAt: new Date().toISOString(),
+        },
+        groups,
+      } satisfies ResponseMetricsResponse;
+    });
+  }
+
+  public async getPriorityScores(
+    query: Record<string, QueryValue>
+  ): Promise<PriorityScoreResponse> {
+    const filters = this.getFilters(query);
+    const groupBy = parseGroupByParam(query.groupBy, 'station');
+    const decayHalfLifeDays = parseHalfLifeParam(query.decayHalfLifeDays);
+
+    let resolution: number | undefined;
+    let cellSizeMeters: number | undefined;
+    if (groupBy === 'grid') {
+      resolution = parseResolutionParam(query.resolution);
+      cellSizeMeters = getCellSizeMetersForResolution(resolution);
+    }
+
+    const cacheKey = buildCacheKey('strategic:priorityScores', filters, {
+      groupBy,
+      resolution: resolution ?? null,
+      cellSizeMeters: cellSizeMeters ?? null,
+      decayHalfLifeDays: decayHalfLifeDays ?? null,
+    });
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getPriorityScores(filters, {
+        groupBy,
+        cellSizeMeters,
+        resolution,
+        decayHalfLifeDays,
+      });
+
+      if (!rows.length) {
+        return {
+          metadata: {
+            groupBy,
+            totalGroups: 0,
+            minRawScore: null,
+            maxRawScore: null,
+            decayHalfLifeDays: decayHalfLifeDays ?? null,
+            resolution,
+            cellSizeMeters,
+            generatedAt: new Date().toISOString(),
+          },
+          groups: [],
+        } satisfies PriorityScoreResponse;
+      }
+
+      const rawScores = rows.map((row) => Number(row.rawScore ?? 0));
+      const minRawScore = Math.min(...rawScores);
+      const maxRawScore = Math.max(...rawScores);
+      const percentileRanks = computePercentileRanks(rawScores, false);
+
+      const groups: PriorityScoreGroup[] = rows.map((row, index) => {
+        const rawScore = Number(row.rawScore ?? 0);
+        const totalIncidents = Number(row.totalIncidents ?? 0);
+        const weightSum = Number(row.weightSum ?? 0);
+        const averageSeverity = Number(row.averageSeverity ?? 0);
+        const normalizedScore = normalizeValue(rawScore, minRawScore, maxRawScore, false);
+        const percentileRank = percentileRanks[index];
+
+        if (row.groupType === 'station') {
+          return {
+            groupType: 'station',
+            station: {
+              code: row.stationCode,
+              name: row.stationName ?? null,
+            },
+            totalIncidents,
+            rawScore,
+            normalizedScore,
+            percentileRank,
+            weightSum,
+            averageSeverity,
+          } satisfies PriorityScoreStationGroup;
+        }
+
+        const polygonGeometry = parseGeoJson<{
+          type: string;
+          coordinates: number[][][];
+        }>(row.geometry);
+
+        const geometry: GeoJsonPolygon = {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: polygonGeometry?.coordinates ?? [],
+          },
+        };
+
+        const coordinates = parseCoordinatePair(row.centroidCoordinates) ?? [0, 0];
+
+        return {
+          groupType: 'grid',
+          cell: {
+            cellId: row.cellId,
+            geometry,
+            centroid: {
+              latitude: coordinates[1],
+              longitude: coordinates[0],
+            },
+          },
+          totalIncidents,
+          rawScore,
+          normalizedScore,
+          percentileRank,
+          weightSum,
+          averageSeverity,
+        } satisfies PriorityScoreGridGroup;
+      });
+
+      return {
+        metadata: {
+          groupBy,
+          totalGroups: groups.length,
+          minRawScore,
+          maxRawScore,
+          decayHalfLifeDays: decayHalfLifeDays ?? null,
+          resolution,
+          cellSizeMeters,
+          generatedAt: new Date().toISOString(),
+        },
+        groups,
+      } satisfies PriorityScoreResponse;
     });
   }
 }

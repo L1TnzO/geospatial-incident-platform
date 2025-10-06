@@ -11,7 +11,7 @@ The analytics dashboard (`/dashboard`) delivers KPIs, charts, recent activity, a
   1. KPI row (24 h summary + export CTA)
   2. Charts grid (type distribution, severity donut, daily trend)
   3. Recent incidents panel
-- **Navigation:** The global header exposes **Overview** (map/table) and **Dashboard** tabs. `NavLink` handles `aria-current="page"` so focus and screen-reader users know which surface is active.
+- **Navigation:** The global header exposes **Overview** (map/table), **Dashboard**, and **Strategic** tabs. `NavLink` handles `aria-current="page"` so focus and screen-reader users know which surface is active.
 
 ## Widgets & data flow
 
@@ -117,6 +117,7 @@ Run the suites with:
 ```bash
 npm --prefix client run test:client:integration
 npm --prefix client run test:client:e2e -- dashboard
+npm --prefix client run test:client:e2e -- strategic
 ```
 
 Remember to install Playwright browsers first (`npx playwright install`) and ensure the Vite dev server is running for the E2E suite.

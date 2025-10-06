@@ -18,6 +18,11 @@ const HeaderNav = () => (
             Dashboard
           </NavLink>
         </li>
+        <li>
+          <NavLink to="/strategic" className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            Strategic
+          </NavLink>
+        </li>
       </ul>
     </nav>
   </header>
