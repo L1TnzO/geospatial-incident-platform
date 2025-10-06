@@ -72,6 +72,13 @@ describe('App routing', () => {
     availableTimeframes: [6, 12, 24],
   });
 
+  const createQuarterlyState = <T,>(data: T) => ({
+    ...createSuccessState(data),
+    timeframe: 8,
+    setTimeframe: vi.fn(),
+    availableTimeframes: [4, 8],
+  });
+
   beforeEach(async () => {
     mockUseDashboardLast24HoursKpi.mockReset();
     mockUseDashboardTypeDistribution.mockReset();
@@ -142,21 +149,103 @@ describe('App routing', () => {
       })
     );
 
-    mockUseStrategicQuarterlyTrends.mockReturnValue(
-      createSuccessState({
-        range: { start: '2023-04-01T00:00:00Z', end: '2024-03-31T23:59:59Z', quarters: 4 },
-        series: [],
-        summary: {
-          current: null,
-          previous: null,
-          delta: null,
-          percentage: null,
-          yearOverYearReference: null,
-          yearOverYearDelta: null,
-          yearOverYearPercentage: null,
+    const quarterlyData = {
+      range: { start: '2023-04-01T00:00:00Z', end: '2024-03-31T23:59:59Z', quarters: 8 },
+      series: [
+        {
+          year: 2023,
+          quarter: 3,
+          label: 'Q3 2023',
+          start: '2023-07-01T00:00:00Z',
+          end: '2023-09-30T23:59:59Z',
+          count: 280,
+          previousQuarterCount: 260,
+          quarterOverQuarterDelta: 20,
+          quarterOverQuarterPercentage: 7.69,
+          previousYearCount: 240,
+          yearOverYearDelta: 40,
+          yearOverYearPercentage: 16.67,
         },
-      })
-    );
+        {
+          year: 2023,
+          quarter: 4,
+          label: 'Q4 2023',
+          start: '2023-10-01T00:00:00Z',
+          end: '2023-12-31T23:59:59Z',
+          count: 300,
+          previousQuarterCount: 280,
+          quarterOverQuarterDelta: 20,
+          quarterOverQuarterPercentage: 7.14,
+          previousYearCount: 260,
+          yearOverYearDelta: 40,
+          yearOverYearPercentage: 15.38,
+        },
+        {
+          year: 2024,
+          quarter: 1,
+          label: 'Q1 2024',
+          start: '2024-01-01T00:00:00Z',
+          end: '2024-03-31T23:59:59Z',
+          count: 320,
+          previousQuarterCount: 300,
+          quarterOverQuarterDelta: 20,
+          quarterOverQuarterPercentage: 6.67,
+          previousYearCount: 280,
+          yearOverYearDelta: 40,
+          yearOverYearPercentage: 14.29,
+        },
+      ],
+      summary: {
+        current: {
+          year: 2024,
+          quarter: 1,
+          label: 'Q1 2024',
+          start: '2024-01-01T00:00:00Z',
+          end: '2024-03-31T23:59:59Z',
+          count: 320,
+          previousQuarterCount: 300,
+          quarterOverQuarterDelta: 20,
+          quarterOverQuarterPercentage: 6.67,
+          previousYearCount: 280,
+          yearOverYearDelta: 40,
+          yearOverYearPercentage: 14.29,
+        },
+        previous: {
+          year: 2023,
+          quarter: 4,
+          label: 'Q4 2023',
+          start: '2023-10-01T00:00:00Z',
+          end: '2023-12-31T23:59:59Z',
+          count: 300,
+          previousQuarterCount: 280,
+          quarterOverQuarterDelta: 20,
+          quarterOverQuarterPercentage: 7.14,
+          previousYearCount: 260,
+          yearOverYearDelta: 40,
+          yearOverYearPercentage: 15.38,
+        },
+        delta: 20,
+        percentage: 6.67,
+        yearOverYearReference: {
+          year: 2023,
+          quarter: 1,
+          label: 'Q1 2023',
+          start: '2023-01-01T00:00:00Z',
+          end: '2023-03-31T23:59:59Z',
+          count: 280,
+          previousQuarterCount: 270,
+          quarterOverQuarterDelta: 10,
+          quarterOverQuarterPercentage: 3.7,
+          previousYearCount: 250,
+          yearOverYearDelta: 30,
+          yearOverYearPercentage: 12,
+        },
+        yearOverYearDelta: 40,
+        yearOverYearPercentage: 14.29,
+      },
+    };
+
+    mockUseStrategicQuarterlyTrends.mockReturnValue(createQuarterlyState(quarterlyData));
 
     const typeTimelineData = {
       range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },

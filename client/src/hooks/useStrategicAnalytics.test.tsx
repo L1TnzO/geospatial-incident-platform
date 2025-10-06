@@ -134,6 +134,48 @@ describe('strategic analytics hooks', () => {
     expect(result.current.data?.series[0]?.label).toBe('Q4 2023');
   });
 
+  it('caches quarterly timeframe switches to avoid redundant requests', async () => {
+    const requestedQuarters: number[] = [];
+
+    server.use(
+      http.get('*/api/strategic/trends/quarters', ({ request }) => {
+        const url = new URL(request.url);
+        const quarters = Number(url.searchParams.get('quarters') ?? '8');
+        requestedQuarters.push(quarters);
+        const sliceCount = Math.min(quarters, defaultStrategicMocks.quarterly.series.length);
+        return HttpResponse.json({
+          ...defaultStrategicMocks.quarterly,
+          range: { ...defaultStrategicMocks.quarterly.range, quarters },
+          series: defaultStrategicMocks.quarterly.series.slice(-sliceCount),
+        });
+      })
+    );
+
+    const { result } = renderHook(() =>
+      useStrategicQuarterlyTrends({ autoRefreshMs: null, availableTimeframes: [4, 8] })
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.timeframe).toBe(8);
+    expect(requestedQuarters).toEqual([8]);
+
+    await act(async () => {
+      result.current.setTimeframe(4);
+    });
+
+    await waitFor(() => expect(result.current.timeframe).toBe(4));
+    expect(requestedQuarters).toEqual([8, 4]);
+
+    const requestCountAfterFour = requestedQuarters.length;
+
+    await act(async () => {
+      result.current.setTimeframe(8);
+    });
+
+    await waitFor(() => expect(result.current.timeframe).toBe(8));
+    expect(requestedQuarters).toHaveLength(requestCountAfterFour);
+  });
+
   it('caches timeframe switches to avoid redundant requests', async () => {
     const requestedMonths: number[] = [];
 

@@ -255,6 +255,7 @@ type StrategicHandlersOptions = {
   responseMetrics?: StrategicResponseMetricsResponse;
   priorityScores?: StrategicPriorityScoreResponse;
   onMonthlyRequest?: (url: string) => void;
+  onQuarterlyRequest?: (url: string) => void;
   onTypeTimelinesRequest?: (url: string) => void;
   onHotspotsRequest?: (url: string) => void;
   onResponseMetricsRequest?: (url: string) => void;
@@ -273,6 +274,7 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
     typeTimelines = defaultStrategicMocks.typeTimelines,
     hotspots = defaultStrategicMocks.hotspots,
     onMonthlyRequest,
+    onQuarterlyRequest,
     onTypeTimelinesRequest,
     onHotspotsRequest,
     responseMetrics = defaultStrategicMocks.responseMetrics,
@@ -304,7 +306,31 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
 
       return HttpResponse.json(responseBody);
     }),
-    http.get('*/api/strategic/trends/quarters', () => HttpResponse.json(quarterly)),
+    http.get('*/api/strategic/trends/quarters', ({ request }) => {
+      onQuarterlyRequest?.(request.url);
+      const url = new URL(request.url);
+      const quartersParam = url.searchParams.get('quarters');
+
+      if (!quartersParam) {
+        return HttpResponse.json(quarterly);
+      }
+
+      const quarters = Number(quartersParam);
+      if (Number.isNaN(quarters) || quarters <= 0) {
+        return HttpResponse.json(quarterly);
+      }
+
+      const sliceCount = Math.min(quarters, quarterly.series.length);
+      const slicedSeries = quarterly.series.slice(-sliceCount);
+
+      const responseBody: StrategicQuarterlyTrendResponse = {
+        ...quarterly,
+        range: { ...quarterly.range, quarters },
+        series: slicedSeries,
+      };
+
+      return HttpResponse.json(responseBody);
+    }),
     http.get('*/api/strategic/trends/types', ({ request }) => {
       onTypeTimelinesRequest?.(request.url);
       const url = new URL(request.url);
@@ -341,7 +367,6 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
         types: trimmedTypes,
       });
     }),
-    http.get('*/api/strategic/trends/types', () => HttpResponse.json(typeTimelines)),
     http.get('*/api/strategic/hotspots', ({ request }) => {
       onHotspotsRequest?.(request.url);
       return HttpResponse.json(hotspots);

@@ -698,7 +698,8 @@ const configureApiRoutes = async (
   page: Page,
   incidentsRequests: string[],
   exportRequests?: string[],
-  strategicMonthlyRequests?: string[]
+  strategicMonthlyRequests?: string[],
+  strategicQuarterlyRequests?: string[]
 ) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
@@ -768,13 +769,24 @@ const configureApiRoutes = async (
     });
   });
 
-  await page.route('**/api/strategic/trends/quarters**', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/strategic/trends/quarters**', (route: Route) => {
+    const requestUrl = route.request().url();
+    strategicQuarterlyRequests?.push(requestUrl);
+    const url = new URL(requestUrl);
+    const quarters = Number(url.searchParams.get('quarters') ?? '8');
+    const sliceCount = Math.min(quarters, STRATEGIC_QUARTERLY.series.length);
+    const responseBody = {
+      ...STRATEGIC_QUARTERLY,
+      range: { ...STRATEGIC_QUARTERLY.range, quarters },
+      series: STRATEGIC_QUARTERLY.series.slice(-sliceCount),
+    };
+
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(STRATEGIC_QUARTERLY),
-    })
-  );
+      body: JSON.stringify(responseBody),
+    });
+  });
 
   await page.route('**/api/strategic/trends/types**', (route: Route) =>
     route.fulfill({
@@ -1066,7 +1078,14 @@ test('strategic analytics screen renders trend, composition, and refresh control
 }) => {
   const incidentsRequests: string[] = [];
   const strategicMonthlyRequests: string[] = [];
-  await configureApiRoutes(page, incidentsRequests, undefined, strategicMonthlyRequests);
+  const strategicQuarterlyRequests: string[] = [];
+  await configureApiRoutes(
+    page,
+    incidentsRequests,
+    undefined,
+    strategicMonthlyRequests,
+    strategicQuarterlyRequests
+  );
 
   await page.goto('/strategic');
   await page.waitForLoadState('networkidle');
@@ -1082,9 +1101,9 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await expect(
     page.getByRole('figure', { name: /monthly incident counts compared to previous year/i })
   ).toBeVisible();
-  await expect(page.getByRole('article', { name: /quarterly comparison/i })).toContainText(
-    /quarter-over-quarter change/i
-  );
+  const quarterlyCard = page.getByRole('article', { name: /quarterly comparison/i });
+  await expect(quarterlyCard).toContainText(/quarter-over-quarter change/i);
+  await expect(quarterlyCard).toContainText('+40');
   const typeExplorer = page.getByRole('article', { name: /type trend explorer/i });
   await expect(typeExplorer).toBeVisible();
   await expect(typeExplorer).toContainText(/viewing: structure fire/i);
@@ -1112,6 +1131,21 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await timeframeTwelve.click();
   await expect.poll(() => strategicMonthlyRequests.length).toBe(afterSixCount);
   await expect(timeframeTwelve).toHaveAttribute('aria-pressed', 'true');
+
+  const quarterFour = quarterlyCard.getByRole('button', { name: '4q' });
+  const quarterEight = quarterlyCard.getByRole('button', { name: '8q' });
+  await expect(quarterEight).toHaveAttribute('aria-pressed', 'true');
+
+  const initialQuarterRequests = strategicQuarterlyRequests.length;
+  await quarterFour.click();
+  await expect.poll(() => strategicQuarterlyRequests.length).toBe(initialQuarterRequests + 1);
+  expect(strategicQuarterlyRequests.at(-1)).toContain('quarters=4');
+  await expect(quarterFour).toHaveAttribute('aria-pressed', 'true');
+
+  const afterFourRequests = strategicQuarterlyRequests.length;
+  await quarterEight.click();
+  await expect.poll(() => strategicQuarterlyRequests.length).toBe(afterFourRequests);
+  await expect(quarterEight).toHaveAttribute('aria-pressed', 'true');
 
   const typeSelect = page.getByLabel('Select type');
   await typeSelect.waitFor();

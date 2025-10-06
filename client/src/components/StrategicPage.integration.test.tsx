@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultStrategicMocks } from '@/test-utils/strategicHandlers';
@@ -20,6 +20,13 @@ const createMonthlyState = () => ({
   timeframe: 12,
   setTimeframe: vi.fn(),
   availableTimeframes: [6, 12, 24],
+});
+
+const createQuarterlyState = () => ({
+  ...createSuccessState(defaultStrategicMocks.quarterly),
+  timeframe: 8,
+  setTimeframe: vi.fn(),
+  availableTimeframes: [4, 8],
 });
 
 const createTypeExplorerState = () => {
@@ -55,7 +62,7 @@ const createTypeExplorerState = () => {
 };
 
 let monthlyState = createMonthlyState();
-let quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
+let quarterlyState = createQuarterlyState();
 let typeTimelineState = createTypeExplorerState();
 let hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
 let responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
@@ -102,7 +109,7 @@ describe('Strategic analytics integration', () => {
 
   beforeEach(async () => {
     monthlyState = createMonthlyState();
-    quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
+    quarterlyState = createQuarterlyState();
     typeTimelineState = createTypeExplorerState();
     hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
     responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
@@ -129,6 +136,11 @@ describe('Strategic analytics integration', () => {
 
     const quarterlyCard = screen.getByRole('article', { name: /quarterly comparison/i });
     expect(quarterlyCard).toHaveTextContent(/quarter-over-quarter change/i);
+    expect(within(quarterlyCard).getByRole('button', { name: '8q' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(within(quarterlyCard).getByRole('button', { name: /export csv/i })).toBeEnabled();
 
     const typeExplorer = screen.getByRole('article', { name: /type trend explorer/i });
     expect(typeExplorer).toHaveTextContent(
@@ -162,6 +174,10 @@ describe('Strategic analytics integration', () => {
     const timeframeButton = screen.getByRole('button', { name: '6m' });
     fireEvent.click(timeframeButton);
     expect(monthlyState.setTimeframe).toHaveBeenCalledWith(6);
+
+    const quarterButton = within(quarterlyCard).getByRole('button', { name: '4q' });
+    fireEvent.click(quarterButton);
+    expect(quarterlyState.setTimeframe).toHaveBeenCalledWith(4);
 
     const typeSelect = screen.getByLabelText('Select type');
     fireEvent.change(typeSelect, { target: { value: typeTimelineState.availableTypes[1]?.code } });

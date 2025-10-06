@@ -1,7 +1,7 @@
 import StrategicHotspotSummary from '@/components/strategic/StrategicHotspotSummary';
 import StrategicMonthlyTrendCard from '@/components/strategic/StrategicMonthlyTrendCard';
 import StrategicPriorityScoreCard from '@/components/strategic/StrategicPriorityScoreCard';
-import StrategicQuarterlySummary from '@/components/strategic/StrategicQuarterlySummary';
+import StrategicQuarterComparisonChart from '@/components/strategic/StrategicQuarterComparisonChart';
 import StrategicResponseMetricsCard from '@/components/strategic/StrategicResponseMetricsCard';
 import StrategicTypeTrendExplorer from '@/components/strategic/StrategicTypeTrendExplorer';
 import { useStrategicHotspots } from '@/hooks/useStrategicHotspots';
@@ -13,7 +13,11 @@ import { useStrategicTypeTimelines } from '@/hooks/useStrategicTypeTimelines';
 
 const StrategicLayout = () => {
   const monthly = useStrategicMonthlyTrends({ months: 12, autoRefreshMs: 5 * 60 * 1000 });
-  const quarterly = useStrategicQuarterlyTrends({ quarters: 8, autoRefreshMs: 5 * 60 * 1000 });
+  const quarterly = useStrategicQuarterlyTrends({
+    quarters: 8,
+    availableTimeframes: [4, 8],
+    autoRefreshMs: 5 * 60 * 1000,
+  });
   const timelines = useStrategicTypeTimelines({ months: 12, autoRefreshMs: 5 * 60 * 1000 });
   const hotspots = useStrategicHotspots({ resolution: 4, autoRefreshMs: 5 * 60 * 1000 });
   const responseMetrics = useStrategicResponseMetrics({
@@ -79,7 +83,7 @@ const StrategicLayout = () => {
         </div>
         <div className="strategic-grid strategic-grid--two-column">
           <StrategicMonthlyTrendCard state={monthly} />
-          <StrategicQuarterlySummary state={quarterly} />
+          <StrategicQuarterComparisonChart state={quarterly} />
         </div>
       </section>
 
