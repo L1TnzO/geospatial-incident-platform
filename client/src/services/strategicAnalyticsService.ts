@@ -1,8 +1,11 @@
 import type { DashboardFilterParams } from '@/types/dashboard';
 import type {
+  StrategicGroupBy,
   StrategicHotspotResponse,
   StrategicMonthlyTrendResponse,
+  StrategicPriorityScoreResponse,
   StrategicQuarterlyTrendResponse,
+  StrategicResponseMetricsResponse,
   StrategicTypeTimelineResponse,
 } from '@/types/strategic';
 
@@ -120,6 +123,17 @@ interface HotspotOptions extends StrategicRequestOptions {
   resolution?: number;
 }
 
+interface ResponseMetricsOptions extends StrategicRequestOptions {
+  groupBy?: StrategicGroupBy;
+  resolution?: number;
+}
+
+interface PriorityScoresOptions extends StrategicRequestOptions {
+  groupBy?: StrategicGroupBy;
+  resolution?: number;
+  decayHalfLifeDays?: number;
+}
+
 const appendRefresh = (params: Record<string, QueryValue>, refresh?: boolean) => {
   if (refresh) {
     params.refresh = true;
@@ -176,4 +190,48 @@ export const fetchHotspots = async ({
   const url = buildUrl('/strategic/hotspots', params);
   const response = await fetch(url.toString(), buildRequestInit(signal));
   return handleResponse(response, 'Failed to fetch strategic hotspots');
+};
+
+export const fetchResponseMetrics = async ({
+  signal,
+  refresh,
+  groupBy,
+  resolution,
+  ...filters
+}: ResponseMetricsOptions = {}): Promise<StrategicResponseMetricsResponse> => {
+  const extraParams: Record<string, QueryValue> = {};
+  if (groupBy) {
+    extraParams.groupBy = groupBy;
+  }
+  if (resolution !== undefined) {
+    extraParams.resolution = resolution;
+  }
+  const params = appendRefresh(buildQueryParams(filters, extraParams), refresh);
+  const url = buildUrl('/strategic/response-metrics', params);
+  const response = await fetch(url.toString(), buildRequestInit(signal));
+  return handleResponse(response, 'Failed to fetch strategic response metrics');
+};
+
+export const fetchPriorityScores = async ({
+  signal,
+  refresh,
+  groupBy,
+  resolution,
+  decayHalfLifeDays,
+  ...filters
+}: PriorityScoresOptions = {}): Promise<StrategicPriorityScoreResponse> => {
+  const extraParams: Record<string, QueryValue> = {};
+  if (groupBy) {
+    extraParams.groupBy = groupBy;
+  }
+  if (resolution !== undefined) {
+    extraParams.resolution = resolution;
+  }
+  if (decayHalfLifeDays !== undefined) {
+    extraParams.decayHalfLifeDays = decayHalfLifeDays;
+  }
+  const params = appendRefresh(buildQueryParams(filters, extraParams), refresh);
+  const url = buildUrl('/strategic/priority-scores', params);
+  const response = await fetch(url.toString(), buildRequestInit(signal));
+  return handleResponse(response, 'Failed to fetch strategic priority scores');
 };

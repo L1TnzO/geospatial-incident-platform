@@ -19,6 +19,8 @@ let monthlyState = createSuccessState(defaultStrategicMocks.monthly);
 let quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
 let typeTimelineState = createSuccessState(defaultStrategicMocks.typeTimelines);
 let hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
+let responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
+let priorityScoresState = createSuccessState(defaultStrategicMocks.priorityScores);
 
 vi.mock('@/hooks/useStrategicFilters', () => ({
   useStrategicFilters: () => ({
@@ -48,6 +50,14 @@ vi.mock('@/hooks/useStrategicHotspots', () => ({
   useStrategicHotspots: () => hotspotState,
 }));
 
+vi.mock('@/hooks/useStrategicResponseMetrics', () => ({
+  useStrategicResponseMetrics: () => responseMetricsState,
+}));
+
+vi.mock('@/hooks/useStrategicPriorityScores', () => ({
+  useStrategicPriorityScores: () => priorityScoresState,
+}));
+
 describe('Strategic analytics integration', () => {
   let StrategicPage: (typeof import('@/pages/StrategicPage'))['default'];
 
@@ -56,6 +66,8 @@ describe('Strategic analytics integration', () => {
     quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
     typeTimelineState = createSuccessState(defaultStrategicMocks.typeTimelines);
     hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
+    responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
+    priorityScoresState = createSuccessState(defaultStrategicMocks.priorityScores);
 
     ({ default: StrategicPage } = await import('@/pages/StrategicPage'));
   });
@@ -88,6 +100,13 @@ describe('Strategic analytics integration', () => {
       defaultStrategicMocks.hotspots.cells[0]?.incidentCount.toString() ?? ''
     );
 
+    const responseCard = screen.getByRole('article', { name: /response readiness snapshot/i });
+    expect(responseCard).toHaveTextContent('Station 101');
+    expect(responseCard).toHaveTextContent('260s');
+
+    const priorityCard = screen.getByRole('article', { name: /priority score leaders/i });
+    expect(priorityCard).toHaveTextContent('Score 1.00');
+
     const refreshAll = screen.getByRole('button', { name: /refresh all/i });
     fireEvent.click(refreshAll);
 
@@ -95,6 +114,8 @@ describe('Strategic analytics integration', () => {
     expect(quarterlyState.refresh).toHaveBeenCalled();
     expect(typeTimelineState.refresh).toHaveBeenCalled();
     expect(hotspotState.refresh).toHaveBeenCalled();
+    expect(responseMetricsState.refresh).toHaveBeenCalled();
+    expect(priorityScoresState.refresh).toHaveBeenCalled();
 
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
   });

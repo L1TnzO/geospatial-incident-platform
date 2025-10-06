@@ -572,6 +572,74 @@ const STRATEGIC_HOTSPOTS = {
   ],
 };
 
+const STRATEGIC_RESPONSE_METRICS = {
+  metadata: {
+    groupBy: 'station',
+    sampleThreshold: 3,
+    totalGroups: 2,
+    minAverageSeconds: 240,
+    maxAverageSeconds: 480,
+    generatedAt: '2025-01-11T12:00:00Z',
+  },
+  groups: [
+    {
+      groupType: 'station',
+      station: { code: 'ST-101', name: 'Station 101' },
+      sampleSize: 12,
+      averageSeconds: 260,
+      medianSeconds: 250,
+      p90Seconds: 410,
+      normalizedAverage: 1,
+      percentileRank: 1,
+      insufficientSample: false,
+    },
+    {
+      groupType: 'station',
+      station: { code: 'ST-102', name: 'Station 102' },
+      sampleSize: 5,
+      averageSeconds: 420,
+      medianSeconds: 430,
+      p90Seconds: 620,
+      normalizedAverage: 0,
+      percentileRank: 0,
+      insufficientSample: false,
+    },
+  ],
+};
+
+const STRATEGIC_PRIORITY_SCORES = {
+  metadata: {
+    groupBy: 'station',
+    totalGroups: 2,
+    minRawScore: 12,
+    maxRawScore: 48,
+    decayHalfLifeDays: 45,
+    generatedAt: '2025-01-11T12:00:00Z',
+  },
+  groups: [
+    {
+      groupType: 'station',
+      station: { code: 'ST-101', name: 'Station 101' },
+      totalIncidents: 24,
+      rawScore: 48,
+      normalizedScore: 1,
+      percentileRank: 1,
+      weightSum: 24,
+      averageSeverity: 3.6,
+    },
+    {
+      groupType: 'station',
+      station: { code: 'ST-102', name: 'Station 102' },
+      totalIncidents: 18,
+      rawScore: 12,
+      normalizedScore: 0.15,
+      percentileRank: 0.1,
+      weightSum: 18,
+      averageSeverity: 1.8,
+    },
+  ],
+};
+
 type SearchParams = URLSearchParams;
 
 const buildListResponse = (items: IncidentListEntry[]) => ({
@@ -704,6 +772,22 @@ const configureApiRoutes = async (
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(STRATEGIC_HOTSPOTS),
+    })
+  );
+
+  await page.route('**/api/strategic/response-metrics**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_RESPONSE_METRICS),
+    })
+  );
+
+  await page.route('**/api/strategic/priority-scores**', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_PRIORITY_SCORES),
     })
   );
 
@@ -985,6 +1069,12 @@ test('strategic analytics screen renders trend, composition, and refresh control
   );
   await expect(page.getByRole('article', { name: /hotspot heatmap preview/i })).toContainText(
     /120 incidents/i
+  );
+  await expect(page.getByRole('article', { name: /response readiness snapshot/i })).toContainText(
+    /260s/i
+  );
+  await expect(page.getByRole('article', { name: /priority score leaders/i })).toContainText(
+    /score 1\.00/i
   );
 
   const refreshAll = page.getByRole('button', { name: /refresh all/i });

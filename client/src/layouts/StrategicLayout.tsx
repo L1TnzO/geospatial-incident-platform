@@ -1,10 +1,14 @@
 import StrategicHotspotSummary from '@/components/strategic/StrategicHotspotSummary';
 import StrategicMonthlyTrendCard from '@/components/strategic/StrategicMonthlyTrendCard';
+import StrategicPriorityScoreCard from '@/components/strategic/StrategicPriorityScoreCard';
 import StrategicQuarterlySummary from '@/components/strategic/StrategicQuarterlySummary';
+import StrategicResponseMetricsCard from '@/components/strategic/StrategicResponseMetricsCard';
 import StrategicTypeTimelinePanel from '@/components/strategic/StrategicTypeTimelinePanel';
 import { useStrategicHotspots } from '@/hooks/useStrategicHotspots';
 import { useStrategicMonthlyTrends } from '@/hooks/useStrategicMonthlyTrends';
 import { useStrategicQuarterlyTrends } from '@/hooks/useStrategicQuarterlyTrends';
+import { useStrategicPriorityScores } from '@/hooks/useStrategicPriorityScores';
+import { useStrategicResponseMetrics } from '@/hooks/useStrategicResponseMetrics';
 import { useStrategicTypeTimelines } from '@/hooks/useStrategicTypeTimelines';
 
 const StrategicLayout = () => {
@@ -12,12 +16,23 @@ const StrategicLayout = () => {
   const quarterly = useStrategicQuarterlyTrends({ quarters: 8, autoRefreshMs: 5 * 60 * 1000 });
   const timelines = useStrategicTypeTimelines({ months: 12, autoRefreshMs: 5 * 60 * 1000 });
   const hotspots = useStrategicHotspots({ resolution: 4, autoRefreshMs: 5 * 60 * 1000 });
+  const responseMetrics = useStrategicResponseMetrics({
+    groupBy: 'station',
+    autoRefreshMs: 5 * 60 * 1000,
+  });
+  const priorityScores = useStrategicPriorityScores({
+    groupBy: 'station',
+    decayHalfLifeDays: 45,
+    autoRefreshMs: 5 * 60 * 1000,
+  });
 
   const handleRefreshAll = () => {
     monthly.refresh();
     quarterly.refresh();
     timelines.refresh();
     hotspots.refresh();
+    responseMetrics.refresh();
+    priorityScores.refresh();
   };
 
   const lastUpdatedCandidates = [
@@ -25,6 +40,8 @@ const StrategicLayout = () => {
     quarterly.lastUpdated,
     timelines.lastUpdated,
     hotspots.lastUpdated,
+    responseMetrics.lastUpdated,
+    priorityScores.lastUpdated,
   ].filter((value): value is string => Boolean(value));
   const lastUpdated = lastUpdatedCandidates.reduce<string | null>((latest, current) => {
     if (!latest) {
@@ -80,6 +97,20 @@ const StrategicLayout = () => {
         </div>
       </section>
 
+      <section aria-labelledby="strategic-response" className="strategic-shell__section">
+        <div className="strategic-section__header">
+          <h2 id="strategic-response">Response &amp; readiness</h2>
+          <p>
+            Early-look views for response time benchmarking and severity-weighted demand scoring.
+            These feeds power the upcoming heatmap overlays and alerting playbooks.
+          </p>
+        </div>
+        <div className="strategic-grid strategic-grid--two-column">
+          <StrategicResponseMetricsCard state={responseMetrics} />
+          <StrategicPriorityScoreCard state={priorityScores} />
+        </div>
+      </section>
+
       <section aria-labelledby="strategic-roadmap" className="strategic-shell__section">
         <div className="strategic-section__header">
           <h2 id="strategic-roadmap">Upcoming strategic panels</h2>
@@ -88,26 +119,19 @@ const StrategicLayout = () => {
             they arrive.
           </p>
         </div>
-        <div className="strategic-grid strategic-grid--three-column">
-          <article className="strategic-card strategic-card--placeholder">
-            <h3>Resource readiness index</h3>
-            <p>
-              Planned feature: combines incident backlog, staffing levels, and turnout times to
-              score readiness per district.
-            </p>
-          </article>
-          <article className="strategic-card strategic-card--placeholder">
-            <h3>Multi-quarter forecast</h3>
-            <p>
-              Planned feature: projects incident loads using Holt-Winters smoothing with confidence
-              intervals for budget planning.
-            </p>
-          </article>
+        <div className="strategic-grid strategic-grid--two-column">
           <article className="strategic-card strategic-card--placeholder">
             <h3>Recommended mitigations</h3>
             <p>
               Planned feature: surfaces policy and infrastructure recommendations based on hotspot
               persistence and severity trends.
+            </p>
+          </article>
+          <article className="strategic-card strategic-card--placeholder">
+            <h3>Capacity stress tests</h3>
+            <p>
+              Planned feature: simulates station availability, unit deployment, and surge events to
+              forecast staffing requirements.
             </p>
           </article>
         </div>

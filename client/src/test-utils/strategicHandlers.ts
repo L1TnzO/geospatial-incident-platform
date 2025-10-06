@@ -2,7 +2,9 @@ import { HttpResponse, http } from 'msw';
 import type {
   StrategicHotspotResponse,
   StrategicMonthlyTrendResponse,
+  StrategicPriorityScoreResponse,
   StrategicQuarterlyTrendResponse,
+  StrategicResponseMetricsResponse,
   StrategicTypeTimelineResponse,
 } from '@/types/strategic';
 
@@ -176,6 +178,72 @@ export const defaultStrategicMocks = {
       },
     ],
   } satisfies StrategicHotspotResponse,
+  responseMetrics: {
+    metadata: {
+      groupBy: 'station',
+      sampleThreshold: 3,
+      totalGroups: 2,
+      minAverageSeconds: 240,
+      maxAverageSeconds: 480,
+      generatedAt: '2024-12-31T23:59:59Z',
+    },
+    groups: [
+      {
+        groupType: 'station',
+        station: { code: 'ST-101', name: 'Station 101' },
+        sampleSize: 12,
+        averageSeconds: 260,
+        medianSeconds: 250,
+        p90Seconds: 410,
+        normalizedAverage: 1,
+        percentileRank: 1,
+        insufficientSample: false,
+      },
+      {
+        groupType: 'station',
+        station: { code: 'ST-102', name: 'Station 102' },
+        sampleSize: 4,
+        averageSeconds: 420,
+        medianSeconds: 430,
+        p90Seconds: 600,
+        normalizedAverage: 0,
+        percentileRank: 0,
+        insufficientSample: false,
+      },
+    ],
+  } satisfies StrategicResponseMetricsResponse,
+  priorityScores: {
+    metadata: {
+      groupBy: 'station',
+      totalGroups: 2,
+      minRawScore: 12,
+      maxRawScore: 48,
+      decayHalfLifeDays: 30,
+      generatedAt: '2024-12-31T23:59:59Z',
+    },
+    groups: [
+      {
+        groupType: 'station',
+        station: { code: 'ST-101', name: 'Station 101' },
+        totalIncidents: 24,
+        rawScore: 48,
+        normalizedScore: 1,
+        percentileRank: 1,
+        weightSum: 24,
+        averageSeverity: 3.5,
+      },
+      {
+        groupType: 'station',
+        station: { code: 'ST-102', name: 'Station 102' },
+        totalIncidents: 18,
+        rawScore: 12,
+        normalizedScore: 0,
+        percentileRank: 0,
+        weightSum: 18,
+        averageSeverity: 1.8,
+      },
+    ],
+  } satisfies StrategicPriorityScoreResponse,
 };
 
 type StrategicHandlersOptions = {
@@ -183,7 +251,11 @@ type StrategicHandlersOptions = {
   quarterly?: StrategicQuarterlyTrendResponse;
   typeTimelines?: StrategicTypeTimelineResponse;
   hotspots?: StrategicHotspotResponse;
+  responseMetrics?: StrategicResponseMetricsResponse;
+  priorityScores?: StrategicPriorityScoreResponse;
   onHotspotsRequest?: (url: string) => void;
+  onResponseMetricsRequest?: (url: string) => void;
+  onPriorityScoresRequest?: (url: string) => void;
 };
 
 type StrategicErrorOptions = {
@@ -198,6 +270,10 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
     typeTimelines = defaultStrategicMocks.typeTimelines,
     hotspots = defaultStrategicMocks.hotspots,
     onHotspotsRequest,
+    responseMetrics = defaultStrategicMocks.responseMetrics,
+    priorityScores = defaultStrategicMocks.priorityScores,
+    onResponseMetricsRequest,
+    onPriorityScoresRequest,
   } = options;
 
   return [
@@ -207,6 +283,14 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
     http.get('*/api/strategic/hotspots', ({ request }) => {
       onHotspotsRequest?.(request.url);
       return HttpResponse.json(hotspots);
+    }),
+    http.get('*/api/strategic/response-metrics', ({ request }) => {
+      onResponseMetricsRequest?.(request.url);
+      return HttpResponse.json(responseMetrics);
+    }),
+    http.get('*/api/strategic/priority-scores', ({ request }) => {
+      onPriorityScoresRequest?.(request.url);
+      return HttpResponse.json(priorityScores);
     }),
   ];
 };
@@ -220,5 +304,7 @@ export const createStrategicErrorHandlers = (options: StrategicErrorOptions = {}
     http.get('*/api/strategic/trends/quarters', failure),
     http.get('*/api/strategic/trends/types', failure),
     http.get('*/api/strategic/hotspots', failure),
+    http.get('*/api/strategic/response-metrics', failure),
+    http.get('*/api/strategic/priority-scores', failure),
   ];
 };

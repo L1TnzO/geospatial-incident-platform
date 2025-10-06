@@ -114,3 +114,102 @@ export interface StrategicHotspotResponse {
   };
   cells: StrategicHotspotCell[];
 }
+
+export type StrategicGroupBy = 'station' | 'grid';
+
+interface StrategicResponseMetricBase {
+  groupType: StrategicGroupBy;
+  sampleSize: number;
+  averageSeconds: number;
+  medianSeconds: number;
+  p90Seconds: number;
+  normalizedAverage: number;
+  percentileRank: number;
+  insufficientSample: boolean;
+}
+
+export interface StrategicResponseMetricStationGroup extends StrategicResponseMetricBase {
+  groupType: 'station';
+  station: {
+    code: string;
+    name: string | null;
+  };
+}
+
+export interface StrategicResponseMetricGridGroup extends StrategicResponseMetricBase {
+  groupType: 'grid';
+  cell: {
+    cellId: string;
+    geometry: Feature<Polygon>;
+    centroid: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+}
+
+export type StrategicResponseMetricGroup =
+  | StrategicResponseMetricStationGroup
+  | StrategicResponseMetricGridGroup;
+
+export interface StrategicResponseMetricsResponse {
+  metadata: {
+    groupBy: StrategicGroupBy;
+    sampleThreshold: number;
+    totalGroups: number;
+    minAverageSeconds: number | null;
+    maxAverageSeconds: number | null;
+    resolution?: number;
+    cellSizeMeters?: number;
+    generatedAt: string;
+  };
+  groups: StrategicResponseMetricGroup[];
+}
+
+interface StrategicPriorityScoreBase {
+  groupType: StrategicGroupBy;
+  totalIncidents: number;
+  rawScore: number;
+  normalizedScore: number;
+  percentileRank: number;
+  weightSum: number;
+  averageSeverity: number;
+}
+
+export interface StrategicPriorityScoreStationGroup extends StrategicPriorityScoreBase {
+  groupType: 'station';
+  station: {
+    code: string;
+    name: string | null;
+  };
+}
+
+export interface StrategicPriorityScoreGridGroup extends StrategicPriorityScoreBase {
+  groupType: 'grid';
+  cell: {
+    cellId: string;
+    geometry: Feature<Polygon>;
+    centroid: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+}
+
+export type StrategicPriorityScoreGroup =
+  | StrategicPriorityScoreStationGroup
+  | StrategicPriorityScoreGridGroup;
+
+export interface StrategicPriorityScoreResponse {
+  metadata: {
+    groupBy: StrategicGroupBy;
+    totalGroups: number;
+    minRawScore: number | null;
+    maxRawScore: number | null;
+    decayHalfLifeDays: number | null;
+    resolution?: number;
+    cellSizeMeters?: number;
+    generatedAt: string;
+  };
+  groups: StrategicPriorityScoreGroup[];
+}

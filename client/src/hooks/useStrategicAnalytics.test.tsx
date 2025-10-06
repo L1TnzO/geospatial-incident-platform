@@ -10,6 +10,8 @@ import {
 import { useStrategicHotspots } from './useStrategicHotspots';
 import { useStrategicMonthlyTrends } from './useStrategicMonthlyTrends';
 import { useStrategicQuarterlyTrends } from './useStrategicQuarterlyTrends';
+import { useStrategicResponseMetrics } from './useStrategicResponseMetrics';
+import { useStrategicPriorityScores } from './useStrategicPriorityScores';
 import { useStrategicTypeTimelines } from './useStrategicTypeTimelines';
 
 vi.mock('./useStrategicFilters', () => {
@@ -133,5 +135,44 @@ describe('strategic analytics hooks', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error).toBe('Backend unavailable');
+  });
+
+  it('loads response metrics and forwards query params', async () => {
+    let capturedUrl = '';
+    server.use(
+      ...createStrategicHandlers({
+        onResponseMetricsRequest: (url) => {
+          capturedUrl = url;
+        },
+      })
+    );
+
+    const { result } = renderHook(() =>
+      useStrategicResponseMetrics({ groupBy: 'grid', resolution: 6, autoRefreshMs: null })
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.metadata.groupBy).toBe('station');
+    expect(capturedUrl).toContain('groupBy=grid');
+    expect(capturedUrl).toContain('resolution=6');
+  });
+
+  it('loads priority scores with decay parameter', async () => {
+    let capturedUrl = '';
+    server.use(
+      ...createStrategicHandlers({
+        onPriorityScoresRequest: (url) => {
+          capturedUrl = url;
+        },
+      })
+    );
+
+    const { result } = renderHook(() =>
+      useStrategicPriorityScores({ decayHalfLifeDays: 45, autoRefreshMs: null })
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.metadata.decayHalfLifeDays).toBe(30);
+    expect(capturedUrl).toContain('decayHalfLifeDays=45');
   });
 });
