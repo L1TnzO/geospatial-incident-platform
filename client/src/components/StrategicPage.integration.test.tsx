@@ -15,7 +15,14 @@ const createSuccessState = <T,>(data: T) => ({
   isError: false,
 });
 
-let monthlyState = createSuccessState(defaultStrategicMocks.monthly);
+const createMonthlyState = () => ({
+  ...createSuccessState(defaultStrategicMocks.monthly),
+  timeframe: 12,
+  setTimeframe: vi.fn(),
+  availableTimeframes: [6, 12, 24],
+});
+
+let monthlyState = createMonthlyState();
 let quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
 let typeTimelineState = createSuccessState(defaultStrategicMocks.typeTimelines);
 let hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
@@ -62,7 +69,7 @@ describe('Strategic analytics integration', () => {
   let StrategicPage: (typeof import('@/pages/StrategicPage'))['default'];
 
   beforeEach(async () => {
-    monthlyState = createSuccessState(defaultStrategicMocks.monthly);
+    monthlyState = createMonthlyState();
     quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
     typeTimelineState = createSuccessState(defaultStrategicMocks.typeTimelines);
     hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
@@ -86,6 +93,7 @@ describe('Strategic analytics integration', () => {
     expect(monthlyCard).toHaveTextContent(
       defaultStrategicMocks.monthly.totals.currentPeriodTotal.toLocaleString()
     );
+    expect(screen.getByRole('button', { name: '12m' })).toHaveAttribute('aria-pressed', 'true');
 
     const quarterlyCard = screen.getByRole('article', { name: /quarterly comparison/i });
     expect(quarterlyCard).toHaveTextContent(/quarter-over-quarter change/i);
@@ -118,5 +126,9 @@ describe('Strategic analytics integration', () => {
     expect(priorityScoresState.refresh).toHaveBeenCalled();
 
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
+
+    const timeframeButton = screen.getByRole('button', { name: '6m' });
+    fireEvent.click(timeframeButton);
+    expect(monthlyState.setTimeframe).toHaveBeenCalledWith(6);
   });
 });

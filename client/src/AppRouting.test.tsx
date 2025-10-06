@@ -65,6 +65,13 @@ describe('App routing', () => {
     isError: false,
   });
 
+  const createMonthlyState = <T,>(data: T) => ({
+    ...createSuccessState(data),
+    timeframe: 12,
+    setTimeframe: vi.fn(),
+    availableTimeframes: [6, 12, 24],
+  });
+
   beforeEach(async () => {
     mockUseDashboardLast24HoursKpi.mockReset();
     mockUseDashboardTypeDistribution.mockReset();
@@ -109,7 +116,7 @@ describe('App routing', () => {
     mockUseDashboardRecentIncidents.mockReturnValue(createSuccessState([]));
 
     mockUseStrategicMonthlyTrends.mockReturnValue(
-      createSuccessState({
+      createMonthlyState({
         range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
         series: [
           {

@@ -692,7 +692,8 @@ const filterIncidents = (params: SearchParams) => {
 const configureApiRoutes = async (
   page: Page,
   incidentsRequests: string[],
-  exportRequests?: string[]
+  exportRequests?: string[],
+  strategicMonthlyRequests?: string[]
 ) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
@@ -743,13 +744,24 @@ const configureApiRoutes = async (
     })
   );
 
-  await page.route('**/api/strategic/trends/monthly**', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/strategic/trends/monthly**', (route: Route) => {
+    const requestUrl = route.request().url();
+    strategicMonthlyRequests?.push(requestUrl);
+    const url = new URL(requestUrl);
+    const months = Number(url.searchParams.get('months') ?? '12');
+    const sliceCount = Math.min(months, STRATEGIC_MONTHLY.series.length);
+    const responseBody = {
+      ...STRATEGIC_MONTHLY,
+      range: { ...STRATEGIC_MONTHLY.range, months },
+      series: STRATEGIC_MONTHLY.series.slice(-sliceCount),
+    };
+
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(STRATEGIC_MONTHLY),
-    })
-  );
+      body: JSON.stringify(responseBody),
+    });
+  });
 
   await page.route('**/api/strategic/trends/quarters**', (route: Route) =>
     route.fulfill({
@@ -1048,7 +1060,8 @@ test('strategic analytics screen renders trend, composition, and refresh control
   page,
 }) => {
   const incidentsRequests: string[] = [];
-  await configureApiRoutes(page, incidentsRequests);
+  const strategicMonthlyRequests: string[] = [];
+  await configureApiRoutes(page, incidentsRequests, undefined, strategicMonthlyRequests);
 
   await page.goto('/strategic');
   await page.waitForLoadState('networkidle');
@@ -1061,6 +1074,9 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await expect(page.getByRole('heading', { name: /strategic analytics/i })).toBeVisible();
   await expect(page.getByRole('heading', { name: /trend intelligence/i })).toBeVisible();
   await expect(page.getByRole('article', { name: /monthly trendline/i })).toContainText('730');
+  await expect(
+    page.getByRole('figure', { name: /monthly incident counts compared to previous year/i })
+  ).toBeVisible();
   await expect(page.getByRole('article', { name: /quarterly comparison/i })).toContainText(
     /quarter-over-quarter change/i
   );
@@ -1076,6 +1092,21 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await expect(page.getByRole('article', { name: /priority score leaders/i })).toContainText(
     /score 1\.00/i
   );
+
+  const timeframeSix = page.getByRole('button', { name: '6m' });
+  const timeframeTwelve = page.getByRole('button', { name: '12m' });
+  await expect(timeframeTwelve).toHaveAttribute('aria-pressed', 'true');
+
+  const initialRequestCount = strategicMonthlyRequests.length;
+  await timeframeSix.click();
+  await expect.poll(() => strategicMonthlyRequests.length).toBe(initialRequestCount + 1);
+  expect(strategicMonthlyRequests.at(-1)).toContain('months=6');
+  await expect(timeframeSix).toHaveAttribute('aria-pressed', 'true');
+
+  const afterSixCount = strategicMonthlyRequests.length;
+  await timeframeTwelve.click();
+  await expect.poll(() => strategicMonthlyRequests.length).toBe(afterSixCount);
+  await expect(timeframeTwelve).toHaveAttribute('aria-pressed', 'true');
 
   const refreshAll = page.getByRole('button', { name: /refresh all/i });
   await refreshAll.click();

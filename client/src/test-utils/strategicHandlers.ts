@@ -253,6 +253,7 @@ type StrategicHandlersOptions = {
   hotspots?: StrategicHotspotResponse;
   responseMetrics?: StrategicResponseMetricsResponse;
   priorityScores?: StrategicPriorityScoreResponse;
+  onMonthlyRequest?: (url: string) => void;
   onHotspotsRequest?: (url: string) => void;
   onResponseMetricsRequest?: (url: string) => void;
   onPriorityScoresRequest?: (url: string) => void;
@@ -269,6 +270,7 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
     quarterly = defaultStrategicMocks.quarterly,
     typeTimelines = defaultStrategicMocks.typeTimelines,
     hotspots = defaultStrategicMocks.hotspots,
+    onMonthlyRequest,
     onHotspotsRequest,
     responseMetrics = defaultStrategicMocks.responseMetrics,
     priorityScores = defaultStrategicMocks.priorityScores,
@@ -277,7 +279,28 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
   } = options;
 
   return [
-    http.get('*/api/strategic/trends/monthly', () => HttpResponse.json(monthly)),
+    http.get('*/api/strategic/trends/monthly', ({ request }) => {
+      onMonthlyRequest?.(request.url);
+      const url = new URL(request.url);
+      const monthsParam = url.searchParams.get('months');
+      if (!monthsParam) {
+        return HttpResponse.json(monthly);
+      }
+
+      const months = Number(monthsParam);
+      if (Number.isNaN(months) || months <= 0) {
+        return HttpResponse.json(monthly);
+      }
+
+      const sliceCount = Math.min(months, monthly.series.length);
+      const responseBody: StrategicMonthlyTrendResponse = {
+        ...monthly,
+        range: { ...monthly.range, months },
+        series: monthly.series.slice(-sliceCount),
+      };
+
+      return HttpResponse.json(responseBody);
+    }),
     http.get('*/api/strategic/trends/quarters', () => HttpResponse.json(quarterly)),
     http.get('*/api/strategic/trends/types', () => HttpResponse.json(typeTimelines)),
     http.get('*/api/strategic/hotspots', ({ request }) => {
