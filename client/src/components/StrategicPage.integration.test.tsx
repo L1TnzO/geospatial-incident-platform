@@ -22,9 +22,41 @@ const createMonthlyState = () => ({
   availableTimeframes: [6, 12, 24],
 });
 
+const createTypeExplorerState = () => {
+  const primarySeries = defaultStrategicMocks.typeTimelines.types[0];
+  return {
+    ...createSuccessState(defaultStrategicMocks.typeTimelines),
+    availableTypes: defaultStrategicMocks.typeTimelines.types.map((series) => ({
+      code: series.type.code,
+      name: series.type.name,
+    })),
+    selectedTypeCode: primarySeries?.type.code ?? null,
+    selectedTypeName: primarySeries?.type.name ?? primarySeries?.type.code ?? 'Structure Fire',
+    setSelectedTypeCode: vi.fn(),
+    availableWindows: [7, 14, 30],
+    movingAverageWindow: 7,
+    setMovingAverageWindow: vi.fn(),
+    selectedSeries: primarySeries?.points.map((point) => ({ ...point })) ?? [],
+    movingAverageSeries:
+      primarySeries?.points.map((point) => ({ ...point, movingAverage: point.count })) ?? [],
+    summary: {
+      latestCount: primarySeries?.points.at(-1)?.count ?? null,
+      previousCount: primarySeries?.points.at(-2)?.count ?? null,
+      change:
+        primarySeries?.points.length && primarySeries.points.length > 1
+          ? primarySeries.points.at(-1)!.count - primarySeries.points.at(-2)!.count
+          : null,
+      changePercentage: null,
+      movingAverage: primarySeries?.points.at(-1)?.count ?? null,
+      movingAverageDelta: null,
+      movingAveragePercentage: null,
+    },
+  } as const;
+};
+
 let monthlyState = createMonthlyState();
 let quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
-let typeTimelineState = createSuccessState(defaultStrategicMocks.typeTimelines);
+let typeTimelineState = createTypeExplorerState();
 let hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
 let responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
 let priorityScoresState = createSuccessState(defaultStrategicMocks.priorityScores);
@@ -71,7 +103,7 @@ describe('Strategic analytics integration', () => {
   beforeEach(async () => {
     monthlyState = createMonthlyState();
     quarterlyState = createSuccessState(defaultStrategicMocks.quarterly);
-    typeTimelineState = createSuccessState(defaultStrategicMocks.typeTimelines);
+    typeTimelineState = createTypeExplorerState();
     hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
     responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
     priorityScoresState = createSuccessState(defaultStrategicMocks.priorityScores);
@@ -98,8 +130,8 @@ describe('Strategic analytics integration', () => {
     const quarterlyCard = screen.getByRole('article', { name: /quarterly comparison/i });
     expect(quarterlyCard).toHaveTextContent(/quarter-over-quarter change/i);
 
-    const typePanel = screen.getByRole('article', { name: /incident type timelines/i });
-    expect(typePanel).toHaveTextContent(
+    const typeExplorer = screen.getByRole('article', { name: /type trend explorer/i });
+    expect(typeExplorer).toHaveTextContent(
       defaultStrategicMocks.typeTimelines.types[0]?.type.name ?? ''
     );
 
@@ -130,5 +162,15 @@ describe('Strategic analytics integration', () => {
     const timeframeButton = screen.getByRole('button', { name: '6m' });
     fireEvent.click(timeframeButton);
     expect(monthlyState.setTimeframe).toHaveBeenCalledWith(6);
+
+    const typeSelect = screen.getByLabelText('Select type');
+    fireEvent.change(typeSelect, { target: { value: typeTimelineState.availableTypes[1]?.code } });
+    expect(typeTimelineState.setSelectedTypeCode).toHaveBeenCalledWith(
+      typeTimelineState.availableTypes[1]?.code
+    );
+
+    const windowButton = screen.getByRole('button', { name: '14d' });
+    fireEvent.click(windowButton);
+    expect(typeTimelineState.setMovingAverageWindow).toHaveBeenCalledWith(14);
   });
 });

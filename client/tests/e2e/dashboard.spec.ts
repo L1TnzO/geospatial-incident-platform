@@ -661,6 +661,7 @@ const filterIncidents = (params: SearchParams) => {
   const incidentNumber = params.get('incidentNumber');
   const severityCodes = params.get('severityCodes')?.split(',') ?? [];
   const statusCodes = params.get('statusCodes')?.split(',') ?? [];
+  const typeCodes = params.get('typeCodes')?.split(',') ?? [];
   const startDate = params.get('startDate');
   const endDate = params.get('endDate');
 
@@ -675,6 +676,10 @@ const filterIncidents = (params: SearchParams) => {
 
   if (statusCodes.length > 0) {
     items = items.filter((incident) => statusCodes.includes(incident.status.code));
+  }
+
+  if (typeCodes.length > 0) {
+    items = items.filter((incident) => typeCodes.includes(incident.type.code));
   }
 
   if (startDate && endDate) {
@@ -1080,9 +1085,9 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await expect(page.getByRole('article', { name: /quarterly comparison/i })).toContainText(
     /quarter-over-quarter change/i
   );
-  await expect(page.getByRole('article', { name: /incident type timelines/i })).toContainText(
-    /structure fire/i
-  );
+  const typeExplorer = page.getByRole('article', { name: /type trend explorer/i });
+  await expect(typeExplorer).toBeVisible();
+  await expect(typeExplorer).toContainText(/viewing: structure fire/i);
   await expect(page.getByRole('article', { name: /hotspot heatmap preview/i })).toContainText(
     /120 incidents/i
   );
@@ -1107,6 +1112,33 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await timeframeTwelve.click();
   await expect.poll(() => strategicMonthlyRequests.length).toBe(afterSixCount);
   await expect(timeframeTwelve).toHaveAttribute('aria-pressed', 'true');
+
+  const typeSelect = page.getByLabel('Select type');
+  await typeSelect.waitFor();
+  await expect(typeSelect).toHaveValue('FIRE_STRUCTURE');
+  await expect(typeSelect.locator('option', { hasText: 'Hazmat' })).toHaveCount(1);
+  await typeSelect.selectOption({ label: 'Hazmat' });
+  await expect(typeExplorer).toContainText(/viewing: hazmat/i);
+  await expect
+    .poll(() => incidentsRequests.some((url) => url.includes('typeCodes=HAZMAT')))
+    .toBeTruthy();
+
+  const windowFourteen = page.getByRole('button', { name: '14d' });
+  await windowFourteen.click();
+  await expect(windowFourteen).toHaveAttribute('aria-pressed', 'true');
+
+  const windowThirty = page.getByRole('button', { name: '30d' });
+  await windowThirty.click();
+  await expect(windowThirty).toHaveAttribute('aria-pressed', 'true');
+
+  await typeSelect.selectOption('all');
+  await expect(typeExplorer).toContainText(/viewing: all incident types/i);
+  await expect
+    .poll(() => {
+      const lastRequest = incidentsRequests.at(-1) ?? '';
+      return lastRequest.includes('/api/incidents') && !lastRequest.includes('typeCodes=');
+    })
+    .toBeTruthy();
 
   const refreshAll = page.getByRole('button', { name: /refresh all/i });
   await refreshAll.click();

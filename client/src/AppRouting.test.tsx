@@ -158,33 +158,88 @@ describe('App routing', () => {
       })
     );
 
-    mockUseStrategicTypeTimelines.mockReturnValue(
-      createSuccessState({
-        range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
-        totalsByMonth: [
-          {
-            month: '2024-12',
-            start: '2024-12-01T00:00:00Z',
-            end: '2024-12-31T23:59:59Z',
-            count: 320,
-          },
-        ],
-        types: [
-          {
-            type: { code: 'FIRE', name: 'Fire', description: null },
-            total: 200,
-            points: [
-              {
-                month: '2024-12',
-                start: '2024-12-01T00:00:00Z',
-                end: '2024-12-31T23:59:59Z',
-                count: 200,
-              },
-            ],
-          },
-        ],
-      })
-    );
+    const typeTimelineData = {
+      range: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z', months: 12 },
+      totalsByMonth: [
+        {
+          month: '2024-12',
+          start: '2024-12-01T00:00:00Z',
+          end: '2024-12-31T23:59:59Z',
+          count: 320,
+        },
+      ],
+      types: [
+        {
+          type: { code: 'FIRE', name: 'Fire', description: null },
+          total: 200,
+          points: [
+            {
+              month: '2024-11',
+              start: '2024-11-01T00:00:00Z',
+              end: '2024-11-30T23:59:59Z',
+              count: 150,
+            },
+            {
+              month: '2024-12',
+              start: '2024-12-01T00:00:00Z',
+              end: '2024-12-31T23:59:59Z',
+              count: 200,
+            },
+          ],
+        },
+        {
+          type: { code: 'RESCUE', name: 'Rescue', description: null },
+          total: 120,
+          points: [
+            {
+              month: '2024-11',
+              start: '2024-11-01T00:00:00Z',
+              end: '2024-11-30T23:59:59Z',
+              count: 50,
+            },
+            {
+              month: '2024-12',
+              start: '2024-12-01T00:00:00Z',
+              end: '2024-12-31T23:59:59Z',
+              count: 70,
+            },
+          ],
+        },
+      ],
+    };
+
+    mockUseStrategicTypeTimelines.mockReturnValue({
+      ...createSuccessState(typeTimelineData),
+      availableTypes: typeTimelineData.types.map((series) => ({
+        code: series.type.code,
+        name: series.type.name,
+      })),
+      selectedTypeCode: 'FIRE',
+      selectedTypeName: 'Fire',
+      setSelectedTypeCode: vi.fn(),
+      availableWindows: [7, 14, 30],
+      movingAverageWindow: 7,
+      setMovingAverageWindow: vi.fn(),
+      selectedSeries: typeTimelineData.types[0]?.points ?? [],
+      movingAverageSeries:
+        typeTimelineData.types[0]?.points.map((point) => ({
+          ...point,
+          movingAverage: point.count,
+        })) ?? [],
+      summary: {
+        latestCount: typeTimelineData.types[0]?.points.at(-1)?.count ?? null,
+        previousCount: typeTimelineData.types[0]?.points.at(-2)?.count ?? null,
+        change:
+          typeTimelineData.types[0]?.points.length && typeTimelineData.types[0]!.points.length > 1
+            ? typeTimelineData.types[0]!.points.at(-1)!.count -
+              typeTimelineData.types[0]!.points.at(-2)!.count
+            : null,
+        changePercentage: null,
+        movingAverage: typeTimelineData.types[0]?.points.at(-1)?.count ?? null,
+        movingAverageDelta: null,
+        movingAveragePercentage: null,
+      },
+    });
 
     mockUseStrategicHotspots.mockReturnValue(
       createSuccessState({

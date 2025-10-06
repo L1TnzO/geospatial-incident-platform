@@ -5,6 +5,7 @@ import type {
   StrategicPriorityScoreResponse,
   StrategicQuarterlyTrendResponse,
   StrategicResponseMetricsResponse,
+  StrategicTypeTimelinePoint,
   StrategicTypeTimelineResponse,
 } from '@/types/strategic';
 
@@ -254,6 +255,7 @@ type StrategicHandlersOptions = {
   responseMetrics?: StrategicResponseMetricsResponse;
   priorityScores?: StrategicPriorityScoreResponse;
   onMonthlyRequest?: (url: string) => void;
+  onTypeTimelinesRequest?: (url: string) => void;
   onHotspotsRequest?: (url: string) => void;
   onResponseMetricsRequest?: (url: string) => void;
   onPriorityScoresRequest?: (url: string) => void;
@@ -271,6 +273,7 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
     typeTimelines = defaultStrategicMocks.typeTimelines,
     hotspots = defaultStrategicMocks.hotspots,
     onMonthlyRequest,
+    onTypeTimelinesRequest,
     onHotspotsRequest,
     responseMetrics = defaultStrategicMocks.responseMetrics,
     priorityScores = defaultStrategicMocks.priorityScores,
@@ -302,6 +305,42 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
       return HttpResponse.json(responseBody);
     }),
     http.get('*/api/strategic/trends/quarters', () => HttpResponse.json(quarterly)),
+    http.get('*/api/strategic/trends/types', ({ request }) => {
+      onTypeTimelinesRequest?.(request.url);
+      const url = new URL(request.url);
+      const monthsParam = url.searchParams.get('months');
+      if (!monthsParam) {
+        return HttpResponse.json(typeTimelines);
+      }
+
+      const months = Number(monthsParam);
+      if (Number.isNaN(months) || months <= 0) {
+        return HttpResponse.json(typeTimelines);
+      }
+
+      const trimPoints = <T extends StrategicTypeTimelinePoint>(points: T[]): T[] => {
+        const sliceCount = Math.min(months, points.length);
+        return points.slice(-sliceCount);
+      };
+
+      const trimmedTotals = trimPoints(typeTimelines.totalsByMonth);
+      const trimmedTypes = typeTimelines.types.map((series) => {
+        const trimmedPoints = trimPoints(series.points);
+        const total = trimmedPoints.reduce((sum, point) => sum + point.count, 0);
+        return {
+          ...series,
+          points: trimmedPoints,
+          total,
+        };
+      });
+
+      return HttpResponse.json({
+        ...typeTimelines,
+        range: { ...typeTimelines.range, months },
+        totalsByMonth: trimmedTotals,
+        types: trimmedTypes,
+      });
+    }),
     http.get('*/api/strategic/trends/types', () => HttpResponse.json(typeTimelines)),
     http.get('*/api/strategic/hotspots', ({ request }) => {
       onHotspotsRequest?.(request.url);

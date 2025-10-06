@@ -3,7 +3,7 @@ import StrategicMonthlyTrendCard from '@/components/strategic/StrategicMonthlyTr
 import StrategicPriorityScoreCard from '@/components/strategic/StrategicPriorityScoreCard';
 import StrategicQuarterlySummary from '@/components/strategic/StrategicQuarterlySummary';
 import StrategicResponseMetricsCard from '@/components/strategic/StrategicResponseMetricsCard';
-import StrategicTypeTimelinePanel from '@/components/strategic/StrategicTypeTimelinePanel';
+import StrategicTypeTrendExplorer from '@/components/strategic/StrategicTypeTrendExplorer';
 import { useStrategicHotspots } from '@/hooks/useStrategicHotspots';
 import { useStrategicMonthlyTrends } from '@/hooks/useStrategicMonthlyTrends';
 import { useStrategicQuarterlyTrends } from '@/hooks/useStrategicQuarterlyTrends';
@@ -92,7 +92,7 @@ const StrategicLayout = () => {
           </p>
         </div>
         <div className="strategic-grid strategic-grid--wide">
-          <StrategicTypeTimelinePanel state={timelines} />
+          <StrategicTypeTrendExplorer state={timelines} />
           <StrategicHotspotSummary state={hotspots} />
         </div>
       </section>

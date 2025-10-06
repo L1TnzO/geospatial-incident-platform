@@ -14,21 +14,33 @@ import { useStrategicResponseMetrics } from './useStrategicResponseMetrics';
 import { useStrategicPriorityScores } from './useStrategicPriorityScores';
 import { useStrategicTypeTimelines } from './useStrategicTypeTimelines';
 
-vi.mock('./useStrategicFilters', () => {
-  const filters = {
-    typeCodes: ['FIRE_STRUCTURE'],
-    severityCodes: undefined,
-    statusCodes: undefined,
-    startDate: undefined,
-    endDate: undefined,
-    incidentNumber: undefined,
-    isActive: true,
-  } as const;
+const filtersState = {
+  typeCodes: ['FIRE_STRUCTURE'] as string[] | undefined,
+  severityCodes: undefined as string[] | undefined,
+  statusCodes: undefined as string[] | undefined,
+  startDate: undefined as string | undefined,
+  endDate: undefined as string | undefined,
+  incidentNumber: undefined as string | undefined,
+  isActive: true,
+};
 
+const setFiltersMock = vi.fn((partial: { typeCodes?: string[] | undefined }) => {
+  if (Object.prototype.hasOwnProperty.call(partial, 'typeCodes')) {
+    filtersState.typeCodes = partial.typeCodes;
+  }
+});
+
+vi.mock('./useStrategicFilters', () => {
   return {
-    useStrategicFilters: () => filters,
+    useStrategicFilters: () => filtersState,
   };
 });
+
+vi.mock('./useIncidentTableData', () => ({
+  useIncidentTableData: () => ({
+    setFilters: setFiltersMock,
+  }),
+}));
 
 const server = setupServer(...createStrategicHandlers());
 
@@ -39,6 +51,8 @@ describe('strategic analytics hooks', () => {
 
   afterEach(() => {
     server.resetHandlers();
+    filtersState.typeCodes = ['FIRE_STRUCTURE'];
+    setFiltersMock.mockClear();
     vi.useRealTimers();
   });
 
@@ -158,11 +172,78 @@ describe('strategic analytics hooks', () => {
     expect(requestedMonths).toHaveLength(requestCountAfterSix);
   });
 
-  it('loads type timelines data', async () => {
-    const { result } = renderHook(() => useStrategicTypeTimelines());
+  it('loads type timeline explorer data and surfaces computed metrics', async () => {
+    filtersState.typeCodes = ['FIRE_STRUCTURE'];
+
+    const { result } = renderHook(() => useStrategicTypeTimelines({ autoRefreshMs: null }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.types[0]?.type.code).toBe('FIRE_STRUCTURE');
+
+    expect(result.current.availableTypes.map((type) => type.code)).toEqual([
+      'FIRE_STRUCTURE',
+      'RESCUE',
+    ]);
+    expect(result.current.selectedTypeCode).toBe('FIRE_STRUCTURE');
+    expect(result.current.selectedTypeName).toBe('Structure Fire');
+    expect(result.current.availableWindows).toEqual([7, 14, 30]);
+    expect(result.current.movingAverageWindow).toBe(7);
+    expect(result.current.selectedSeries).toHaveLength(
+      defaultStrategicMocks.typeTimelines.types[0]?.points.length ?? 0
+    );
+    expect(result.current.summary.latestCount).toBe(
+      defaultStrategicMocks.typeTimelines.types[0]?.points.at(-1)?.count ?? null
+    );
+  });
+
+  it('updates filters when selecting new types and caches moving-average calculations', async () => {
+    filtersState.typeCodes = undefined;
+    setFiltersMock.mockClear();
+
+    let typeRequestCount = 0;
+    server.use(
+      http.get('*/api/strategic/trends/types', () => {
+        typeRequestCount += 1;
+        return HttpResponse.json(defaultStrategicMocks.typeTimelines);
+      })
+    );
+
+    const { result } = renderHook(() => useStrategicTypeTimelines({ autoRefreshMs: null }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(typeRequestCount).toBe(1);
+    expect(result.current.selectedTypeCode).toBe('FIRE_STRUCTURE');
+
+    await act(async () => {
+      result.current.setSelectedTypeCode('RESCUE');
+    });
+
+    await waitFor(() => expect(result.current.selectedTypeCode).toBe('RESCUE'));
+    expect(setFiltersMock).toHaveBeenLastCalledWith({ typeCodes: ['RESCUE'] });
+    expect(result.current.selectedTypeName).toBe('Rescue');
+
+    await act(async () => {
+      result.current.setMovingAverageWindow(14);
+    });
+
+    expect(result.current.movingAverageWindow).toBe(14);
+    expect(typeRequestCount).toBe(1);
+
+    const requestCountBeforeRefresh = typeRequestCount;
+    await act(async () => {
+      result.current.refresh();
+    });
+    await waitFor(() => expect(typeRequestCount).toBe(requestCountBeforeRefresh + 1));
+
+    await act(async () => {
+      result.current.setSelectedTypeCode(null);
+    });
+
+    await waitFor(() => expect(result.current.selectedTypeCode).toBeNull());
+    expect(setFiltersMock).toHaveBeenLastCalledWith({ typeCodes: undefined });
+    expect(result.current.selectedTypeName).toMatch(/all incident types/i);
+    expect(result.current.selectedSeries).toHaveLength(
+      defaultStrategicMocks.typeTimelines.totalsByMonth.length
+    );
   });
 
   it('includes resolution query param for hotspots hook', async () => {
