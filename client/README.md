@@ -39,6 +39,7 @@ npm run test:e2e:headed # Run Playwright E2E suite in headed mode
 - Incidents table data hook (`src/hooks/useIncidentTableData.ts`) and service (`src/services/incidentsTableService.ts`) that mirror the backend cursor helpers for filterable pagination
 - Incident detail modal (`src/components/IncidentDetailModal.tsx`) backed by `useIncidentDetailStore`, which prefetches `/api/incidents/{incidentNumber}` payloads, caches responses per incident, persists the most recent 25 detail payloads to localStorage, and exposes retry/loading/error states shared between the map and table entry points
 - Dashboard analytics surface (`src/layouts/DashboardLayout.tsx`) with the **Incidents (Last 24h)** KPI card (trend arrow, signed delta, percentage change, in-card refresh), incidents-by-type bar chart featuring count/percentage toggle + tooltips, severity mix donut chart keyed to backend colour swatches, daily trend line chart with highlighted 7-day window, and a recent incidents panel that renders severity badges, station metadata, and quick actions wired to recenter the map or open the incident detail modal. All widgets consume `/api/dashboard/*` hooks (`useDashboardLast24HoursKpi`, `useDashboardTypeDistribution`, `useDashboardSeverityDistribution`, `useDashboardDailyTrend`, `useDashboardRecentIncidents`, `useDashboardExport`) while sharing the same filter state as the incidents table and offering a filter-aware CSV export control with success/error banners
+- Strategic analytics foundation (`src/services/strategicAnalyticsService.ts` + hooks under `src/hooks/useStrategic*.ts`) that wires the new Phase 6 `/api/strategic/*` endpoints into reusable React hooks. The services mirror dashboard query-string helpers, accept shared filter context, expose manual/TTL-based refresh controls, and surface typed results (monthly and quarterly trends, incident type timelines, hotspot grids) for upcoming executive dashboards
 - Responsive layout styling via shared SCSS entrypoints (no utility framework for now)
 - Vitest + React Testing Library smoke test (`src/App.test.tsx`)
 
@@ -72,6 +73,7 @@ When introducing a new surface area, add a dedicated partial under `src/styles/`
 
 - [Map Experience Guide](../docs/frontend/map.md) — Interaction walkthrough, state/data flow, troubleshooting tips, and navigation hand-off to the dashboard.
 - [Dashboard Analytics Guide](../docs/frontend/dashboard.md) — Route layout, KPI card, incidents-by-type chart toggle, severity donut chart, daily trend line chart, and integration points for upcoming analytics work.
+- [Strategic Analytics Guide](../docs/frontend/strategic.md) — Service and hook contracts for the strategic trends/hotspots layer plus testing notes and future UI integration checkpoints.
 - [Incidents & Stations API Reference](../docs/api/incidents-and-stations.md) — REST payloads consumed by the map and supporting dashboards.
 - [Testing & Quality Gates](../docs/operations/testing.md) — Lint/unit/integration/E2E matrices (`npm run test:client:integration`, `npm run test:client:e2e -- dashboard`, backend analytics suites, Playwright setup).
 

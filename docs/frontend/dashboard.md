@@ -124,6 +124,7 @@ Remember to install Playwright browsers first (`npx playwright install`) and ens
 ## Related documents
 
 - [`docs/api/dashboard.md`](../api/dashboard.md) — Backend endpoint reference and CSV export contract.
+- [`docs/frontend/strategic.md`](./strategic.md) — Strategic analytics services/hooks that extend the dashboard dataset into long-range trend and hotspot surfaces.
 - [`docs/frontend/map.md`](../frontend/map.md) — Map/table experience that shares filters, highlighting, and incident detail workflows.
 - [`docs/operations/testing.md`](../operations/testing.md) — Full testing matrix (backend analytics suites, Playwright setup, troubleshooting).
 - [`client/README.md`](../../client/README.md) — Contributor setup, scripts, and troubleshooting tips for the frontend stack.
