@@ -17,6 +17,7 @@ export interface StrategicQueryState<T> {
   error: string | null;
   lastUpdated: string | null;
   refresh: () => void;
+  cancel: () => void;
   isIdle: boolean;
   isLoading: boolean;
   isSuccess: boolean;
@@ -90,9 +91,27 @@ export const useStrategicQuery = <T>(
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastAppliedRefreshRef = useRef(0);
+  const dataRef = useRef<T | null>(null);
 
   const refresh = useCallback(() => {
     setRefreshCounter((previous) => previous + 1);
+  }, []);
+
+  const cancel = useCallback(() => {
+    const controller = abortControllerRef.current;
+    if (!controller) {
+      return;
+    }
+
+    controller.abort();
+    abortControllerRef.current = null;
+    setError(null);
+    setStatus((current) => {
+      if (current === 'success') {
+        return current;
+      }
+      return dataRef.current ? 'success' : 'idle';
+    });
   }, []);
 
   useEffect(() => {
@@ -119,6 +138,7 @@ export const useStrategicQuery = <T>(
         }
 
         setData(response);
+        dataRef.current = response;
         setStatus('success');
         setLastUpdated(new Date().toISOString());
       } catch (caught) {
@@ -127,6 +147,7 @@ export const useStrategicQuery = <T>(
         }
 
         setData(null);
+        dataRef.current = null;
         setStatus('error');
         setError(caught instanceof Error ? caught.message : errorMessage);
       } finally {
@@ -167,6 +188,7 @@ export const useStrategicQuery = <T>(
     error,
     lastUpdated,
     refresh,
+    cancel,
     isIdle: status === 'idle',
     isLoading: status === 'loading',
     isSuccess: status === 'success',

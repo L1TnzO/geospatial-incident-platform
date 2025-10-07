@@ -699,7 +699,8 @@ const configureApiRoutes = async (
   incidentsRequests: string[],
   exportRequests?: string[],
   strategicMonthlyRequests?: string[],
-  strategicQuarterlyRequests?: string[]
+  strategicQuarterlyRequests?: string[],
+  strategicHotspotRequests?: string[]
 ) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
@@ -796,13 +797,14 @@ const configureApiRoutes = async (
     })
   );
 
-  await page.route('**/api/strategic/hotspots**', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/strategic/hotspots**', (route: Route) => {
+    strategicHotspotRequests?.push(route.request().url());
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(STRATEGIC_HOTSPOTS),
-    })
-  );
+    });
+  });
 
   await page.route('**/api/strategic/response-metrics**', (route: Route) =>
     route.fulfill({
@@ -1079,12 +1081,14 @@ test('strategic analytics screen renders trend, composition, and refresh control
   const incidentsRequests: string[] = [];
   const strategicMonthlyRequests: string[] = [];
   const strategicQuarterlyRequests: string[] = [];
+  const strategicHotspotRequests: string[] = [];
   await configureApiRoutes(
     page,
     incidentsRequests,
     undefined,
     strategicMonthlyRequests,
-    strategicQuarterlyRequests
+    strategicQuarterlyRequests,
+    strategicHotspotRequests
   );
 
   await page.goto('/strategic');
@@ -1110,6 +1114,26 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await expect(page.getByRole('article', { name: /hotspot heatmap preview/i })).toContainText(
     /120 incidents/i
   );
+  const hotspotOverlay = page.getByRole('article', { name: 'Hotspot heatmap', exact: true });
+  await expect(hotspotOverlay).toBeVisible();
+  const resolutionSelect = hotspotOverlay.getByLabel('Resolution');
+  const initialHotspotRequests = strategicHotspotRequests.length;
+  await resolutionSelect.selectOption('8');
+  await expect(resolutionSelect).toHaveValue('8');
+  await expect.poll(() => strategicHotspotRequests.length).toBe(initialHotspotRequests + 1);
+  expect(strategicHotspotRequests.at(-1)).toContain('resolution=8');
+
+  const intensitySlider = hotspotOverlay.getByLabel('Intensity scaling');
+  await intensitySlider.focus();
+  await intensitySlider.press('ArrowRight');
+  await intensitySlider.press('Tab');
+  await expect(hotspotOverlay.locator('.strategic-hotspot-overlay__control-value')).toBeVisible();
+
+  const overlayRefresh = hotspotOverlay.getByRole('button', { name: /refresh layer/i });
+  const requestsAfterResolution = strategicHotspotRequests.length;
+  await overlayRefresh.click();
+  await expect.poll(() => strategicHotspotRequests.length).toBe(requestsAfterResolution + 1);
+  expect(strategicHotspotRequests.at(-1)).toContain('refresh=true');
   await expect(page.getByRole('article', { name: /response readiness snapshot/i })).toContainText(
     /260s/i
   );
@@ -1175,7 +1199,10 @@ test('strategic analytics screen renders trend, composition, and refresh control
     .toBeTruthy();
 
   const refreshAll = page.getByRole('button', { name: /refresh all/i });
+  const requestsBeforeRefreshAll = strategicHotspotRequests.length;
   await refreshAll.click();
+  await expect.poll(() => strategicHotspotRequests.length).toBe(requestsBeforeRefreshAll + 1);
+  expect(strategicHotspotRequests.at(-1)).toContain('refresh=true');
 
   await expect(refreshAll).toBeEnabled();
   await expect(page.getByText(/last updated/i)).toBeVisible();

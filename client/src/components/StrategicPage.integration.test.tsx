@@ -9,6 +9,7 @@ const createSuccessState = <T,>(data: T) => ({
   error: null,
   lastUpdated: '2025-01-11T12:05:00Z',
   refresh: vi.fn(),
+  cancel: vi.fn(),
   isIdle: false,
   isLoading: false,
   isSuccess: true,
@@ -152,6 +153,14 @@ describe('Strategic analytics integration', () => {
       defaultStrategicMocks.hotspots.cells[0]?.incidentCount.toString() ?? ''
     );
 
+    const overlayCard = screen.getByRole('article', { name: /^hotspot heatmap$/i });
+    const resolutionSelect = within(overlayCard).getByLabelText('Resolution');
+    expect(resolutionSelect).toHaveValue(
+      String(defaultStrategicMocks.hotspots.metadata.resolution)
+    );
+    fireEvent.change(resolutionSelect, { target: { value: '8' } });
+    expect(resolutionSelect).toHaveValue('8');
+
     const responseCard = screen.getByRole('article', { name: /response readiness snapshot/i });
     expect(responseCard).toHaveTextContent('Station 101');
     expect(responseCard).toHaveTextContent('260s');
@@ -161,13 +170,16 @@ describe('Strategic analytics integration', () => {
 
     const refreshAll = screen.getByRole('button', { name: /refresh all/i });
     fireEvent.click(refreshAll);
-
     expect(monthlyState.refresh).toHaveBeenCalled();
     expect(quarterlyState.refresh).toHaveBeenCalled();
     expect(typeTimelineState.refresh).toHaveBeenCalled();
-    expect(hotspotState.refresh).toHaveBeenCalled();
+    expect(hotspotState.refresh).toHaveBeenCalledTimes(1);
     expect(responseMetricsState.refresh).toHaveBeenCalled();
     expect(priorityScoresState.refresh).toHaveBeenCalled();
+
+    const overlayRefresh = within(overlayCard).getByRole('button', { name: /refresh layer/i });
+    fireEvent.click(overlayRefresh);
+    expect(hotspotState.refresh).toHaveBeenCalledTimes(2);
 
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
 

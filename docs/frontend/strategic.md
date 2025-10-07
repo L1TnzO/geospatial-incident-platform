@@ -7,7 +7,7 @@ Phase 6 introduces executive-facing analytics that span months and quarters of
 - **Entry point:** `client/src/pages/StrategicPage.tsx` renders `StrategicLayout` inside the global shell.
 - **Layout shell:** `client/src/layouts/StrategicLayout.tsx` arranges four sections:
   1. **Trend intelligence** — A month-over-month trend chart with 6/12/24-month selectors, CSV/PNG export buttons, and a grouped quarter-over-quarter comparison chart with timeframe toggles, delta annotations, and CSV/PNG exports.
-  2. **Composition & concentration** — The interactive type trend explorer with moving-average windows plus hotspot summaries (Leaflet overlay TBD).
+  2. **Composition & concentration** — The interactive type trend explorer with moving-average windows, the hotspot heatmap overlay card (Leaflet layer with resolution/intensity controls, refresh/cancel actions, and legend), plus the supporting hotspot summary metrics card.
   3. **Response & readiness** — Response metrics and priority scoring cards that surface the new backend analytics.
   4. **Upcoming panels** — Placeholder cards describing planned executive widgets.
 - **Navigation:** The global header now exposes a **Strategic** tab (`/strategic`) alongside Overview and Dashboard; active states are handled via `NavLink` for accessibility.
@@ -37,7 +37,7 @@ All hooks live under `client/src/hooks` and share a common contract via `useStra
 | `useStrategicMonthlyTrends({ months?, filters?, autoRefreshMs?, availableTimeframes? })`                                           | `StrategicMonthlyTrendsState`                           | Tracks a cache per timeframe (6/12/24 months by default), exposes `timeframe`, `setTimeframe`, exports, and refresh helpers.                         |
 | `useStrategicQuarterlyTrends({ quarters?, filters?, autoRefreshMs?, availableTimeframes? })`                                       | `StrategicQuarterlyTrendsState`                         | Tracks cached quarter windows (4/8 quarters by default), exposes `timeframe`, `setTimeframe`, exports, and refresh helpers for the comparison chart. |
 | `useStrategicTypeTimelines({ months?, filters?, autoRefreshMs?, availableWindows?, defaultTypeCode?, defaultMovingAverageDays? })` | `StrategicTypeTimelinesState`                           | Tracks type metadata, selected type, moving-average window selections, caches trend calculations per type/window, and synchronizes shared filters.   |
-| `useStrategicHotspots({ resolution?, filters?, autoRefreshMs? })`                                                                  | `StrategicQueryState<StrategicHotspotResponse>`         | Outputs gridded heatmap metadata + cells suitable for Leaflet overlays.                                                                              |
+| `useStrategicHotspots({ resolution?, filters?, autoRefreshMs? })`                                                                  | `StrategicQueryState<StrategicHotspotResponse>`         | Outputs gridded heatmap metadata + cells suitable for Leaflet overlays, exposing `refresh()` and `cancel()` helpers for manual control.              |
 | `useStrategicResponseMetrics({ groupBy?, resolution?, autoRefreshMs? })`                                                           | `StrategicQueryState<StrategicResponseMetricsResponse>` | Benchmarks response times by station/grid with normalization, percentile ranks, and sample caps.                                                     |
 | `useStrategicPriorityScores({ groupBy?, resolution?, decayHalfLifeDays?, autoRefreshMs? })`                                        | `StrategicQueryState<StrategicPriorityScoreResponse>`   | Surfaces severity-weighted demand signals for station or grid overlays, with optional time decay.                                                    |
 
@@ -92,6 +92,16 @@ type StrategicTypeTimelinesState = {
 } & StrategicQueryState<StrategicTypeTimelineResponse>;
 ```
 
+### Hotspot overlay component
+
+- **Location:** `client/src/components/strategic/StrategicHotspotOverlayCard.tsx`
+- **Behaviour:**
+  - Renders a Leaflet `MapContainer` with the strategic hotspot grid as a choropleth overlay (`StrategicHotspotLayer`).
+  - Provides resolution dropdown (kept in sync with backend metadata) and intensity scaling slider (0.5×–3× exponent) with accessible labels.
+  - Exposes refresh & cancel buttons wired to `useStrategicHotspots` so long-running requests can be aborted.
+  - Shows a responsive legend/metadata footer and guards empty/error states with actionable messaging.
+- **Styling:** SCSS lives in `client/src/styles/strategic/_hotspot-overlay.scss` and is bundled via `strategic.scss`.
+
 ### Shared filters
 
 `useStrategicQuery` delegates to `useStrategicFilters`, which currently aliases `useDashboardFilters`. This keeps strategic analytics in sync with the incidents table and existing dashboard filters. If strategic surfaces require bespoke filters later, swap the implementation inside `useStrategicFilters` without touching the hooks or services.
@@ -100,9 +110,9 @@ type StrategicTypeTimelinesState = {
 
 - **Service tests:** `client/src/services/strategicAnalyticsService.test.ts` mock `fetch` to verify query-string construction, refresh semantics, and error propagation.
 - **Hook tests:** `client/src/hooks/useStrategicAnalytics.test.tsx` use MSW to cover loading, manual refresh flows, TTL auto-refresh, error handling, hotspot query params, and the response-metric/priority-score/type-timeline hooks.
-- **Component tests:** `client/src/components/strategic/StrategicQuarterComparisonChart.test.tsx` validate grouped bar rendering, timeframe toggles, CSV exports, and error/loading states; `client/src/components/strategic/StrategicTypeTrendExplorer.test.tsx` assert dropdown behaviour, moving-average window toggles, refresh callback wiring, and empty-state rendering.
+- **Component tests:** `client/src/components/strategic/StrategicQuarterComparisonChart.test.tsx` validate grouped bar rendering, timeframe toggles, CSV exports, and error/loading states; `client/src/components/strategic/StrategicTypeTrendExplorer.test.tsx` assert dropdown behaviour, moving-average window toggles, refresh callback wiring, and empty-state rendering; `client/src/components/strategic/StrategicHotspotOverlayCard.test.tsx` covers overlay rendering, resolution/intensity controls, refresh/cancel flows, and error/empty states.
 - **Page integration test:** `client/src/components/StrategicPage.integration.test.tsx` mounts `StrategicPage` with MSW handlers to assert rendering, timeframe toggles (monthly + quarterly), type explorer filter propagation, refresh actions, and timestamp wiring.
-- **Playwright coverage:** `client/tests/e2e/dashboard.spec.ts` includes a strategic scenario that hits `/strategic`, verifies the monthly and quarterly timeframe controls (including cached re-selection and export affordances), interacts with the type trend explorer (type selection + moving average), and confirms navigation/refresh flows.
+- **Playwright coverage:** `client/tests/e2e/dashboard.spec.ts` includes a strategic scenario that hits `/strategic`, verifies the monthly and quarterly timeframe controls (including cached re-selection and export affordances), interacts with the hotspot overlay (resolution/intensity/refresh controls), exercises the type trend explorer (type selection + moving average), and confirms navigation/refresh flows.
 
 Run the suite with:
 

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import StrategicHotspotOverlayCard from '@/components/strategic/StrategicHotspotOverlayCard';
 import StrategicHotspotSummary from '@/components/strategic/StrategicHotspotSummary';
 import StrategicMonthlyTrendCard from '@/components/strategic/StrategicMonthlyTrendCard';
 import StrategicPriorityScoreCard from '@/components/strategic/StrategicPriorityScoreCard';
@@ -11,7 +13,14 @@ import { useStrategicPriorityScores } from '@/hooks/useStrategicPriorityScores';
 import { useStrategicResponseMetrics } from '@/hooks/useStrategicResponseMetrics';
 import { useStrategicTypeTimelines } from '@/hooks/useStrategicTypeTimelines';
 
+const DEFAULT_HOTSPOT_RESOLUTION = 4;
+const DEFAULT_INTENSITY_SCALE = 1.5;
+
 const StrategicLayout = () => {
+  const [hotspotResolution, setHotspotResolution] = useState<number>(DEFAULT_HOTSPOT_RESOLUTION);
+  const [intensityScale, setIntensityScale] = useState<number>(DEFAULT_INTENSITY_SCALE);
+  const [userChangedResolution, setUserChangedResolution] = useState<boolean>(false);
+
   const monthly = useStrategicMonthlyTrends({ months: 12, autoRefreshMs: 5 * 60 * 1000 });
   const quarterly = useStrategicQuarterlyTrends({
     quarters: 8,
@@ -19,7 +28,10 @@ const StrategicLayout = () => {
     autoRefreshMs: 5 * 60 * 1000,
   });
   const timelines = useStrategicTypeTimelines({ months: 12, autoRefreshMs: 5 * 60 * 1000 });
-  const hotspots = useStrategicHotspots({ resolution: 4, autoRefreshMs: 5 * 60 * 1000 });
+  const hotspots = useStrategicHotspots({
+    resolution: hotspotResolution,
+    autoRefreshMs: 5 * 60 * 1000,
+  });
   const responseMetrics = useStrategicResponseMetrics({
     groupBy: 'station',
     autoRefreshMs: 5 * 60 * 1000,
@@ -37,6 +49,23 @@ const StrategicLayout = () => {
     hotspots.refresh();
     responseMetrics.refresh();
     priorityScores.refresh();
+  };
+
+  useEffect(() => {
+    if (!hotspots.data?.metadata.resolution || userChangedResolution) {
+      return;
+    }
+
+    setHotspotResolution(hotspots.data.metadata.resolution);
+  }, [hotspots.data?.metadata.resolution, userChangedResolution]);
+
+  const handleResolutionChange = (value: number) => {
+    setUserChangedResolution(true);
+    setHotspotResolution(value);
+  };
+
+  const handleIntensityScaleChange = (value: number) => {
+    setIntensityScale(value);
   };
 
   const lastUpdatedCandidates = [
@@ -95,7 +124,14 @@ const StrategicLayout = () => {
             map overlays.
           </p>
         </div>
-        <div className="strategic-grid strategic-grid--wide">
+        <div className="strategic-grid strategic-grid--wide strategic-grid--hotspot">
+          <StrategicHotspotOverlayCard
+            state={hotspots}
+            resolution={hotspotResolution}
+            onResolutionChange={handleResolutionChange}
+            intensityScale={intensityScale}
+            onIntensityScaleChange={handleIntensityScaleChange}
+          />
           <StrategicTypeTrendExplorer state={timelines} />
           <StrategicHotspotSummary state={hotspots} />
         </div>
