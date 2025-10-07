@@ -215,5 +215,6 @@ Phase 6 strategic analytics endpoints deliver longer-range trends for executiv
 - `GET /api/strategic/trends/monthly` — Month-over-month incident counts with year-over-year comparisons and rolling-period totals. Accepts `months` (3–36) and shared incident filters.
 - `GET /api/strategic/trends/quarters` — Quarter-over-quarter trendlines plus prior-year deltas. Accepts `quarters` (2–12) and shared incident filters.
 - `GET /api/strategic/trends/types` — Incident timelines grouped by type, covering up to 24 months with optional filters.
+- `GET /api/strategic/coverage-buffers` — Station coverage polygons buffered by per-station radius (or a uniform override) with incident counts, centroid metadata, and shared filter support.
 
 All responses include ISO8601 period windows, growth deltas, and percentage changes where historical data exists. Inputs reuse the incident filter vocabulary (`typeCodes`, `severityCodes`, `statusCodes`, `startDate`, `endDate`, `isActive`, `incidentNumber`). Invalid windows return `400 BAD_REQUEST`. Results are cached in-memory for five minutes and automatically recomputed when outside the cached TTL or when filter parameters change.

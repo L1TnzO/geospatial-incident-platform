@@ -1,4 +1,10 @@
-import { incidentRepository, type GeoJsonPolygon, type IncidentLookupValue } from '../db';
+import {
+  incidentRepository,
+  type GeoJsonPolygon,
+  type IncidentLookupValue,
+  type StationCoverageBuffer,
+} from '../db';
+import type { Feature, Polygon } from 'geojson';
 import { incidentService, type IncidentFilterOptions } from './incidentsService';
 import { HttpError } from '../errors/httpError';
 
@@ -38,6 +44,9 @@ const HOTSPOT_CELL_SIZE_BY_RESOLUTION: Record<number, number> = {
 
 const RESPONSE_SAMPLE_THRESHOLD = 3;
 const NORMALIZATION_DECIMALS = 4;
+const COVERAGE_DEFAULT_RADIUS_METERS = 5000;
+const COVERAGE_MIN_RADIUS_METERS = 100;
+const COVERAGE_MAX_RADIUS_METERS = 50000;
 
 export type StrategicGroupBy = 'station' | 'grid';
 
@@ -136,6 +145,32 @@ export interface TypeTimelineResponse {
     count: number;
   }>;
   types: TypeTimelineSeries[];
+}
+
+export interface CoverageBufferFeatureProperties {
+  stationCode: string;
+  stationName: string;
+  isActive: boolean;
+  radiusMeters: number;
+  incidentCount: number;
+  centroid: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export type CoverageBufferFeature = Feature<Polygon, CoverageBufferFeatureProperties>;
+
+export interface CoverageBufferResponse {
+  type: 'FeatureCollection';
+  features: CoverageBufferFeature[];
+  metadata: {
+    generatedAt: string;
+    stationCount: number;
+    filtersSummary: string;
+    radiusOverrideMeters: number | null;
+    defaultRadiusMeters: number;
+  };
 }
 
 export interface HotspotCell {
@@ -291,6 +326,32 @@ const clampPercentage = (value: number): number => {
   return rounded;
 };
 
+const formatFilterSummary = (filters: IncidentFilterOptions): string => {
+  const segments: string[] = [];
+  if (filters.incidentNumber) {
+    segments.push(`incidentNumber=${filters.incidentNumber}`);
+  }
+  if (filters.typeCodes?.length) {
+    segments.push(`typeCodes=${filters.typeCodes.join('|')}`);
+  }
+  if (filters.severityCodes?.length) {
+    segments.push(`severityCodes=${filters.severityCodes.join('|')}`);
+  }
+  if (filters.statusCodes?.length) {
+    segments.push(`statusCodes=${filters.statusCodes.join('|')}`);
+  }
+  if (typeof filters.isActive === 'boolean') {
+    segments.push(`isActive=${filters.isActive}`);
+  }
+  if (filters.startDate) {
+    segments.push(`startDate=${filters.startDate}`);
+  }
+  if (filters.endDate) {
+    segments.push(`endDate=${filters.endDate}`);
+  }
+  return segments.length ? segments.join('; ') : 'none';
+};
+
 const startOfMonth = (date: Date): Date =>
   new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0));
 
@@ -385,6 +446,53 @@ const parseResolutionParam = (value: QueryValue): number => {
     throw HttpError.badRequest('Resolution not supported for hotspot grid.');
   }
 
+  return parsed;
+};
+
+const parseOptionalBooleanParam = (value: QueryValue, field: string): boolean | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw === '') {
+    return undefined;
+  }
+
+  const normalized = String(raw).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  throw HttpError.badRequest(`Query parameter '${field}' must be a boolean value.`);
+};
+
+const parseOptionalNumberParam = (
+  value: QueryValue,
+  field: string,
+  bounds: { min: number; max: number }
+): number | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw === '') {
+    return undefined;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    throw HttpError.badRequest(`Query parameter '${field}' must be a numeric value.`);
+  }
+  if (parsed < bounds.min) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' must be greater than or equal to ${bounds.min}.`
+    );
+  }
+  if (parsed > bounds.max) {
+    throw HttpError.badRequest(`Query parameter '${field}' cannot exceed ${bounds.max}.`);
+  }
   return parsed;
 };
 
@@ -936,6 +1044,71 @@ export class StrategicAnalyticsService {
           return b.total - a.total;
         }),
       } satisfies TypeTimelineResponse;
+    });
+  }
+
+  public async getCoverageBuffers(
+    query: Record<string, QueryValue>,
+    now: Date = new Date()
+  ): Promise<CoverageBufferResponse> {
+    const filters = this.getFilters(query);
+    const radiusOverride = parseOptionalNumberParam(query.radiusMeters, 'radiusMeters', {
+      min: COVERAGE_MIN_RADIUS_METERS,
+      max: COVERAGE_MAX_RADIUS_METERS,
+    });
+    const stationIsActive = parseOptionalBooleanParam(query.stationIsActive, 'stationIsActive');
+    const refresh = parseOptionalBooleanParam(query.refresh, 'refresh') ?? false;
+
+    const cacheKey = buildCacheKey('strategic:coverage-buffers', filters, {
+      radiusOverride: radiusOverride ?? null,
+      stationIsActive: stationIsActive ?? null,
+    });
+
+    if (refresh) {
+      this.cache.delete(cacheKey);
+    }
+
+    return this.withCache(cacheKey, async () => {
+      const buffers: StationCoverageBuffer[] = await this.repository.getStationCoverageBuffers(
+        filters,
+        {
+          radiusOverride: radiusOverride ?? undefined,
+          stationIsActive,
+        }
+      );
+
+      const generatedAt = now.toISOString();
+      const features: CoverageBufferFeature[] = buffers.map((buffer) => {
+        const coordinates = buffer.location.geometry?.coordinates ?? [0, 0];
+        const [longitude, latitude] = coordinates;
+        return {
+          type: 'Feature',
+          geometry: buffer.coverage.geometry,
+          properties: {
+            stationCode: buffer.stationCode,
+            stationName: buffer.stationName,
+            isActive: buffer.isActive,
+            radiusMeters: buffer.radiusMeters,
+            incidentCount: buffer.incidentCount,
+            centroid: {
+              latitude: Number(latitude),
+              longitude: Number(longitude),
+            },
+          },
+        } satisfies CoverageBufferFeature;
+      });
+
+      return {
+        type: 'FeatureCollection',
+        features,
+        metadata: {
+          generatedAt,
+          stationCount: features.length,
+          filtersSummary: formatFilterSummary(filters),
+          radiusOverrideMeters: radiusOverride ?? null,
+          defaultRadiusMeters: COVERAGE_DEFAULT_RADIUS_METERS,
+        },
+      } satisfies CoverageBufferResponse;
     });
   }
 

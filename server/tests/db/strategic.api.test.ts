@@ -166,6 +166,71 @@ describe('Strategic Analytics API', () => {
     }
   });
 
+  test('returns station coverage buffers with metadata', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app).get('/api/strategic/coverage-buffers');
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      type: string;
+      features: Array<{
+        geometry: { type: string };
+        properties: { stationCode: string; radiusMeters: number; incidentCount: number };
+      }>;
+      metadata: {
+        stationCount: number;
+        generatedAt: string;
+        filtersSummary: string;
+        defaultRadiusMeters: number;
+      };
+    };
+
+    expect(body.type).toBe('FeatureCollection');
+    expect(body.features.length).toBeGreaterThan(0);
+    const feature = body.features[0];
+    expect(feature.geometry.type).toBe('Polygon');
+    expect(feature.properties.stationCode).toMatch(/^TEST_TASK_6_1_.*STATION_/);
+    expect(feature.properties.radiusMeters).toBeGreaterThan(0);
+    expect(feature.properties.incidentCount).toBeGreaterThan(0);
+    expect(body.metadata.stationCount).toBe(body.features.length);
+    expect(typeof body.metadata.generatedAt).toBe('string');
+    expect(body.metadata.defaultRadiusMeters).toBeGreaterThan(0);
+  });
+
+  test('supports radius override and refresh for coverage buffers', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/strategic/coverage-buffers')
+      .query({ radiusMeters: 1500, refresh: true });
+
+    expect(response.status).toBe(200);
+    const body = response.body as {
+      features: Array<{ properties: { radiusMeters: number } }>;
+      metadata: { radiusOverrideMeters: number | null };
+    };
+
+    expect(body.metadata.radiusOverrideMeters).toBe(1500);
+    expect(body.features[0]?.properties.radiusMeters).toBe(1500);
+  });
+
+  test('rejects invalid coverage radius', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/strategic/coverage-buffers')
+      .query({ radiusMeters: 10 });
+
+    expect(response.status).toBe(400);
+  });
+
   test('rejects invalid months parameter', async () => {
     if (!requireDb()) {
       return;
@@ -253,7 +318,7 @@ describe('Strategic Analytics API', () => {
     const stationGroup = body.groups.find((group) => group.groupType === 'station');
     expect(stationGroup).toBeDefined();
     if (stationGroup) {
-      expect(stationGroup.station?.code).toMatch(/^TEST_TASK_6_1_STATION_/);
+      expect(stationGroup.station?.code).toMatch(/^TEST_TASK_6_1_.*STATION_/);
       expect(stationGroup.sampleSize).toBeGreaterThan(0);
       expect(stationGroup.normalizedAverage).toBeGreaterThanOrEqual(0);
       expect(stationGroup.normalizedAverage).toBeLessThanOrEqual(1);
@@ -287,7 +352,7 @@ describe('Strategic Analytics API', () => {
     const stationGroup = body.groups.find((group) => group.groupType === 'station');
     expect(stationGroup).toBeDefined();
     if (stationGroup) {
-      expect(stationGroup.station?.code).toMatch(/^TEST_TASK_6_1_STATION_/);
+      expect(stationGroup.station?.code).toMatch(/^TEST_TASK_6_1_.*STATION_/);
       expect(stationGroup.weightSum).toBeGreaterThan(0);
       expect(stationGroup.normalizedScore).toBeGreaterThanOrEqual(0);
       expect(stationGroup.normalizedScore).toBeLessThanOrEqual(1);

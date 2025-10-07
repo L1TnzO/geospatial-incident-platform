@@ -5,7 +5,7 @@ import {
   type PriorityScoreStationGroup,
 } from '../../src/services/strategicService';
 import type { IncidentFilterOptions } from '../../src/services/incidentsService';
-import type { IncidentLookupValue } from '../../src/db';
+import type { IncidentLookupValue, StationCoverageBuffer } from '../../src/db';
 import { HttpError } from '../../src/errors/httpError';
 
 const createService = (
@@ -17,6 +17,7 @@ const createService = (
       getIncidentHotspotAggregates: jest.Mock;
       getResponseTimeMetrics: jest.Mock;
       getPriorityScores: jest.Mock;
+      getStationCoverageBuffers: jest.Mock;
     }>;
     incidentSvc?: Partial<{
       buildFilterOptions: jest.Mock;
@@ -31,6 +32,7 @@ const createService = (
     getIncidentHotspotAggregates: jest.fn().mockResolvedValue([]),
     getResponseTimeMetrics: jest.fn().mockResolvedValue([]),
     getPriorityScores: jest.fn().mockResolvedValue([]),
+    getStationCoverageBuffers: jest.fn().mockResolvedValue([]),
     ...(overrides.repository ?? {}),
   };
 
@@ -129,6 +131,110 @@ describe('StrategicAnalyticsService', () => {
     expect(result.types[0]?.points.length).toBe(3);
   });
 
+  it('normalizes coverage buffers and caches results', async () => {
+    const coverage: StationCoverageBuffer[] = [
+      {
+        stationCode: 'STN-001',
+        stationName: 'Station 1',
+        isActive: true,
+        radiusMeters: 5000,
+        incidentCount: 12,
+        location: {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-122.4, 37.8] },
+          properties: {},
+        },
+        coverage: {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-122.41, 37.77],
+                [-122.39, 37.77],
+                [-122.39, 37.79],
+                [-122.41, 37.79],
+                [-122.41, 37.77],
+              ],
+            ],
+          },
+          properties: {},
+        },
+      },
+    ];
+
+    const getStationCoverageBuffers = jest.fn().mockResolvedValue(coverage);
+    const { service, repository } = createService({
+      repository: {
+        getStationCoverageBuffers,
+      },
+    });
+
+    const first = await service.getCoverageBuffers({});
+    expect(first.type).toBe('FeatureCollection');
+    expect(first.features).toHaveLength(1);
+    expect(first.features[0]?.properties.stationCode).toBe('STN-001');
+    expect(first.metadata.stationCount).toBe(1);
+    expect(repository.getStationCoverageBuffers).toHaveBeenCalledTimes(1);
+
+    const second = await service.getCoverageBuffers({});
+    expect(second.features).toHaveLength(1);
+    expect(repository.getStationCoverageBuffers).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies radius override and refresh flag for coverage buffers', async () => {
+    const coverage: StationCoverageBuffer[] = [
+      {
+        stationCode: 'STN-002',
+        stationName: 'Station 2',
+        isActive: false,
+        radiusMeters: 8000,
+        incidentCount: 8,
+        location: {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-122.3, 37.75] },
+          properties: {},
+        },
+        coverage: {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-122.31, 37.74],
+                [-122.29, 37.74],
+                [-122.29, 37.76],
+                [-122.31, 37.76],
+                [-122.31, 37.74],
+              ],
+            ],
+          },
+          properties: {},
+        },
+      },
+    ];
+
+    const getStationCoverageBuffers = jest.fn().mockResolvedValue(coverage);
+    const { service, repository } = createService({
+      repository: {
+        getStationCoverageBuffers,
+      },
+    });
+
+    const result = await service.getCoverageBuffers({
+      radiusMeters: '1500',
+      stationIsActive: 'false',
+      refresh: 'true',
+    });
+
+    expect(result.metadata.radiusOverrideMeters).toBe(1500);
+    expect(result.metadata.stationCount).toBe(1);
+    expect(repository.getStationCoverageBuffers).toHaveBeenCalledWith(expect.anything(), {
+      radiusOverride: 1500,
+      stationIsActive: false,
+    });
+  });
+
   it('normalizes hotspot intensity and defaults resolution', async () => {
     const { service, repository } = createService({
       repository: {
@@ -217,6 +323,15 @@ describe('StrategicAnalyticsService', () => {
     await expect(service.getHotspots({ resolution: '0' })).rejects.toThrow(HttpError);
     await expect(service.getHotspots({ resolution: '9' })).rejects.toThrow(HttpError);
     await expect(service.getHotspots({ resolution: 'abc' })).rejects.toThrow(HttpError);
+  });
+
+  it('validates coverage buffer radius bounds', async () => {
+    const { service } = createService();
+    await expect(service.getCoverageBuffers({ radiusMeters: '50' })).rejects.toThrow(HttpError);
+    await expect(service.getCoverageBuffers({ radiusMeters: '60000' })).rejects.toThrow(HttpError);
+    await expect(service.getCoverageBuffers({ radiusMeters: 'not-a-number' })).rejects.toThrow(
+      HttpError
+    );
   });
 
   it('computes response metrics normalization for station grouping', async () => {

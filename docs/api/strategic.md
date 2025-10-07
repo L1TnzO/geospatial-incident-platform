@@ -148,6 +148,67 @@ curl "http://localhost:3000/api/strategic/trends/types?months=18&severityCodes=C
 - Invalid or out-of-range `months`/`quarters` parameters respond with `400 BAD_REQUEST` and descriptive messages.
 - Caching is in-memory but packaged so the service can be swapped to Redis or another store without changing controllers.
 
+## `GET /api/strategic/coverage-buffers`
+
+Returns GeoJSON coverage polygons buffered around station locations using each station’s configured radius (meters) or an optional override.
+
+### Query parameters
+
+- `radiusMeters` _(optional, min `100`, max `50 000`)_ — Apply a uniform buffer radius to every station.
+- `stationIsActive` _(optional boolean)_ — Limit results to active/inactive stations.
+- `refresh` _(optional boolean)_ — Bypass the five-minute cache and recompute results.
+- Shared incident filters (optional). When provided, only stations with matching incidents are returned.
+
+### Response shape
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-122.41, 37.77],
+            [-122.39, 37.77],
+            [-122.39, 37.79],
+            [-122.41, 37.79],
+            [-122.41, 37.77]
+          ]
+        ]
+      },
+      "properties": {
+        "stationCode": "STN-001",
+        "stationName": "Station 1",
+        "isActive": true,
+        "radiusMeters": 7500,
+        "incidentCount": 48,
+        "centroid": {
+          "latitude": 37.78,
+          "longitude": -122.4
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "generatedAt": "2025-01-15T10:00:00.000Z",
+    "stationCount": 6,
+    "filtersSummary": "typeCodes=FIRE_STRUCTURE|MEDICAL; isActive=true",
+    "radiusOverrideMeters": null,
+    "defaultRadiusMeters": 5000
+  }
+}
+```
+
+### Notes
+
+- Station coverage buffers default to the `coverage_radius_meters` column; when that value is missing or zero the service falls back to `5 000` meters.
+- Passing `radiusMeters` applies a uniform buffer and is useful for scenario planning or quick comparisons.
+- When incident filters are supplied, only stations with at least one matching incident are included; the `incidentCount` property reflects the filtered incident tally.
+- Cached responses expire after five minutes. Use `refresh=true` to force a rebuild for dashboards offering manual refresh controls.
+
 ## `GET /api/strategic/response-metrics`
 
 Summarises turnout/response times grouped either by primary station or by the hotspot grid used in the strategic heatmap. Returns per-group averages, medians, 90th-percentiles, and normalized rankings to support percentile visualisations.

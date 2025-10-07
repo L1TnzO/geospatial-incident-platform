@@ -60,6 +60,16 @@ export interface StationSummary {
   } | null;
 }
 
+export interface StationCoverageBuffer {
+  stationCode: string;
+  stationName: string;
+  isActive: boolean;
+  radiusMeters: number;
+  incidentCount: number;
+  location: GeoJsonPoint;
+  coverage: GeoJsonPolygon;
+}
+
 export interface IncidentListItem {
   incidentNumber: string;
   externalReference?: string | null;

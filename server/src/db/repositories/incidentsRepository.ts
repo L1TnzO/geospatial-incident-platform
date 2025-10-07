@@ -3,6 +3,7 @@ import { Readable, Transform, type TransformCallback } from 'stream';
 import { getDb } from '../client';
 import {
   type GeoJsonPoint,
+  type GeoJsonPolygon,
   type IncidentDailyCount,
   type IncidentDetail,
   type IncidentListItem,
@@ -18,6 +19,7 @@ import {
   type IncidentWeather,
   type PaginatedResult,
   type RecentIncidentSummary,
+  type StationCoverageBuffer,
 } from '../types';
 import { geometryToFeature, parseGeometry, parseJsonColumn } from '../utils';
 
@@ -37,6 +39,7 @@ export interface IncidentListFilters {
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
+const DEFAULT_STATION_COVERAGE_RADIUS_METERS = 5000;
 
 interface IncidentRowBase {
   incidentId: number | string;
@@ -100,6 +103,16 @@ interface IncidentNoteRow {
   author: string;
   note: string;
   createdAt: string;
+}
+
+interface StationCoverageRow {
+  stationCode: string;
+  stationName: string;
+  isActive: boolean;
+  radiusMeters: number | string | null;
+  incidentCount: number | string | null;
+  locationGeoJson: unknown;
+  bufferGeoJson: unknown;
 }
 
 interface IncidentTypeCountRow {
@@ -328,6 +341,17 @@ const mapWeather = (row: IncidentRowBase): IncidentWeather | null => {
   }
   return createLookup(row.weatherCode, row.weatherName, row.weatherDescription);
 };
+
+const hasIncidentFilters = (filters: IncidentListFilters): boolean =>
+  Boolean(
+    filters.typeCodes?.length ||
+      filters.severityCodes?.length ||
+      filters.statusCodes?.length ||
+      typeof filters.isActive === 'boolean' ||
+      filters.startDate ||
+      filters.endDate ||
+      filters.incidentNumber
+  );
 
 const applyFilters = (query: Knex.QueryBuilder, filters: IncidentListFilters): void => {
   if (filters.typeCodes?.length) {
@@ -1571,6 +1595,80 @@ export class IncidentRepository {
             }
           : null,
       } satisfies RecentIncidentSummary;
+    });
+  }
+
+  public async getStationCoverageBuffers(
+    filters: IncidentListFilters,
+    options: { radiusOverride?: number; stationIsActive?: boolean } = {}
+  ): Promise<StationCoverageBuffer[]> {
+    const radiusOverride = options.radiusOverride ?? null;
+    const stationIsActive = options.stationIsActive;
+
+    const incidentCountsQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select('i.primary_station_id as stationId')
+      .count<{ total: string | number }>('i.id as total')
+      .whereNotNull('i.primary_station_id')
+      .groupBy('i.primary_station_id');
+
+    applyFilters(incidentCountsQuery, filters);
+
+    const countsAlias = incidentCountsQuery.as('ic');
+
+    const radiusExpression = this.db.raw(
+      'COALESCE(?, NULLIF(s.coverage_radius_meters, 0), ?)::numeric as "radiusMeters"',
+      [radiusOverride, DEFAULT_STATION_COVERAGE_RADIUS_METERS]
+    );
+
+    const bufferExpression = this.db.raw(
+      'ST_AsGeoJSON(ST_Transform(ST_Buffer(ST_Transform(s.location, 3857), COALESCE(?, NULLIF(s.coverage_radius_meters, 0), ?)), 4326)) as "bufferGeoJson"',
+      [radiusOverride, DEFAULT_STATION_COVERAGE_RADIUS_METERS]
+    );
+
+    const query = this.db('stations as s')
+      .leftJoin(countsAlias, 'ic.stationId', 's.id')
+      .select(['s.station_code as stationCode', 's.name as stationName', 's.is_active as isActive'])
+      .select(this.db.raw('COALESCE(ic.total, 0) as "incidentCount"'))
+      .select(radiusExpression)
+      .select(this.db.raw('ST_AsGeoJSON(s.location)::json as "locationGeoJson"'))
+      .select(bufferExpression)
+      .orderBy('s.station_code', 'asc');
+
+    if (typeof stationIsActive === 'boolean') {
+      query.where('s.is_active', stationIsActive);
+    }
+
+    if (hasIncidentFilters(filters)) {
+      query.whereRaw('COALESCE(ic.total, 0) > 0');
+    }
+
+    const rows = (await query) as StationCoverageRow[];
+
+    return rows.map((row) => {
+      const location = geometryToFeature(parseGeometry(row.locationGeoJson)) as GeoJsonPoint | null;
+      if (!location) {
+        throw new Error('Station location geometry is missing');
+      }
+      const coverage = geometryToFeature(parseGeometry(row.bufferGeoJson)) as GeoJsonPolygon | null;
+      if (!coverage) {
+        throw new Error('Station coverage geometry is missing');
+      }
+
+      const radius = Number(row.radiusMeters ?? DEFAULT_STATION_COVERAGE_RADIUS_METERS);
+
+      return {
+        stationCode: row.stationCode,
+        stationName: row.stationName,
+        isActive: row.isActive,
+        radiusMeters:
+          Number.isFinite(radius) && radius > 0 ? radius : DEFAULT_STATION_COVERAGE_RADIUS_METERS,
+        incidentCount: coerceCount(row.incidentCount),
+        location,
+        coverage,
+      } satisfies StationCoverageBuffer;
     });
   }
 }
