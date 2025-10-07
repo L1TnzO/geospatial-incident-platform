@@ -1,5 +1,6 @@
 import type { DashboardFilterParams } from '@/types/dashboard';
 import type {
+  StrategicCoverageResponse,
   StrategicGroupBy,
   StrategicHotspotResponse,
   StrategicMonthlyTrendResponse,
@@ -123,6 +124,8 @@ interface HotspotOptions extends StrategicRequestOptions {
   resolution?: number;
 }
 
+type CoverageOptions = StrategicRequestOptions;
+
 interface ResponseMetricsOptions extends StrategicRequestOptions {
   groupBy?: StrategicGroupBy;
   resolution?: number;
@@ -190,6 +193,17 @@ export const fetchHotspots = async ({
   const url = buildUrl('/strategic/hotspots', params);
   const response = await fetch(url.toString(), buildRequestInit(signal));
   return handleResponse(response, 'Failed to fetch strategic hotspots');
+};
+
+export const fetchCoverageBuffers = async ({
+  signal,
+  refresh,
+  ...filters
+}: CoverageOptions = {}): Promise<StrategicCoverageResponse> => {
+  const params = appendRefresh(buildQueryParams(filters), refresh);
+  const url = buildUrl('/strategic/coverage-buffers', params);
+  const response = await fetch(url.toString(), buildRequestInit(signal));
+  return handleResponse(response, 'Failed to fetch strategic coverage buffers');
 };
 
 export const fetchResponseMetrics = async ({

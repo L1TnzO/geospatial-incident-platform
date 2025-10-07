@@ -115,6 +115,32 @@ export interface StrategicHotspotResponse {
   cells: StrategicHotspotCell[];
 }
 
+export interface StrategicCoverageStation {
+  station: {
+    code: string;
+    name: string | null;
+  };
+  coverageRadiusMeters: number;
+  lastUpdated: string | null;
+  isActive: boolean;
+  geometry: Feature<Polygon>;
+  centroid: {
+    latitude: number;
+    longitude: number;
+  };
+  colorHex?: string | null;
+}
+
+export interface StrategicCoverageResponse {
+  metadata: {
+    totalStations: number;
+    activeStations: number;
+    generatedAt: string;
+    defaultColorHex?: string | null;
+  };
+  stations: StrategicCoverageStation[];
+}
+
 export type StrategicGroupBy = 'station' | 'grid';
 
 interface StrategicResponseMetricBase {

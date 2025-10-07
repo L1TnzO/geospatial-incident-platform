@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import StrategicCoverageOverlayCard from '@/components/strategic/StrategicCoverageOverlayCard';
 import StrategicHotspotOverlayCard from '@/components/strategic/StrategicHotspotOverlayCard';
 import StrategicHotspotSummary from '@/components/strategic/StrategicHotspotSummary';
 import StrategicMonthlyTrendCard from '@/components/strategic/StrategicMonthlyTrendCard';
@@ -6,6 +7,7 @@ import StrategicPriorityScoreCard from '@/components/strategic/StrategicPriority
 import StrategicQuarterComparisonChart from '@/components/strategic/StrategicQuarterComparisonChart';
 import StrategicResponseMetricsCard from '@/components/strategic/StrategicResponseMetricsCard';
 import StrategicTypeTrendExplorer from '@/components/strategic/StrategicTypeTrendExplorer';
+import { useStrategicCoverageBuffers } from '@/hooks/useStrategicCoverageBuffers';
 import { useStrategicHotspots } from '@/hooks/useStrategicHotspots';
 import { useStrategicMonthlyTrends } from '@/hooks/useStrategicMonthlyTrends';
 import { useStrategicQuarterlyTrends } from '@/hooks/useStrategicQuarterlyTrends';
@@ -32,6 +34,7 @@ const StrategicLayout = () => {
     resolution: hotspotResolution,
     autoRefreshMs: 5 * 60 * 1000,
   });
+  const coverage = useStrategicCoverageBuffers({ autoRefreshMs: 5 * 60 * 1000 });
   const responseMetrics = useStrategicResponseMetrics({
     groupBy: 'station',
     autoRefreshMs: 5 * 60 * 1000,
@@ -47,6 +50,7 @@ const StrategicLayout = () => {
     quarterly.refresh();
     timelines.refresh();
     hotspots.refresh();
+    coverage.refresh();
     responseMetrics.refresh();
     priorityScores.refresh();
   };
@@ -73,6 +77,7 @@ const StrategicLayout = () => {
     quarterly.lastUpdated,
     timelines.lastUpdated,
     hotspots.lastUpdated,
+    coverage.lastUpdated,
     responseMetrics.lastUpdated,
     priorityScores.lastUpdated,
   ].filter((value): value is string => Boolean(value));
@@ -120,8 +125,8 @@ const StrategicLayout = () => {
         <div className="strategic-section__header">
           <h2 id="strategic-composition">Composition &amp; concentration</h2>
           <p>
-            Break down incident types over time and identify geographic hotspots ready for advanced
-            map overlays.
+            Break down incident types over time and visualize geographic hotspots and station
+            coverage buffers for advanced planning overlays.
           </p>
         </div>
         <div className="strategic-grid strategic-grid--wide strategic-grid--hotspot">
@@ -132,6 +137,7 @@ const StrategicLayout = () => {
             intensityScale={intensityScale}
             onIntensityScaleChange={handleIntensityScaleChange}
           />
+          <StrategicCoverageOverlayCard state={coverage} />
           <StrategicTypeTrendExplorer state={timelines} />
           <StrategicHotspotSummary state={hotspots} />
         </div>

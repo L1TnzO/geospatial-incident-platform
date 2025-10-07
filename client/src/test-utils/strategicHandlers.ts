@@ -1,5 +1,6 @@
 import { HttpResponse, http } from 'msw';
 import type {
+  StrategicCoverageResponse,
   StrategicHotspotResponse,
   StrategicMonthlyTrendResponse,
   StrategicPriorityScoreResponse,
@@ -179,6 +180,64 @@ export const defaultStrategicMocks = {
       },
     ],
   } satisfies StrategicHotspotResponse,
+  coverage: {
+    metadata: {
+      totalStations: 2,
+      activeStations: 2,
+      generatedAt: '2024-12-31T23:59:59Z',
+      defaultColorHex: null,
+    },
+    stations: [
+      {
+        station: { code: 'ST-101', name: 'Station 101' },
+        coverageRadiusMeters: 4800,
+        lastUpdated: '2024-12-31T21:00:00Z',
+        isActive: true,
+        geometry: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-122.42, 37.78],
+                [-122.41, 37.78],
+                [-122.41, 37.77],
+                [-122.42, 37.77],
+                [-122.42, 37.78],
+              ],
+            ],
+          },
+        },
+        centroid: { latitude: 37.775, longitude: -122.415 },
+        colorHex: '#2563eb',
+      },
+      {
+        station: { code: 'ST-202', name: 'Station 202' },
+        coverageRadiusMeters: 5200,
+        lastUpdated: '2024-12-30T16:30:00Z',
+        isActive: true,
+        geometry: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-122.39, 37.79],
+                [-122.38, 37.79],
+                [-122.38, 37.78],
+                [-122.39, 37.78],
+                [-122.39, 37.79],
+              ],
+            ],
+          },
+        },
+        centroid: { latitude: 37.785, longitude: -122.385 },
+        colorHex: '#f97316',
+      },
+    ],
+  } satisfies StrategicCoverageResponse,
   responseMetrics: {
     metadata: {
       groupBy: 'station',
@@ -254,17 +313,20 @@ type StrategicHandlersOptions = {
   hotspots?: StrategicHotspotResponse;
   responseMetrics?: StrategicResponseMetricsResponse;
   priorityScores?: StrategicPriorityScoreResponse;
+  coverage?: StrategicCoverageResponse;
   onMonthlyRequest?: (url: string) => void;
   onQuarterlyRequest?: (url: string) => void;
   onTypeTimelinesRequest?: (url: string) => void;
   onHotspotsRequest?: (url: string) => void;
   onResponseMetricsRequest?: (url: string) => void;
   onPriorityScoresRequest?: (url: string) => void;
+  onCoverageRequest?: (url: string) => void;
 };
 
 type StrategicErrorOptions = {
   status?: number;
   message?: string;
+  coverage?: StrategicCoverageResponse;
 };
 
 export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) => {
@@ -281,6 +343,8 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
     priorityScores = defaultStrategicMocks.priorityScores,
     onResponseMetricsRequest,
     onPriorityScoresRequest,
+    coverage = defaultStrategicMocks.coverage,
+    onCoverageRequest,
   } = options;
 
   return [
@@ -371,6 +435,10 @@ export const createStrategicHandlers = (options: StrategicHandlersOptions = {}) 
       onHotspotsRequest?.(request.url);
       return HttpResponse.json(hotspots);
     }),
+    http.get('*/api/strategic/coverage-buffers', ({ request }) => {
+      onCoverageRequest?.(request.url);
+      return HttpResponse.json(coverage);
+    }),
     http.get('*/api/strategic/response-metrics', ({ request }) => {
       onResponseMetricsRequest?.(request.url);
       return HttpResponse.json(responseMetrics);
@@ -391,6 +459,7 @@ export const createStrategicErrorHandlers = (options: StrategicErrorOptions = {}
     http.get('*/api/strategic/trends/quarters', failure),
     http.get('*/api/strategic/trends/types', failure),
     http.get('*/api/strategic/hotspots', failure),
+    http.get('*/api/strategic/coverage-buffers', failure),
     http.get('*/api/strategic/response-metrics', failure),
     http.get('*/api/strategic/priority-scores', failure),
   ];

@@ -572,6 +572,65 @@ const STRATEGIC_HOTSPOTS = {
   ],
 };
 
+const STRATEGIC_COVERAGE_BUFFERS = {
+  metadata: {
+    totalStations: 2,
+    activeStations: 2,
+    generatedAt: '2025-01-11T12:00:00Z',
+    defaultColorHex: null,
+  },
+  stations: [
+    {
+      station: { code: 'ST-101', name: 'Station 101' },
+      coverageRadiusMeters: 4800,
+      lastUpdated: '2025-01-10T18:00:00Z',
+      isActive: true,
+      geometry: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-122.43, 37.79],
+              [-122.42, 37.79],
+              [-122.42, 37.78],
+              [-122.43, 37.78],
+              [-122.43, 37.79],
+            ],
+          ],
+        },
+      },
+      centroid: { latitude: 37.785, longitude: -122.425 },
+      colorHex: '#2563eb',
+    },
+    {
+      station: { code: 'ST-202', name: 'Station 202' },
+      coverageRadiusMeters: 5200,
+      lastUpdated: '2025-01-09T14:15:00Z',
+      isActive: true,
+      geometry: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [-122.39, 37.78],
+              [-122.38, 37.78],
+              [-122.38, 37.77],
+              [-122.39, 37.77],
+              [-122.39, 37.78],
+            ],
+          ],
+        },
+      },
+      centroid: { latitude: 37.775, longitude: -122.385 },
+      colorHex: '#f97316',
+    },
+  ],
+};
+
 const STRATEGIC_RESPONSE_METRICS = {
   metadata: {
     groupBy: 'station',
@@ -700,7 +759,8 @@ const configureApiRoutes = async (
   exportRequests?: string[],
   strategicMonthlyRequests?: string[],
   strategicQuarterlyRequests?: string[],
-  strategicHotspotRequests?: string[]
+  strategicHotspotRequests?: string[],
+  strategicCoverageRequests?: string[]
 ) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
@@ -803,6 +863,15 @@ const configureApiRoutes = async (
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(STRATEGIC_HOTSPOTS),
+    });
+  });
+
+  await page.route('**/api/strategic/coverage-buffers**', (route: Route) => {
+    strategicCoverageRequests?.push(route.request().url());
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(STRATEGIC_COVERAGE_BUFFERS),
     });
   });
 
@@ -1082,13 +1151,15 @@ test('strategic analytics screen renders trend, composition, and refresh control
   const strategicMonthlyRequests: string[] = [];
   const strategicQuarterlyRequests: string[] = [];
   const strategicHotspotRequests: string[] = [];
+  const strategicCoverageRequests: string[] = [];
   await configureApiRoutes(
     page,
     incidentsRequests,
     undefined,
     strategicMonthlyRequests,
     strategicQuarterlyRequests,
-    strategicHotspotRequests
+    strategicHotspotRequests,
+    strategicCoverageRequests
   );
 
   await page.goto('/strategic');
@@ -1134,6 +1205,21 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await overlayRefresh.click();
   await expect.poll(() => strategicHotspotRequests.length).toBe(requestsAfterResolution + 1);
   expect(strategicHotspotRequests.at(-1)).toContain('refresh=true');
+
+  const coverageCard = page.getByRole('article', { name: /station coverage overlay/i });
+  await expect(coverageCard).toBeVisible();
+  const stationToggle = coverageCard.getByLabel('Toggle coverage for Station 202');
+  await stationToggle.click();
+  await expect(stationToggle).not.toBeChecked();
+  const enableAll = coverageCard.getByRole('button', { name: /enable all/i });
+  await enableAll.click();
+  await expect(stationToggle).toBeChecked();
+
+  const coverageRefresh = coverageCard.getByRole('button', { name: /refresh coverage/i });
+  const coverageRequestsBefore = strategicCoverageRequests.length;
+  await coverageRefresh.click();
+  await expect.poll(() => strategicCoverageRequests.length).toBe(coverageRequestsBefore + 1);
+  expect(strategicCoverageRequests.at(-1)).toContain('refresh=true');
   await expect(page.getByRole('article', { name: /response readiness snapshot/i })).toContainText(
     /260s/i
   );
@@ -1200,9 +1286,12 @@ test('strategic analytics screen renders trend, composition, and refresh control
 
   const refreshAll = page.getByRole('button', { name: /refresh all/i });
   const requestsBeforeRefreshAll = strategicHotspotRequests.length;
+  const coverageBeforeRefreshAll = strategicCoverageRequests.length;
   await refreshAll.click();
   await expect.poll(() => strategicHotspotRequests.length).toBe(requestsBeforeRefreshAll + 1);
   expect(strategicHotspotRequests.at(-1)).toContain('refresh=true');
+  await expect.poll(() => strategicCoverageRequests.length).toBe(coverageBeforeRefreshAll + 1);
+  expect(strategicCoverageRequests.at(-1)).toContain('refresh=true');
 
   await expect(refreshAll).toBeEnabled();
   await expect(page.getByText(/last updated/i)).toBeVisible();

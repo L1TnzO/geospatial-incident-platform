@@ -66,6 +66,7 @@ let monthlyState = createMonthlyState();
 let quarterlyState = createQuarterlyState();
 let typeTimelineState = createTypeExplorerState();
 let hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
+let coverageState = createSuccessState(defaultStrategicMocks.coverage);
 let responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
 let priorityScoresState = createSuccessState(defaultStrategicMocks.priorityScores);
 
@@ -97,6 +98,10 @@ vi.mock('@/hooks/useStrategicHotspots', () => ({
   useStrategicHotspots: () => hotspotState,
 }));
 
+vi.mock('@/hooks/useStrategicCoverageBuffers', () => ({
+  useStrategicCoverageBuffers: () => coverageState,
+}));
+
 vi.mock('@/hooks/useStrategicResponseMetrics', () => ({
   useStrategicResponseMetrics: () => responseMetricsState,
 }));
@@ -113,6 +118,7 @@ describe('Strategic analytics integration', () => {
     quarterlyState = createQuarterlyState();
     typeTimelineState = createTypeExplorerState();
     hotspotState = createSuccessState(defaultStrategicMocks.hotspots);
+    coverageState = createSuccessState(defaultStrategicMocks.coverage);
     responseMetricsState = createSuccessState(defaultStrategicMocks.responseMetrics);
     priorityScoresState = createSuccessState(defaultStrategicMocks.priorityScores);
 
@@ -161,6 +167,14 @@ describe('Strategic analytics integration', () => {
     fireEvent.change(resolutionSelect, { target: { value: '8' } });
     expect(resolutionSelect).toHaveValue('8');
 
+    const coverageCard = screen.getByRole('article', { name: /station coverage overlay/i });
+    expect(coverageCard).toHaveTextContent('Station 101');
+    const stationToggle = within(coverageCard).getByLabelText(/toggle coverage for station 202/i);
+    fireEvent.click(stationToggle);
+    expect(stationToggle).not.toBeChecked();
+    fireEvent.click(within(coverageCard).getByRole('button', { name: /enable all/i }));
+    expect(stationToggle).toBeChecked();
+
     const responseCard = screen.getByRole('article', { name: /response readiness snapshot/i });
     expect(responseCard).toHaveTextContent('Station 101');
     expect(responseCard).toHaveTextContent('260s');
@@ -175,11 +189,16 @@ describe('Strategic analytics integration', () => {
     expect(typeTimelineState.refresh).toHaveBeenCalled();
     expect(hotspotState.refresh).toHaveBeenCalledTimes(1);
     expect(responseMetricsState.refresh).toHaveBeenCalled();
+    expect(coverageState.refresh).toHaveBeenCalled();
     expect(priorityScoresState.refresh).toHaveBeenCalled();
 
     const overlayRefresh = within(overlayCard).getByRole('button', { name: /refresh layer/i });
     fireEvent.click(overlayRefresh);
     expect(hotspotState.refresh).toHaveBeenCalledTimes(2);
+
+    const coverageRefresh = within(coverageCard).getByRole('button', { name: /refresh coverage/i });
+    fireEvent.click(coverageRefresh);
+    expect(coverageState.refresh).toHaveBeenCalledTimes(2);
 
     expect(screen.getByText(/last updated/i)).toBeInTheDocument();
 
