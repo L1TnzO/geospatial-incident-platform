@@ -1,3 +1,4 @@
+import type { Feature, Polygon } from 'geojson';
 import type { DashboardFilterParams } from '@/types/dashboard';
 import type {
   StrategicCoverageResponse,
@@ -144,6 +145,77 @@ const appendRefresh = (params: Record<string, QueryValue>, refresh?: boolean) =>
   return params;
 };
 
+interface CoverageBufferFeaturePropertiesFromApi {
+  stationCode: string;
+  stationName: string;
+  isActive: boolean;
+  radiusMeters: number;
+  incidentCount: number;
+  centroid: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+type CoverageBufferFeatureFromApi = Feature<Polygon, CoverageBufferFeaturePropertiesFromApi>;
+
+interface CoverageBufferApiResponse {
+  type: 'FeatureCollection';
+  features: CoverageBufferFeatureFromApi[];
+  metadata: {
+    generatedAt: string;
+    stationCount: number;
+    filtersSummary: string;
+    radiusOverrideMeters: number | null;
+    defaultRadiusMeters: number;
+  };
+}
+
+const normalizeCoverageResponse = (
+  apiResponse: CoverageBufferApiResponse
+): StrategicCoverageResponse => {
+  const stations = apiResponse.features.map((feature) => {
+    const { stationCode, stationName, isActive, radiusMeters, incidentCount, centroid } =
+      feature.properties;
+
+    const geometry: Feature<Polygon> = {
+      type: 'Feature',
+      geometry: feature.geometry ?? { type: 'Polygon', coordinates: [] },
+      properties: {},
+    };
+
+    return {
+      station: {
+        code: stationCode,
+        name: stationName ?? stationCode,
+      },
+      coverageRadiusMeters: radiusMeters,
+      lastUpdated: null,
+      isActive,
+      geometry,
+      centroid: {
+        latitude: centroid.latitude,
+        longitude: centroid.longitude,
+      },
+      incidentCount,
+    } satisfies StrategicCoverageResponse['stations'][number];
+  });
+
+  const activeStations = stations.filter((station) => station.isActive).length;
+
+  return {
+    metadata: {
+      totalStations: stations.length,
+      activeStations,
+      generatedAt: apiResponse.metadata.generatedAt,
+      filtersSummary: apiResponse.metadata.filtersSummary,
+      radiusOverrideMeters: apiResponse.metadata.radiusOverrideMeters,
+      defaultRadiusMeters: apiResponse.metadata.defaultRadiusMeters,
+    },
+    stations,
+  } satisfies StrategicCoverageResponse;
+};
+
 export const fetchMonthlyTrends = async ({
   signal,
   refresh,
@@ -203,7 +275,11 @@ export const fetchCoverageBuffers = async ({
   const params = appendRefresh(buildQueryParams(filters), refresh);
   const url = buildUrl('/strategic/coverage-buffers', params);
   const response = await fetch(url.toString(), buildRequestInit(signal));
-  return handleResponse(response, 'Failed to fetch strategic coverage buffers');
+  const raw = await handleResponse<CoverageBufferApiResponse>(
+    response,
+    'Failed to fetch strategic coverage buffers'
+  );
+  return normalizeCoverageResponse(raw);
 };
 
 export const fetchResponseMetrics = async ({

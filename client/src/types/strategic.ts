@@ -128,6 +128,7 @@ export interface StrategicCoverageStation {
     latitude: number;
     longitude: number;
   };
+  incidentCount?: number;
   colorHex?: string | null;
 }
 
@@ -136,6 +137,9 @@ export interface StrategicCoverageResponse {
     totalStations: number;
     activeStations: number;
     generatedAt: string;
+    filtersSummary?: string;
+    radiusOverrideMeters?: number | null;
+    defaultRadiusMeters?: number;
     defaultColorHex?: string | null;
   };
   stations: StrategicCoverageStation[];
