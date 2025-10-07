@@ -1256,9 +1256,10 @@ export class IncidentRepository {
       })
       .from('binned')
       .select<RawHotspotAggregateRow[]>([
-        this.db.raw("CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', ?) as \"cellId\"", [
-          options.resolution,
-        ]),
+        this.db.raw(
+          "CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', CAST(? AS int))::text as \"cellId\"",
+          [options.resolution]
+        ),
         this.db.raw(
           'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_MakeEnvelope(\n                  cell_x * ?,\n                  cell_y * ?,\n                  (cell_x + 1) * ?,\n                  (cell_y + 1) * ?,\n                  3857\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json as "geometry"',
           [cellSize, cellSize, cellSize, cellSize]
@@ -1294,7 +1295,7 @@ export class IncidentRepository {
         'i.id as incidentId',
         'ps.station_code as stationCode',
         'ps.name as stationName',
-        this.db.raw('EXTRACT(EPOCH FROM (i.arrival_at - i.dispatch_at)) as responseSeconds'),
+        this.db.raw('EXTRACT(EPOCH FROM (i.arrival_at - i.dispatch_at)) as response_seconds'),
         this.db.raw('ST_Transform(i.location, 3857) as geom'),
       ])
       .whereNotNull('i.dispatch_at')
@@ -1309,18 +1310,18 @@ export class IncidentRepository {
         .with(responseDataAlias, baseQuery)
         .from<ResponseMetricStationRow>(responseDataAlias)
         .whereNotNull('stationCode')
-        .where('responseSeconds', '>', 0)
+        .where('response_seconds', '>', 0)
         .select([
           this.db.raw('\'station\'::text as "groupType"'),
           'stationCode',
           'stationName',
           this.db.raw('COUNT(*)::int as "sampleSize"'),
-          this.db.raw('AVG(responseSeconds) as "averageSeconds"'),
+          this.db.raw('AVG(response_seconds) as "averageSeconds"'),
           this.db.raw(
-            'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY responseSeconds) as "medianSeconds"'
+            'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_seconds) as "medianSeconds"'
           ),
           this.db.raw(
-            'PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY responseSeconds) as "p90Seconds"'
+            'PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY response_seconds) as "p90Seconds"'
           ),
         ])
         .groupBy(['stationCode', 'stationName'])
@@ -1345,19 +1346,20 @@ export class IncidentRepository {
       .with('binned', (qb) => {
         qb.select([
           this.db.raw('geom'),
-          this.db.raw('responseSeconds'),
+          this.db.raw('response_seconds'),
           this.db.raw('FLOOR(ST_X(geom) / ?) as cell_x', [cellSize]),
           this.db.raw('FLOOR(ST_Y(geom) / ?) as cell_y', [cellSize]),
         ])
           .from(responseDataAlias)
-          .where('responseSeconds', '>', 0);
+          .where('response_seconds', '>', 0);
       })
       .from<ResponseMetricGridRow>('binned')
       .select([
         this.db.raw('\'grid\'::text as "groupType"'),
-        this.db.raw("CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', ?) as \"cellId\"", [
-          resolution,
-        ]),
+        this.db.raw(
+          "CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', CAST(? AS int))::text as \"cellId\"",
+          [resolution]
+        ),
         this.db.raw(
           'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_MakeEnvelope(\n                  cell_x * ?,\n                  cell_y * ?,\n                  (cell_x + 1) * ?,\n                  (cell_y + 1) * ?,\n                  3857\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json as "geometry"',
           [cellSize, cellSize, cellSize, cellSize]
@@ -1367,11 +1369,13 @@ export class IncidentRepository {
           [cellSize, cellSize]
         ),
         this.db.raw('COUNT(*)::int as "sampleSize"'),
-        this.db.raw('AVG(responseSeconds) as "averageSeconds"'),
+        this.db.raw('AVG(response_seconds) as "averageSeconds"'),
         this.db.raw(
-          'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY responseSeconds) as "medianSeconds"'
+          'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_seconds) as "medianSeconds"'
         ),
-        this.db.raw('PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY responseSeconds) as "p90Seconds"'),
+        this.db.raw(
+          'PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY response_seconds) as "p90Seconds"'
+        ),
       ])
       .groupBy(['cell_x', 'cell_y'])
       .orderBy('sampleSize', 'desc')) as ResponseMetricGridRow[];
@@ -1469,9 +1473,10 @@ export class IncidentRepository {
       .from<PriorityScoreGridRow>('binned')
       .select([
         this.db.raw('\'grid\'::text as "groupType"'),
-        this.db.raw("CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', ?) as \"cellId\"", [
-          resolution,
-        ]),
+        this.db.raw(
+          "CONCAT('sq_', cell_x::bigint, '_', cell_y::bigint, '_r', CAST(? AS int))::text as \"cellId\"",
+          [resolution]
+        ),
         this.db.raw(
           'ST_AsGeoJSON(\n            ST_Transform(\n              ST_SetSRID(\n                ST_MakeEnvelope(\n                  cell_x * ?,\n                  cell_y * ?,\n                  (cell_x + 1) * ?,\n                  (cell_y + 1) * ?,\n                  3857\n                ),\n                3857\n              ),\n              4326\n            )\n          )::json as "geometry"',
           [cellSize, cellSize, cellSize, cellSize]
