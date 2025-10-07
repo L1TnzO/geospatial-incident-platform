@@ -163,6 +163,10 @@ export interface StrategicResponseMetricStationGroup extends StrategicResponseMe
   station: {
     code: string;
     name: string | null;
+    location?: {
+      latitude: number;
+      longitude: number;
+    } | null;
   };
 }
 

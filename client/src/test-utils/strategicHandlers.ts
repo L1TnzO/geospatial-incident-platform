@@ -250,7 +250,11 @@ export const defaultStrategicMocks = {
     groups: [
       {
         groupType: 'station',
-        station: { code: 'ST-101', name: 'Station 101' },
+        station: {
+          code: 'ST-101',
+          name: 'Station 101',
+          location: { latitude: 37.775, longitude: -122.41 },
+        },
         sampleSize: 12,
         averageSeconds: 260,
         medianSeconds: 250,
@@ -261,7 +265,11 @@ export const defaultStrategicMocks = {
       },
       {
         groupType: 'station',
-        station: { code: 'ST-102', name: 'Station 102' },
+        station: {
+          code: 'ST-102',
+          name: 'Station 102',
+          location: { latitude: 37.785, longitude: -122.39 },
+        },
         sampleSize: 4,
         averageSeconds: 420,
         medianSeconds: 430,

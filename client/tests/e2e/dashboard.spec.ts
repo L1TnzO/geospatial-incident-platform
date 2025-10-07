@@ -573,77 +573,81 @@ const STRATEGIC_HOTSPOTS = {
 };
 
 const STRATEGIC_COVERAGE_BUFFERS = {
+  type: 'FeatureCollection' as const,
   metadata: {
-    totalStations: 2,
-    activeStations: 2,
     generatedAt: '2025-01-11T12:00:00Z',
-    defaultColorHex: null,
+    stationCount: 2,
+    filtersSummary: 'All strategic stations',
+    radiusOverrideMeters: null,
+    defaultRadiusMeters: 5000,
   },
-  stations: [
+  features: [
     {
-      station: { code: 'ST-101', name: 'Station 101' },
-      coverageRadiusMeters: 4800,
-      lastUpdated: '2025-01-10T18:00:00Z',
-      isActive: true,
-      geometry: {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [
-            [
-              [-122.43, 37.79],
-              [-122.42, 37.79],
-              [-122.42, 37.78],
-              [-122.43, 37.78],
-              [-122.43, 37.79],
-            ],
-          ],
-        },
+      type: 'Feature' as const,
+      properties: {
+        stationCode: 'ST-101',
+        stationName: 'Station 101',
+        isActive: true,
+        radiusMeters: 4800,
+        incidentCount: 124,
+        centroid: { latitude: 37.785, longitude: -122.425 },
       },
-      centroid: { latitude: 37.785, longitude: -122.425 },
-      colorHex: '#2563eb',
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [
+          [
+            [-122.43, 37.79],
+            [-122.42, 37.79],
+            [-122.42, 37.78],
+            [-122.43, 37.78],
+            [-122.43, 37.79],
+          ],
+        ],
+      },
     },
     {
-      station: { code: 'ST-202', name: 'Station 202' },
-      coverageRadiusMeters: 5200,
-      lastUpdated: '2025-01-09T14:15:00Z',
-      isActive: true,
-      geometry: {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [
-            [
-              [-122.39, 37.78],
-              [-122.38, 37.78],
-              [-122.38, 37.77],
-              [-122.39, 37.77],
-              [-122.39, 37.78],
-            ],
-          ],
-        },
+      type: 'Feature' as const,
+      properties: {
+        stationCode: 'ST-202',
+        stationName: 'Station 202',
+        isActive: true,
+        radiusMeters: 5200,
+        incidentCount: 98,
+        centroid: { latitude: 37.775, longitude: -122.385 },
       },
-      centroid: { latitude: 37.775, longitude: -122.385 },
-      colorHex: '#f97316',
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [
+          [
+            [-122.39, 37.78],
+            [-122.38, 37.78],
+            [-122.38, 37.77],
+            [-122.39, 37.77],
+            [-122.39, 37.78],
+          ],
+        ],
+      },
     },
   ],
 };
 
-const STRATEGIC_RESPONSE_METRICS = {
+const STRATEGIC_RESPONSE_METRICS_STATION = {
   metadata: {
-    groupBy: 'station',
+    groupBy: 'station' as const,
     sampleThreshold: 3,
     totalGroups: 2,
     minAverageSeconds: 240,
-    maxAverageSeconds: 480,
+    maxAverageSeconds: 520,
     generatedAt: '2025-01-11T12:00:00Z',
   },
   groups: [
     {
-      groupType: 'station',
-      station: { code: 'ST-101', name: 'Station 101' },
+      groupType: 'station' as const,
+      station: {
+        code: 'ST-101',
+        name: 'Station 101',
+        location: { latitude: 37.776, longitude: -122.409 },
+      },
       sampleSize: 12,
       averageSeconds: 260,
       medianSeconds: 250,
@@ -653,14 +657,92 @@ const STRATEGIC_RESPONSE_METRICS = {
       insufficientSample: false,
     },
     {
-      groupType: 'station',
-      station: { code: 'ST-102', name: 'Station 102' },
+      groupType: 'station' as const,
+      station: {
+        code: 'ST-102',
+        name: 'Station 102',
+        location: { latitude: 37.784, longitude: -122.39 },
+      },
       sampleSize: 5,
       averageSeconds: 420,
       medianSeconds: 430,
       p90Seconds: 620,
-      normalizedAverage: 0,
-      percentileRank: 0,
+      normalizedAverage: 0.25,
+      percentileRank: 0.35,
+      insufficientSample: false,
+    },
+  ],
+};
+
+const STRATEGIC_RESPONSE_METRICS_GRID = {
+  metadata: {
+    groupBy: 'grid' as const,
+    sampleThreshold: 3,
+    totalGroups: 2,
+    minAverageSeconds: 300,
+    maxAverageSeconds: 540,
+    resolution: 4,
+    generatedAt: '2025-01-11T12:00:00Z',
+  },
+  groups: [
+    {
+      groupType: 'grid' as const,
+      cell: {
+        cellId: 'GRID-01',
+        geometry: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-122.43, 37.79],
+                [-122.42, 37.79],
+                [-122.42, 37.78],
+                [-122.43, 37.78],
+                [-122.43, 37.79],
+              ],
+            ],
+          },
+        },
+        centroid: { latitude: 37.785, longitude: -122.425 },
+      },
+      sampleSize: 18,
+      averageSeconds: 360,
+      medianSeconds: 340,
+      p90Seconds: 520,
+      normalizedAverage: 0.55,
+      percentileRank: 0.62,
+      insufficientSample: false,
+    },
+    {
+      groupType: 'grid' as const,
+      cell: {
+        cellId: 'GRID-02',
+        geometry: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [-122.4, 37.77],
+                [-122.39, 37.77],
+                [-122.39, 37.76],
+                [-122.4, 37.76],
+                [-122.4, 37.77],
+              ],
+            ],
+          },
+        },
+        centroid: { latitude: 37.765, longitude: -122.395 },
+      },
+      sampleSize: 4,
+      averageSeconds: 540,
+      medianSeconds: 560,
+      p90Seconds: 680,
+      normalizedAverage: 0.9,
+      percentileRank: 0.88,
       insufficientSample: false,
     },
   ],
@@ -760,7 +842,8 @@ const configureApiRoutes = async (
   strategicMonthlyRequests?: string[],
   strategicQuarterlyRequests?: string[],
   strategicHotspotRequests?: string[],
-  strategicCoverageRequests?: string[]
+  strategicCoverageRequests?: string[],
+  strategicResponseRequests?: string[]
 ) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
@@ -875,13 +958,20 @@ const configureApiRoutes = async (
     });
   });
 
-  await page.route('**/api/strategic/response-metrics**', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/strategic/response-metrics**', (route: Route) => {
+    const url = route.request().url();
+    strategicResponseRequests?.push(url);
+    const parsed = new URL(url);
+    const groupBy = parsed.searchParams.get('groupBy') ?? 'grid';
+    const responseBody =
+      groupBy === 'station' ? STRATEGIC_RESPONSE_METRICS_STATION : STRATEGIC_RESPONSE_METRICS_GRID;
+
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(STRATEGIC_RESPONSE_METRICS),
-    })
-  );
+      body: JSON.stringify(responseBody),
+    });
+  });
 
   await page.route('**/api/strategic/priority-scores**', (route: Route) =>
     route.fulfill({
@@ -1152,6 +1242,7 @@ test('strategic analytics screen renders trend, composition, and refresh control
   const strategicQuarterlyRequests: string[] = [];
   const strategicHotspotRequests: string[] = [];
   const strategicCoverageRequests: string[] = [];
+  const strategicResponseRequests: string[] = [];
   await configureApiRoutes(
     page,
     incidentsRequests,
@@ -1159,7 +1250,8 @@ test('strategic analytics screen renders trend, composition, and refresh control
     strategicMonthlyRequests,
     strategicQuarterlyRequests,
     strategicHotspotRequests,
-    strategicCoverageRequests
+    strategicCoverageRequests,
+    strategicResponseRequests
   );
 
   await page.goto('/strategic');
@@ -1208,7 +1300,11 @@ test('strategic analytics screen renders trend, composition, and refresh control
 
   const coverageCard = page.getByRole('article', { name: /station coverage overlay/i });
   await expect(coverageCard).toBeVisible();
-  const stationToggle = coverageCard.getByLabel('Toggle coverage for Station 202');
+  await expect
+    .poll(() => strategicCoverageRequests.length, { message: 'coverage request fired' })
+    .toBeGreaterThan(0);
+  await expect(coverageCard.getByText(/Station 202/i)).toBeVisible();
+  const stationToggle = coverageCard.getByLabel(/Toggle coverage for Station 202/i);
   await stationToggle.click();
   await expect(stationToggle).not.toBeChecked();
   const enableAll = coverageCard.getByRole('button', { name: /enable all/i });
@@ -1220,6 +1316,31 @@ test('strategic analytics screen renders trend, composition, and refresh control
   await coverageRefresh.click();
   await expect.poll(() => strategicCoverageRequests.length).toBe(coverageRequestsBefore + 1);
   expect(strategicCoverageRequests.at(-1)).toContain('refresh=true');
+
+  const responseOverlay = page.getByRole('article', { name: /response time heatmap/i });
+  await expect(responseOverlay).toBeVisible();
+  await expect(responseOverlay.getByRole('button', { name: /grid view/i })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  const stationViewToggle = responseOverlay.getByRole('button', { name: /station view/i });
+  const initialResponseRequests = strategicResponseRequests.length;
+  await stationViewToggle.click();
+  await expect.poll(() => strategicResponseRequests.length).toBe(initialResponseRequests + 1);
+  expect(strategicResponseRequests.at(-1)).toContain('groupBy=station');
+  await expect(stationViewToggle).toHaveAttribute('aria-pressed', 'true');
+
+  const thresholdSlider = responseOverlay.getByLabel('Highlight groups above threshold minutes');
+  await thresholdSlider.fill('10');
+  const thresholdLabel = thresholdSlider.locator('xpath=ancestor::label[1]');
+  await expect(thresholdLabel).toContainText('10 min');
+
+  const responseRefresh = responseOverlay.getByRole('button', { name: /refresh overlay/i });
+  const responseRequestsBeforeRefresh = strategicResponseRequests.length;
+  await responseRefresh.click();
+  await expect.poll(() => strategicResponseRequests.length).toBe(responseRequestsBeforeRefresh + 1);
+  expect(strategicResponseRequests.at(-1)).toContain('refresh=true');
+
   await expect(page.getByRole('article', { name: /response readiness snapshot/i })).toContainText(
     /260s/i
   );
@@ -1287,11 +1408,14 @@ test('strategic analytics screen renders trend, composition, and refresh control
   const refreshAll = page.getByRole('button', { name: /refresh all/i });
   const requestsBeforeRefreshAll = strategicHotspotRequests.length;
   const coverageBeforeRefreshAll = strategicCoverageRequests.length;
+  const responseBeforeRefreshAll = strategicResponseRequests.length;
   await refreshAll.click();
   await expect.poll(() => strategicHotspotRequests.length).toBe(requestsBeforeRefreshAll + 1);
   expect(strategicHotspotRequests.at(-1)).toContain('refresh=true');
   await expect.poll(() => strategicCoverageRequests.length).toBe(coverageBeforeRefreshAll + 1);
   expect(strategicCoverageRequests.at(-1)).toContain('refresh=true');
+  await expect.poll(() => strategicResponseRequests.length).toBe(responseBeforeRefreshAll + 1);
+  expect(strategicResponseRequests.at(-1)).toContain('refresh=true');
 
   await expect(refreshAll).toBeEnabled();
   await expect(page.getByText(/last updated/i)).toBeVisible();

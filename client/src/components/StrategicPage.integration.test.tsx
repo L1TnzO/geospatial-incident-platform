@@ -159,8 +159,8 @@ describe('Strategic analytics integration', () => {
       defaultStrategicMocks.hotspots.cells[0]?.incidentCount.toString() ?? ''
     );
 
-    const overlayCard = screen.getByRole('article', { name: /^hotspot heatmap$/i });
-    const resolutionSelect = within(overlayCard).getByLabelText('Resolution');
+    const hotspotOverlayCard = screen.getByRole('article', { name: /^hotspot heatmap$/i });
+    const resolutionSelect = within(hotspotOverlayCard).getByLabelText('Resolution');
     expect(resolutionSelect).toHaveValue(
       String(defaultStrategicMocks.hotspots.metadata.resolution)
     );
@@ -169,11 +169,40 @@ describe('Strategic analytics integration', () => {
 
     const coverageCard = screen.getByRole('article', { name: /station coverage overlay/i });
     expect(coverageCard).toHaveTextContent('Station 101');
-    const stationToggle = within(coverageCard).getByLabelText(/toggle coverage for station 202/i);
-    fireEvent.click(stationToggle);
-    expect(stationToggle).not.toBeChecked();
+    const coverageStationToggle = within(coverageCard).getByLabelText(
+      /toggle coverage for station 202/i
+    );
+    fireEvent.click(coverageStationToggle);
+    expect(coverageStationToggle).not.toBeChecked();
     fireEvent.click(within(coverageCard).getByRole('button', { name: /enable all/i }));
-    expect(stationToggle).toBeChecked();
+    expect(coverageStationToggle).toBeChecked();
+
+    const responseOverlayCard = screen.getByRole('article', { name: /response time heatmap/i });
+    expect(within(responseOverlayCard).getByRole('button', { name: /grid view/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    const responseStationToggle = within(responseOverlayCard).getByRole('button', {
+      name: /station view/i,
+    });
+    fireEvent.click(responseStationToggle);
+    expect(responseStationToggle).toHaveAttribute('aria-pressed', 'true');
+    const thresholdSlider = within(responseOverlayCard).getByLabelText(
+      /highlight groups above threshold minutes/i
+    ) as HTMLInputElement;
+    fireEvent.change(thresholdSlider, { target: { value: '10' } });
+    const thresholdLabel = thresholdSlider.closest('label');
+    expect(thresholdLabel).not.toBeNull();
+    if (thresholdLabel) {
+      const thresholdDisplays = within(thresholdLabel).getAllByText(/10 min/);
+      expect(thresholdDisplays.length).toBeGreaterThanOrEqual(1);
+    }
+
+    const responseOverlayRefresh = within(responseOverlayCard).getByRole('button', {
+      name: /refresh overlay/i,
+    });
+    fireEvent.click(responseOverlayRefresh);
+    expect(responseMetricsState.refresh).toHaveBeenCalledTimes(1);
 
     const responseCard = screen.getByRole('article', { name: /response readiness snapshot/i });
     expect(responseCard).toHaveTextContent('Station 101');
@@ -188,11 +217,13 @@ describe('Strategic analytics integration', () => {
     expect(quarterlyState.refresh).toHaveBeenCalled();
     expect(typeTimelineState.refresh).toHaveBeenCalled();
     expect(hotspotState.refresh).toHaveBeenCalledTimes(1);
-    expect(responseMetricsState.refresh).toHaveBeenCalled();
+    expect(responseMetricsState.refresh).toHaveBeenCalledTimes(2);
     expect(coverageState.refresh).toHaveBeenCalled();
     expect(priorityScoresState.refresh).toHaveBeenCalled();
 
-    const overlayRefresh = within(overlayCard).getByRole('button', { name: /refresh layer/i });
+    const overlayRefresh = within(hotspotOverlayCard).getByRole('button', {
+      name: /refresh layer/i,
+    });
     fireEvent.click(overlayRefresh);
     expect(hotspotState.refresh).toHaveBeenCalledTimes(2);
 

@@ -6,6 +6,7 @@ import StrategicMonthlyTrendCard from '@/components/strategic/StrategicMonthlyTr
 import StrategicPriorityScoreCard from '@/components/strategic/StrategicPriorityScoreCard';
 import StrategicQuarterComparisonChart from '@/components/strategic/StrategicQuarterComparisonChart';
 import StrategicResponseMetricsCard from '@/components/strategic/StrategicResponseMetricsCard';
+import StrategicResponseOverlayCard from '@/components/strategic/StrategicResponseOverlayCard';
 import StrategicTypeTrendExplorer from '@/components/strategic/StrategicTypeTrendExplorer';
 import { useStrategicCoverageBuffers } from '@/hooks/useStrategicCoverageBuffers';
 import { useStrategicHotspots } from '@/hooks/useStrategicHotspots';
@@ -22,6 +23,7 @@ const StrategicLayout = () => {
   const [hotspotResolution, setHotspotResolution] = useState<number>(DEFAULT_HOTSPOT_RESOLUTION);
   const [intensityScale, setIntensityScale] = useState<number>(DEFAULT_INTENSITY_SCALE);
   const [userChangedResolution, setUserChangedResolution] = useState<boolean>(false);
+  const [responseGroupBy, setResponseGroupBy] = useState<'grid' | 'station'>('grid');
 
   const monthly = useStrategicMonthlyTrends({ months: 12, autoRefreshMs: 5 * 60 * 1000 });
   const quarterly = useStrategicQuarterlyTrends({
@@ -36,7 +38,7 @@ const StrategicLayout = () => {
   });
   const coverage = useStrategicCoverageBuffers({ autoRefreshMs: 5 * 60 * 1000 });
   const responseMetrics = useStrategicResponseMetrics({
-    groupBy: 'station',
+    groupBy: responseGroupBy,
     autoRefreshMs: 5 * 60 * 1000,
   });
   const priorityScores = useStrategicPriorityScores({
@@ -138,6 +140,11 @@ const StrategicLayout = () => {
             onIntensityScaleChange={handleIntensityScaleChange}
           />
           <StrategicCoverageOverlayCard state={coverage} />
+          <StrategicResponseOverlayCard
+            state={responseMetrics}
+            groupBy={responseGroupBy}
+            onGroupByChange={setResponseGroupBy}
+          />
           <StrategicTypeTrendExplorer state={timelines} />
           <StrategicHotspotSummary state={hotspots} />
         </div>

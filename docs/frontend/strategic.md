@@ -113,6 +113,15 @@ type StrategicTypeTimelinesState = {
   - Includes a metadata footer (station counts, visible selection, generated timestamp) and handles empty/error states with actionable messaging.
 - **Styling:** SCSS lives in `client/src/styles/strategic/_coverage-overlay.scss` and is bundled via `strategic.scss` alongside the hotspot styles.
 
+### Response-time overlay component
+
+- **Location:** `client/src/components/strategic/StrategicResponseOverlayCard.tsx`
+- **Behaviour:**
+  - Uses `useStrategicResponseMetrics` with a group toggle (grid vs. station) to render Leaflet choropleths/markers via `StrategicResponseOverlayLayer`, highlighting groups above a configurable threshold.
+  - Slider exposes the “minutes above target” threshold, refresh/cancel buttons hook into the shared query state, and tooltips surface avg/median/p90, sample size, and percentile rank. Insufficient samples are dimmed/dashed.
+  - Panel lists the first 12 groups with status tags (“On target”, “Above threshold”, “Insufficient sample”), while the legend includes colour ramp, threshold, and hatch indicators.
+- **Styling:** SCSS lives in `client/src/styles/strategic/_response-overlay.scss` and is imported by `strategic.scss`.
+
 ### Shared filters
 
 `useStrategicQuery` delegates to `useStrategicFilters`, which currently aliases `useDashboardFilters`. This keeps strategic analytics in sync with the incidents table and existing dashboard filters. If strategic surfaces require bespoke filters later, swap the implementation inside `useStrategicFilters` without touching the hooks or services.
@@ -121,9 +130,9 @@ type StrategicTypeTimelinesState = {
 
 - **Service tests:** `client/src/services/strategicAnalyticsService.test.ts` mock `fetch` to verify query-string construction, refresh semantics, and error propagation.
 - **Hook tests:** `client/src/hooks/useStrategicAnalytics.test.tsx` use MSW to cover loading, manual refresh flows, TTL auto-refresh, error handling, hotspot query params, and the response-metric/priority-score/type-timeline hooks.
-- **Component tests:** `client/src/components/strategic/StrategicQuarterComparisonChart.test.tsx` validate grouped bar rendering, timeframe toggles, CSV exports, and error/loading states; `client/src/components/strategic/StrategicTypeTrendExplorer.test.tsx` assert dropdown behaviour, moving-average window toggles, refresh callback wiring, and empty-state rendering; `client/src/components/strategic/StrategicHotspotOverlayCard.test.tsx` covers hotspot overlay rendering (resolution/intensity controls, refresh/cancel flows, and error/empty states); `client/src/components/strategic/StrategicCoverageOverlayCard.test.tsx` verifies coverage toggles, bulk enable/disable, refresh/cancel states, and empty/error handling.
+- **Component tests:** `client/src/components/strategic/StrategicQuarterComparisonChart.test.tsx` validate grouped bar rendering, timeframe toggles, CSV exports, and error/loading states; `client/src/components/strategic/StrategicTypeTrendExplorer.test.tsx` assert dropdown behaviour, moving-average window toggles, refresh callback wiring, and empty-state rendering; `client/src/components/strategic/StrategicHotspotOverlayCard.test.tsx` covers hotspot overlay rendering (resolution/intensity controls, refresh/cancel flows, and error/empty states); `client/src/components/strategic/StrategicCoverageOverlayCard.test.tsx` verifies coverage toggles, bulk enable/disable, refresh/cancel states, and empty/error handling; `client/src/components/strategic/StrategicResponseOverlayCard.test.tsx` exercises grouping toggles, threshold slider, refresh/cancel states, and error/empty handling for the response overlay.
 - **Page integration test:** `client/src/components/StrategicPage.integration.test.tsx` mounts `StrategicPage` with MSW handlers to assert rendering, timeframe toggles (monthly + quarterly), type explorer filter propagation, refresh actions, and timestamp wiring.
-- **Playwright coverage:** `client/tests/e2e/dashboard.spec.ts` includes a strategic scenario that hits `/strategic`, verifies the monthly and quarterly timeframe controls (including cached re-selection and export affordances), interacts with the hotspot overlay (resolution/intensity/refresh controls), toggles station coverage overlays (per-station enable/disable + refresh), exercises the type trend explorer (type selection + moving average), and confirms navigation/refresh flows.
+- **Playwright coverage:** `client/tests/e2e/dashboard.spec.ts` includes a strategic scenario that hits `/strategic`, verifies the monthly and quarterly timeframe controls (including cached re-selection and export affordances), interacts with the hotspot overlay (resolution/intensity/refresh controls), toggles station coverage overlays (per-station enable/disable + refresh), adjusts the response-time overlay (group toggle, threshold slider, refresh), exercises the type trend explorer (type selection + moving average), and confirms navigation/refresh flows.
 
 Run the suite with:
 
