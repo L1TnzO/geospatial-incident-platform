@@ -1,168 +1,107 @@
-import { useIncidentDetailStore } from '@/store/useIncidentDetailStore';
-import type { IncidentAsset, IncidentNote, IncidentUnit } from '@/types/incidents';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Incident } from '../types';
+import { Badge } from './ui/badge';
+import { Separator } from './ui/separator';
 
-const formatTimestamp = (value?: string | null): string => {
-  if (!value) {
-    return '—';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-};
+interface IncidentDetailModalProps {
+  incident: Incident | null;
+  open: boolean;
+  onClose: () => void;
+}
 
-const IncidentDetailModal = () => {
-  const {
-    selectedIncident,
-    isOpen,
-    closeIncident,
-    pendingIncidentNumber,
-    error,
-    refreshIncidentDetail,
-    detailCache,
-  } = useIncidentDetailStore();
+export function IncidentDetailModal({ incident, open, onClose }: IncidentDetailModalProps) {
+  if (!incident) return null;
 
-  const detail = selectedIncident ? detailCache[selectedIncident.incidentNumber] : undefined;
-
-  if (!isOpen || !selectedIncident) {
-    return null;
-  }
-
-  const incidentNumber = selectedIncident.incidentNumber;
-  const isLoading = pendingIncidentNumber === incidentNumber && !detail;
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'Critical':
+        return 'destructive';
+      case 'High':
+        return 'default';
+      case 'Medium':
+        return 'secondary';
+      case 'Low':
+        return 'outline';
+      default:
+        return 'default';
+    }
+  };
 
   return (
-    <div
-      className="incident-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="incident-detail-heading"
-    >
-      <div className="incident-modal__backdrop" onClick={closeIncident} aria-hidden="true" />
-      <div className="incident-modal__content">
-        <header className="incident-modal__header">
-          <h2 id="incident-detail-heading">Incident details</h2>
-          <button type="button" className="incident-modal__close" onClick={closeIncident}>
-            Close
-          </button>
-        </header>
-        <section className="incident-modal__body" aria-live="polite">
-          <p className="incident-modal__summary">
-            <strong>{selectedIncident.title}</strong>
-            <br />#{incidentNumber}
-          </p>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Incident Details: {incident.id}</DialogTitle>
+          <DialogDescription>Complete information for this incident</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Incident Type</p>
+              <p>{incident.type}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Severity</p>
+              <Badge variant={getSeverityColor(incident.severity)}>{incident.severity}</Badge>
+            </div>
+          </div>
 
-          {isLoading && (
-            <p className="incident-modal__helper" role="status">
-              Loading incident detail…
+          <Separator />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Date</p>
+              <p>{incident.date}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Time</p>
+              <p>{new Date(incident.timestamp).toLocaleTimeString()}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <p className="text-sm text-muted-foreground">Location</p>
+            <p>{incident.location.address}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Coordinates: {incident.location.lat.toFixed(4)}, {incident.location.lng.toFixed(4)}
             </p>
-          )}
+          </div>
 
-          {error && (
-            <div className="incident-modal__message incident-modal__message--error" role="alert">
-              <p>{error}</p>
-              <button
-                type="button"
-                className="incident-modal__button"
-                onClick={() => refreshIncidentDetail(incidentNumber)}
-              >
-                Retry
-              </button>
+          <Separator />
+
+          <div>
+            <p className="text-sm text-muted-foreground">Description</p>
+            <p>{incident.description}</p>
+          </div>
+
+          <Separator />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Status</p>
+              <Badge variant="outline">{incident.status}</Badge>
             </div>
+            {incident.responseTime && (
+              <div>
+                <p className="text-sm text-muted-foreground">Response Time</p>
+                <p>{incident.responseTime} minutes</p>
+              </div>
+            )}
+          </div>
+
+          {incident.zoneId && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-sm text-muted-foreground">Zone</p>
+                <p>{incident.zoneId}</p>
+              </div>
+            </>
           )}
-
-          {detail && !error && (
-            <div className="incident-modal__detail">
-              <dl className="incident-modal__meta">
-                <div>
-                  <dt>Status</dt>
-                  <dd>{detail.status.name}</dd>
-                </div>
-                <div>
-                  <dt>Severity</dt>
-                  <dd>{detail.severity.name}</dd>
-                </div>
-                <div>
-                  <dt>Reported</dt>
-                  <dd>{formatTimestamp(detail.reportedAt)}</dd>
-                </div>
-                <div>
-                  <dt>Occurrence</dt>
-                  <dd>{formatTimestamp(detail.occurrenceAt)}</dd>
-                </div>
-                <div>
-                  <dt>Dispatch</dt>
-                  <dd>{formatTimestamp(detail.dispatchAt)}</dd>
-                </div>
-                <div>
-                  <dt>Primary station</dt>
-                  <dd>{detail.primaryStation?.name ?? '—'}</dd>
-                </div>
-              </dl>
-
-              {detail.narrative && detail.narrative.trim().length > 0 && (
-                <article className="incident-modal__narrative">
-                  <h3>Narrative</h3>
-                  <p>{detail.narrative}</p>
-                </article>
-              )}
-
-              {detail.units.length > 0 && (
-                <section>
-                  <h3>Responding units</h3>
-                  <ul className="incident-modal__list">
-                    {detail.units.map((unit: IncidentUnit) => (
-                      <li key={`${unit.stationCode}-${unit.assignmentRole ?? 'unit'}`}>
-                        <strong>{unit.stationName}</strong>{' '}
-                        {unit.assignmentRole ? `(${unit.assignmentRole})` : ''}
-                        <br />
-                        Dispatched: {formatTimestamp(unit.dispatchedAt)}
-                        <br />
-                        Cleared: {formatTimestamp(unit.clearedAt)}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              {detail.assets.length > 0 && (
-                <section>
-                  <h3>Assets</h3>
-                  <ul className="incident-modal__list">
-                    {detail.assets.map((asset: IncidentAsset) => (
-                      <li key={asset.assetIdentifier}>
-                        <strong>{asset.assetIdentifier}</strong> – {asset.assetType}
-                        {asset.status ? ` (${asset.status})` : ''}
-                        {asset.notes ? <p>{asset.notes}</p> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-
-              {detail.notes.length > 0 && (
-                <section>
-                  <h3>Notes</h3>
-                  <ul className="incident-modal__list">
-                    {detail.notes.map((note: IncidentNote, index: number) => (
-                      <li key={`${note.author}-${index}`}>
-                        <strong>{note.author}</strong> – {formatTimestamp(note.createdAt)}
-                        <p>{note.note}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-            </div>
-          )}
-        </section>
-      </div>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
-};
-
-export default IncidentDetailModal;
+}

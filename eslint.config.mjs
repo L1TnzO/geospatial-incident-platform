@@ -1,5 +1,21 @@
-import clientConfigRaw from "./client/eslint.config.js";
-import serverConfigRaw from "./server/eslint.config.mjs";
+const normalizeModule = (module) => module?.default ?? module;
+
+const loadClientConfig = async () => {
+  try {
+    return normalizeModule(await import("./client/eslint.config.mjs"));
+  } catch (error) {
+    if (error?.code === "ERR_MODULE_NOT_FOUND") {
+      return normalizeModule(await import("./client/eslint.config.js"));
+    }
+
+    throw error;
+  }
+};
+
+const loadServerConfig = async () => normalizeModule(await import("./server/eslint.config.mjs"));
+
+const clientConfigRaw = await loadClientConfig();
+const serverConfigRaw = await loadServerConfig();
 
 const toArray = (value) => (Array.isArray(value) ? value : [value]);
 
@@ -52,6 +68,7 @@ export default [
     ignores: [
       "node_modules/**",
       "client/node_modules/**",
+    "client-old/**",
       "server/node_modules/**",
       "client/dist/**",
       "server/dist/**",
