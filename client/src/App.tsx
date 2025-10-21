@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import { LoginScreen } from './components/LoginScreen';
@@ -7,93 +7,107 @@ import { FiltersPanel } from './components/FiltersPanel';
 import { MapView } from './components/MapView';
 import { TableView } from './components/TableView';
 import { IncidentDetailModal } from './components/IncidentDetailModal';
-import { IncidentForm } from './components/IncidentForm';
-import { AnalyticsDashboard } from './components/AnalyticsDashboard';
-import { User, Filters, Incident } from './types';
-import { mockIncidents, fireStations } from './data/mockData';
+import { AuthProvider } from './providers/auth-provider';
+import { QueryProvider } from './providers/query-client-provider';
+import { useIncidentFiltersStore } from './store/incident-filters-store';
+import { useIncidentsData } from './hooks/useIncidentsData';
+import { useStationsData } from './hooks/useStationsData';
+import { useIncidentDetailStore } from './store/incident-detail-store';
+import { useAuth } from './hooks/useAuth';
+import { DashboardPage } from './pages/DashboardPage';
+import { StrategicPage } from './pages/StrategicPage';
+import { useShallow } from 'zustand/react/shallow';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [filters, setFilters] = useState<Filters>({
-    idSearch: '',
-    dateRange: { start: '', end: '' },
-    types: [],
-    severity: '',
-  });
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
-  const [incidents] = useState<Incident[]>(mockIncidents);
+  return (
+    <QueryProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </QueryProvider>
+  );
+}
+
+function AppContent() {
+  const { user, isAuthenticated, login, logout } = useAuth();
+  const filters = useIncidentFiltersStore(
+    useShallow((state) => ({
+      typeCodes: state.typeCodes,
+      severityCodes: state.severityCodes,
+      statusCodes: state.statusCodes,
+      startDate: state.startDate,
+      endDate: state.endDate,
+      incidentNumber: state.incidentNumber,
+      isActive: state.isActive,
+    })),
+  );
+  const openIncident = useIncidentDetailStore((state) => state.openIncident);
+
+  const incidentQueryParams = useMemo(
+    () => ({
+      typeCodes: filters.typeCodes,
+      severityCodes: filters.severityCodes,
+      statusCodes: filters.statusCodes,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      incidentNumber: filters.incidentNumber,
+      isActive: filters.isActive,
+    }),
+    [filters],
+  );
+
+  const incidentsData = useIncidentsData(incidentQueryParams);
+
+  const stationsData = useStationsData({ isActive: true });
 
   const handleLogin = (username: string, password: string) => {
-    // Simple demo authentication
-    if (username === 'admin' && password === 'admin') {
-      setUser({ username: 'admin', role: 'admin' });
-    } else if (username === 'viewer' && password === 'viewer') {
-      setUser({ username: 'viewer', role: 'viewer' });
-    } else {
-      alert('Invalid credentials. Use admin/admin or viewer/viewer');
-    }
+    login(username, password).catch((error) => {
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Invalid credentials. Use admin/admin or viewer/viewer',
+      );
+    });
   };
 
-  const handleLogout = () => {
-    setUser(null);
-  };
+  const incidents = incidentsData.incidents;
 
-  const handleFiltersChange = (newFilters: Filters) => {
-    setFilters(newFilters);
-  };
-
-  // Filter incidents based on current filters
-  const filteredIncidents = incidents.filter((incident) => {
-    // ID Search
-    if (filters.idSearch && !incident.id.toLowerCase().includes(filters.idSearch.toLowerCase())) {
-      return false;
-    }
-
-    // Date Range
-    if (filters.dateRange.start && incident.date < filters.dateRange.start) {
-      return false;
-    }
-    if (filters.dateRange.end && incident.date > filters.dateRange.end) {
-      return false;
-    }
-
-    // Types
-    if (filters.types.length > 0 && !filters.types.includes(incident.type)) {
-      return false;
-    }
-
-    // Severity
-    if (filters.severity && filters.severity !== 'all' && incident.severity !== filters.severity) {
-      return false;
-    }
-
-    return true;
-  });
-
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
     <BrowserRouter>
       <div className="h-screen flex flex-col">
-        <MainNavigation user={user} onLogout={handleLogout} />
+        <MainNavigation user={user} onLogout={logout} />
 
         <Routes>
           <Route path="/" element={<Navigate to="/map" replace />} />
+          <Route path="/overview" element={<Navigate to="/map" replace />} />
 
           <Route
             path="/map"
             element={
               <div className="flex-1 flex overflow-hidden">
                 <div className="w-80 border-r overflow-y-auto p-4">
-                  <FiltersPanel filters={filters} onFiltersChange={handleFiltersChange} />
+                  <FiltersPanel />
                 </div>
                 <div className="flex-1">
                   <MapView
-                    incidents={filteredIncidents}
-                    fireStations={fireStations}
-                    onIncidentClick={setSelectedIncident}
+                    incidents={incidents}
+                    fireStations={stationsData.stations}
+                    onIncidentClick={openIncident}
+                    isLoading={incidentsData.isLoading}
+                    isError={incidentsData.isError}
+                    error={incidentsData.error}
+                    onRetry={incidentsData.refresh}
+                    counts={{
+                      rendered: incidentsData.renderedCount,
+                      total: incidentsData.totalCount,
+                      remainder: incidentsData.remainder,
+                    }}
+                    stationsLoading={stationsData.isLoading}
+                    stationsError={stationsData.isError ? stationsData.error : undefined}
                   />
                 </div>
               </div>
@@ -105,43 +119,31 @@ export default function App() {
             element={
               <div className="flex-1 flex overflow-hidden">
                 <div className="w-80 border-r overflow-y-auto p-4">
-                  <FiltersPanel filters={filters} onFiltersChange={handleFiltersChange} />
+                  <FiltersPanel />
                 </div>
                 <div className="flex-1 overflow-y-auto p-6">
-                  <TableView incidents={filteredIncidents} onIncidentClick={setSelectedIncident} />
+                  <TableView
+                    incidents={incidents}
+                    totalCount={incidentsData.totalCount}
+                    onIncidentClick={openIncident}
+                    isLoading={incidentsData.isLoading}
+                    isError={incidentsData.isError}
+                    error={incidentsData.error}
+                    onRetry={incidentsData.refresh}
+                  />
                 </div>
               </div>
             }
           />
 
-          <Route
-            path="/analytics"
-            element={
-              <div className="flex-1 overflow-y-auto">
-                <AnalyticsDashboard incidents={incidents} fireStations={fireStations} />
-              </div>
-            }
-          />
+          <Route path="/dashboard" element={<DashboardPage />} />
 
-          {user.role === 'admin' && (
-            <Route
-              path="/create"
-              element={
-                <div className="flex-1 overflow-y-auto">
-                  <IncidentForm />
-                </div>
-              }
-            />
-          )}
+          <Route path="/strategic" element={<StrategicPage />} />
 
           <Route path="*" element={<Navigate to="/map" replace />} />
         </Routes>
 
-        <IncidentDetailModal
-          incident={selectedIncident}
-          open={!!selectedIncident}
-          onClose={() => setSelectedIncident(null)}
-        />
+        <IncidentDetailModal />
 
         <Toaster />
       </div>

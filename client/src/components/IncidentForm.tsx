@@ -5,12 +5,15 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { incidentTypes, severityLevels } from '../data/mockData';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 
 export function IncidentForm() {
   const navigate = useNavigate();
+  const metadataQuery = useIncidentMetadataQuery();
+  const typeOptions = metadataQuery.data?.types ?? [];
+  const severityOptions = metadataQuery.data?.severities ?? [];
   const [formData, setFormData] = useState({
     type: '',
     severity: '',
@@ -86,19 +89,27 @@ export function IncidentForm() {
                 <Label htmlFor="type">Incident Type *</Label>
                 <Select
                   value={formData.type}
-                  onValueChange={(value) => setFormData({ ...formData, type: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, type: value })}
                 >
                   <SelectTrigger id="type" className={errors.type ? 'border-destructive' : ''}>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {incidentTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
+                    {typeOptions.map((type) => (
+                      <SelectItem key={type.code} value={type.code}>
+                        {type.name}
                       </SelectItem>
                     ))}
+                    {!metadataQuery.isLoading && typeOptions.length === 0 && (
+                      <SelectItem value="" disabled>
+                        No incident types available
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+                {metadataQuery.isLoading && (
+                  <p className="text-xs text-muted-foreground">Loading incident types…</p>
+                )}
                 {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
               </div>
 
@@ -106,7 +117,7 @@ export function IncidentForm() {
                 <Label htmlFor="severity">Severity *</Label>
                 <Select
                   value={formData.severity}
-                  onValueChange={(value) => setFormData({ ...formData, severity: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, severity: value })}
                 >
                   <SelectTrigger
                     id="severity"
@@ -115,13 +126,21 @@ export function IncidentForm() {
                     <SelectValue placeholder="Select severity" />
                   </SelectTrigger>
                   <SelectContent>
-                    {severityLevels.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level}
+                    {severityOptions.map((severity) => (
+                      <SelectItem key={severity.code} value={severity.code}>
+                        {severity.name}
                       </SelectItem>
                     ))}
+                    {!metadataQuery.isLoading && severityOptions.length === 0 && (
+                      <SelectItem value="" disabled>
+                        No severities available
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+                {metadataQuery.isLoading && (
+                  <p className="text-xs text-muted-foreground">Loading severities…</p>
+                )}
                 {errors.severity && <p className="text-sm text-destructive">{errors.severity}</p>}
               </div>
             </div>

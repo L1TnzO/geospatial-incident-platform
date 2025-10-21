@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { MapPin, Table, BarChart3, PlusCircle, LogOut } from 'lucide-react';
+import { MapPin, Table, LogOut, BarChart3, Target } from 'lucide-react';
 import { User } from '../types';
 
 interface MainNavigationProps {
@@ -38,28 +38,26 @@ export function MainNavigation({ user, onLogout }: MainNavigationProps) {
               Table View
             </Button>
           </Link>
-          <Link to="/analytics">
+          <Link to="/dashboard">
             <Button
-              variant={isActive('/analytics') ? 'secondary' : 'ghost'}
+              variant={isActive('/dashboard') ? 'secondary' : 'ghost'}
               size="sm"
               className="gap-2"
             >
               <BarChart3 className="h-4 w-4" />
-              Analytics
+              Dashboard
             </Button>
           </Link>
-          {user.role === 'admin' && (
-            <Link to="/create">
-              <Button
-                variant={isActive('/create') ? 'secondary' : 'ghost'}
-                size="sm"
-                className="gap-2"
-              >
-                <PlusCircle className="h-4 w-4" />
-                Create Incident
-              </Button>
-            </Link>
-          )}
+          <Link to="/strategic">
+            <Button
+              variant={isActive('/strategic') ? 'secondary' : 'ghost'}
+              size="sm"
+              className="gap-2"
+            >
+              <Target className="h-4 w-4" />
+              Strategic
+            </Button>
+          </Link>
         </nav>
 
         <div className="flex items-center gap-3">

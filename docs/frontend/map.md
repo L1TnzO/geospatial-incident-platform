@@ -12,14 +12,14 @@ This guide explains how the Geospatial Incident Platform map works, the endpoint
   - `useStations({ isActive: true })` fetches `/api/stations` and memoizes results per filter. Requests rely on browser caching via `AbortController` and an in-memory cache for quick toggles.
   - `useIncidentSearch()` hydrates `/api/incidents/meta`, debounces `/api/incidents/search` lookups, and exposes `search`, `lastResult`, and error/loading flags for the global search bar.
 - State management:
-  - `useMapStore` stores the current map center/zoom.
-  - `useMapPreferencesStore` stores UI preferences (currently only the station overlay toggle).
+  - `useMapStore` stores the current map center/zoom and exposes helpers to reset or persist the latest viewport.
+  - `useMapPreferencesStore` stores UI preferences such as the base-layer selection, legend visibility, and the station overlay toggle.
   - `useIncidentDetailStore` tracks the incident selected in the popup and controls whether the detail modal is open.
   - `useIncidentTableData` now responds to an `incidentNumber` filter that the search bar toggles to automatically surface the located incident in the table.
 - Rendering pipeline:
   1. `MapContainer` (Leaflet) renders the tile layer and orchestrates the viewport.
   2. `IncidentClusterLayer` clusters incidents with `supercluster` and renders cluster markers or individual incident markers with popups.
-  3. `StationLayer` renders optional fire station markers (disabled until the toggle is enabled) with custom icons.
+  3. `StationLayer` renders optional fire station markers (disabled until the toggle is enabled) with 🚒 glyph div-icons and popups.
   4. `IncidentDetailModal` opens when a user clicks **View details** in the popup (placeholder detail body until Task 4.x).
 
 ## Incident Clusters & Popups
@@ -35,9 +35,9 @@ The banner above the map displays **“Showing X of Y incidents”** when more i
 
 ## Station Overlay
 
-- Toggle: `<input type="checkbox">` bound to `useMapPreferencesStore.showStations`.
-- When enabled, the map renders custom div-icon markers with a 🚒 glyph.
-- Each station popup shows the station code, active status, and contact phone. Response zone boundaries are fetched but currently not drawn—future work may plot polygons or coverage circles.
+- Toggle: `useMapPreferencesStore.showStations` drives the control in the map toolbar.
+- When enabled, the map renders custom div-icon markers with a 🚒 glyph and Leaflet popups via `StationLayer`.
+- Each station popup shows the station name and identifier. Response zone boundaries are fetched but currently not drawn—future work may plot polygons or coverage circles.
 - The hook memoizes results so repeatedly toggling stations avoids additional network requests unless the user explicitly refreshes.
 
 ## Detail Modal
@@ -58,11 +58,12 @@ The banner above the map displays **“Showing X of Y incidents”** when more i
 
 ## Testing & Validation
 
-- Frontend map integration test: `client/src/components/MapView.integration.test.tsx` mocks API responses and verifies clustering, station toggle, and detail modal wiring.
+- Frontend map integration test (unit focus): `client/src/components/MapView.test.tsx` exercises loading/error/empty overlays and the retry flow.
+- Legacy integration harness (for clustered behaviour) still lives at `client/src/components/MapView.integration.test.tsx` and can be extended once the full API wiring lands.
 - Run with:
 
 ```bash
-npm --prefix client run test -- --run MapView.integration.test.tsx
+npm --prefix client run test -- --run MapView.test.tsx
 ```
 
 (Or `npm run test` from the repo root to execute the full suite.)

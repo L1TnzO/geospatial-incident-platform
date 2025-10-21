@@ -1,9 +1,13 @@
 export interface Incident {
   id: string;
   type: string;
-  severity: 'Low' | 'Medium' | 'High' | 'Critical';
+  severity: string;
+  severityCode?: string;
+  severityColor?: string;
   date: string;
   timestamp: string;
+  reportedAt?: string;
+  occurrenceAt?: string;
   location: {
     lat: number;
     lng: number;
@@ -11,8 +15,9 @@ export interface Incident {
   };
   description: string;
   responseTime?: number; // in minutes
-  status: 'Active' | 'Resolved' | 'Investigating';
+  status: string;
   zoneId?: string;
+  isActive: boolean;
 }
 
 export interface FireStation {
@@ -27,14 +32,4 @@ export interface FireStation {
 export interface User {
   username: string;
   role: 'admin' | 'viewer';
-}
-
-export interface Filters {
-  idSearch: string;
-  dateRange: {
-    start: string;
-    end: string;
-  };
-  types: string[];
-  severity: string;
 }
