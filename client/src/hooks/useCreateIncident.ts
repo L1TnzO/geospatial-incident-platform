@@ -1,0 +1,25 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../services/api-client';
+import { mapIncidentDetailToUi } from '../services/incidents';
+import { queryKeys } from '../services/query-keys';
+import { useIncidentDetailStore } from '../store/incident-detail-store';
+import type { IncidentCreateRequest } from '../types/api/incidents';
+
+export const useCreateIncident = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: IncidentCreateRequest) => apiClient.incidents.create(payload),
+    onSuccess: (detail) => {
+      const mapped = mapIncidentDetailToUi(detail);
+      if (mapped) {
+        const store = useIncidentDetailStore.getState();
+        store.cacheIncidentDetail(mapped.id, mapped);
+        store.openIncident(mapped);
+      }
+
+      void queryClient.invalidateQueries({ queryKey: queryKeys.incidents.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.incidents.metadata });
+    },
+  });
+};

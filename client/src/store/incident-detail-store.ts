@@ -21,6 +21,8 @@ interface IncidentDetailStore<TDetail = unknown> {
   cacheIncidentDetail: (incidentId: IncidentIdentifier, detail: TDetail) => void;
   removeIncidentDetail: (incidentId: IncidentIdentifier) => void;
   getIncidentDetail: (incidentId: IncidentIdentifier) => StoredDetail<TDetail> | undefined;
+  setPendingIncident: (incidentId: IncidentIdentifier | null) => void;
+  setError: (message: string) => void;
   clearError: () => void;
 }
 
@@ -202,6 +204,8 @@ export const useIncidentDetailStore = create<StoreShape>((set, get) => ({
     }
     return get().detailCache[normalized];
   },
+  setPendingIncident: (incidentId) => set({ pendingIncidentId: incidentId }),
+  setError: (message) => set({ error: message }),
   clearError: () => set({ error: undefined }),
 }));
 

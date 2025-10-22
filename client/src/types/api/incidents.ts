@@ -93,6 +93,45 @@ export interface IncidentDetail extends IncidentListItem {
   notes: IncidentNote[];
 }
 
+export interface IncidentCreateRequest {
+  incidentNumber: string;
+  title: string;
+  narrative?: string | null;
+  typeCode: string;
+  severityCode: string;
+  statusCode: string;
+  sourceCode?: string | null;
+  weatherCode?: string | null;
+  primaryStationCode?: string | null;
+  occurrenceAt: string;
+  reportedAt: string;
+  dispatchAt?: string | null;
+  arrivalAt?: string | null;
+  resolvedAt?: string | null;
+  casualtyCount?: number;
+  responderInjuries?: number;
+  estimatedDamageAmount?: number;
+  isActive?: boolean;
+  metadata?: Record<string, unknown>;
+  externalReference?: string | null;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export interface IncidentSearchResult {
+  incidentNumber: string;
+  title: string;
+  occurrenceAt: string;
+  reportedAt: string;
+  isActive: boolean;
+  location: GeoJsonPoint;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  type: IncidentLookupValue;
+}
+
 export interface IncidentMetadata {
   types: IncidentLookupValue[];
   severities: IncidentSeverity[];

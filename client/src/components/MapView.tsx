@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObjec
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { type Map as LeafletMap } from 'leaflet';
 import { Button } from './ui/button';
+import { useIncidentCreateStore } from '../store/incident-create-store';
 import { Card } from './ui/card';
 import {
   AlertTriangle,
@@ -219,6 +220,26 @@ export function MapView({
     mapRef.current?.zoomOut();
   };
 
+  // Incident creation mode: if user is selecting a location, clicking the map will set draft coordinates
+  const cancelLocationSelection = useIncidentCreateStore((state) => state.cancelLocationSelection);
+  const completeLocationSelection = useIncidentCreateStore(
+    (state) => state.completeLocationSelection,
+  );
+  const isSelectingLocation = useIncidentCreateStore((state) => state.isSelectingLocation);
+
+  const Picker = () => {
+    useMapEvents({
+      click: (ev) => {
+        if (!isSelectingLocation) return;
+        const { lat, lng } = ev.latlng;
+        completeLocationSelection({ lat, lng });
+        // stop selection mode
+        cancelLocationSelection();
+      },
+    });
+    return null;
+  };
+
   const handleResetView = () => {
     resetView();
     const state = useMapStore.getState();
@@ -254,6 +275,8 @@ export function MapView({
     map.fitBounds(incidentsBounds, { padding: [48, 48], maxZoom: 14 });
     setLastFitSignature(incidentsBoundsSignature);
   }, [incidentsBounds, incidentsBoundsSignature, isMapReady, lastFitSignature]);
+
+  // Render the picker when selecting a location (mounted directly inside MapContainer)
 
   useEffect(() => {
     if (!incidentsBoundsSignature && lastFitSignature !== null) {
@@ -300,6 +323,7 @@ export function MapView({
         <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
         <StationLayer stations={fireStations} isVisible={showStations} />
         <MapInstanceBinder mapRef={mapRef} onReady={handleMapReady} />
+        {isSelectingLocation && <Picker />}
       </MapContainer>
 
       {(isLoading || isError || showEmptyState) && (
@@ -437,6 +461,18 @@ export function MapView({
           >
             <Info className="h-4 w-4" />
             <span>Legend</span>
+          </Button>
+        </Card>
+
+        <Card className="map-control">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => useIncidentCreateStore.getState().open()}
+            className="map-control__button"
+            aria-label="Create new incident"
+          >
+            New Incident
           </Button>
         </Card>
 

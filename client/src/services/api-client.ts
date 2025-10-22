@@ -1,5 +1,11 @@
 import { http, type RequestOptions } from '../lib/http';
-import type { IncidentListResponse, IncidentMetadata } from '../types/api/incidents';
+import type {
+  IncidentCreateRequest,
+  IncidentDetail,
+  IncidentListResponse,
+  IncidentMetadata,
+  IncidentSearchResult,
+} from '../types/api/incidents';
 import type { StationListResponse } from '../types/api/stations';
 
 export interface FetchIncidentsParams extends Record<string, unknown> {
@@ -14,6 +20,11 @@ export interface FetchIncidentsParams extends Record<string, unknown> {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   incidentNumber?: string;
+  signal?: AbortSignal;
+}
+
+export interface IncidentSearchParams {
+  incidentNumber: string;
   signal?: AbortSignal;
 }
 
@@ -43,6 +54,17 @@ export const apiClient = {
       }),
     metadata: (options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
       http.get<IncidentMetadata>('/incidents/meta', options),
+    search: ({ incidentNumber, signal }: IncidentSearchParams) =>
+      http.get<IncidentSearchResult>('/incidents/search', {
+        signal,
+        query: { incidentNumber },
+      }),
+    detail: (incidentNumber: string, options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
+      http.get<IncidentDetail>(`/incidents/${encodeURIComponent(incidentNumber)}`, options),
+    create: (
+      payload: IncidentCreateRequest,
+      options?: Omit<RequestOptions, 'method' | 'body' | 'query'>,
+    ) => http.post<IncidentDetail>('/incidents', payload, options),
   },
   stations: {
     list: ({ signal, isActive }: FetchStationsParams = {}) =>

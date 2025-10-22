@@ -1,37 +1,39 @@
 import { useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from './components/ui/sonner';
+import { useShallow } from 'zustand/react/shallow';
+import { toast } from 'sonner';
 import { LoginScreen } from './components/LoginScreen';
 import { MainNavigation } from './components/MainNavigation';
 import { FiltersPanel } from './components/FiltersPanel';
 import { MapView } from './components/MapView';
 import { TableView } from './components/TableView';
 import { IncidentDetailModal } from './components/IncidentDetailModal';
-import { AuthProvider } from './providers/auth-provider';
-import { QueryProvider } from './providers/query-client-provider';
-import { useIncidentFiltersStore } from './store/incident-filters-store';
-import { useIncidentsData } from './hooks/useIncidentsData';
-import { useStationsData } from './hooks/useStationsData';
-import { useIncidentDetailStore } from './store/incident-detail-store';
-import { useAuth } from './hooks/useAuth';
+import { IncidentForm } from './components/IncidentForm';
+import { IncidentCreateDrawer } from './components/IncidentCreateDrawer';
 import { DashboardPage } from './pages/DashboardPage';
 import { StrategicPage } from './pages/StrategicPage';
-import { useShallow } from 'zustand/react/shallow';
+import { Toaster } from './components/ui/sonner';
+import { QueryProvider } from './providers/query-client-provider';
+import { AuthProvider } from './providers/auth-provider';
+import { useAuth } from './hooks/useAuth';
+import { useIncidentFiltersStore } from './store/incident-filters-store';
+import { useIncidentsData, useIncidentsTableData } from './hooks/useIncidentsData';
+import { useIncidentDetailStore } from './store/incident-detail-store';
+import { useStationsData } from './hooks/useStationsData';
+import type { Incident } from './types';
+import type { IncidentSortField } from './types/api/incidents';
 
-export default function App() {
-  return (
-    <QueryProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </QueryProvider>
-  );
-}
-
-function AppContent() {
+function AppRoutes() {
   const { user, isAuthenticated, login, logout } = useAuth();
+  const openIncident = useIncidentDetailStore((state) => state.openIncident);
+  const selectedIncident = useIncidentDetailStore((state) => state.selectedIncident);
+
   const filters = useIncidentFiltersStore(
     useShallow((state) => ({
+      page: state.page,
+      pageSize: state.pageSize,
+      sortBy: state.sortBy,
+      sortDirection: state.sortDirection,
       typeCodes: state.typeCodes,
       severityCodes: state.severityCodes,
       statusCodes: state.statusCodes,
@@ -41,40 +43,69 @@ function AppContent() {
       isActive: state.isActive,
     })),
   );
-  const openIncident = useIncidentDetailStore((state) => state.openIncident);
+  const setIncidentFilters = useIncidentFiltersStore((state) => state.setFilters);
 
-  const incidentQueryParams = useMemo(
-    () => ({
-      typeCodes: filters.typeCodes,
-      severityCodes: filters.severityCodes,
-      statusCodes: filters.statusCodes,
-      startDate: filters.startDate,
-      endDate: filters.endDate,
-      incidentNumber: filters.incidentNumber,
-      isActive: filters.isActive,
-    }),
-    [filters],
-  );
-
-  const incidentsData = useIncidentsData(incidentQueryParams);
-
-  const stationsData = useStationsData({ isActive: true });
-
-  const handleLogin = (username: string, password: string) => {
-    login(username, password).catch((error) => {
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'Invalid credentials. Use admin/admin or viewer/viewer',
-      );
-    });
+  const fetchParams = {
+    page: filters.page,
+    pageSize: filters.pageSize,
+    sortBy: filters.sortBy,
+    sortDirection: filters.sortDirection,
+    typeCodes: filters.typeCodes,
+    severityCodes: filters.severityCodes,
+    statusCodes: filters.statusCodes,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    incidentNumber: filters.incidentNumber,
+    isActive: filters.isActive,
   };
 
-  const incidents = incidentsData.incidents;
+  const incidentsData = useIncidentsData(fetchParams);
+  const incidentsTableData = useIncidentsTableData(fetchParams);
+
+  const stationsData = useStationsData({ isActive: filters.isActive });
+
+  const counts = useMemo(
+    () => ({
+      rendered: incidentsData.renderedCount,
+      total: incidentsData.totalCount,
+      remainder: incidentsData.remainder,
+    }),
+    [incidentsData.renderedCount, incidentsData.totalCount, incidentsData.remainder],
+  );
+
+  const handleTablePageChange = (page: number) => {
+    setIncidentFilters({ page });
+  };
+
+  const handleTableSortChange = (sortBy: IncidentSortField, sortDirection: 'asc' | 'desc') => {
+    setIncidentFilters({ sortBy, sortDirection, page: 1 });
+  };
 
   if (!isAuthenticated || !user) {
-    return <LoginScreen onLogin={handleLogin} />;
+    const handleLogin = (username: string, password: string) => {
+      login(username, password).catch((error) => {
+        toast.error(error?.message ?? 'Invalid credentials. Use admin/admin or viewer/viewer.');
+      });
+    };
+
+    return (
+      <>
+        <LoginScreen onLogin={handleLogin} />
+        <Toaster />
+      </>
+    );
   }
+
+  const activeIncidentId =
+    selectedIncident?.id ??
+    // fallback for legacy incident shape
+    (selectedIncident && 'incidentNumber' in selectedIncident
+      ? ((selectedIncident as unknown as { incidentNumber?: string }).incidentNumber ?? null)
+      : null);
+
+  const handleIncidentClick = (incident: Incident) => {
+    openIncident(incident);
+  };
 
   return (
     <BrowserRouter>
@@ -83,33 +114,28 @@ function AppContent() {
 
         <Routes>
           <Route path="/" element={<Navigate to="/map" replace />} />
-          <Route path="/overview" element={<Navigate to="/map" replace />} />
 
           <Route
             path="/map"
             element={
               <div className="flex-1 flex overflow-hidden">
-                <div className="w-80 border-r overflow-y-auto p-4">
+                <aside className="w-80 border-r overflow-y-auto p-4">
                   <FiltersPanel />
-                </div>
-                <div className="flex-1">
+                </aside>
+                <main className="flex-1">
                   <MapView
-                    incidents={incidents}
+                    incidents={incidentsData.incidents}
                     fireStations={stationsData.stations}
-                    onIncidentClick={openIncident}
+                    onIncidentClick={handleIncidentClick}
                     isLoading={incidentsData.isLoading}
                     isError={incidentsData.isError}
                     error={incidentsData.error}
                     onRetry={incidentsData.refresh}
-                    counts={{
-                      rendered: incidentsData.renderedCount,
-                      total: incidentsData.totalCount,
-                      remainder: incidentsData.remainder,
-                    }}
+                    counts={counts}
                     stationsLoading={stationsData.isLoading}
-                    stationsError={stationsData.isError ? stationsData.error : undefined}
+                    stationsError={stationsData.error}
                   />
-                </div>
+                </main>
               </div>
             }
           />
@@ -118,35 +144,69 @@ function AppContent() {
             path="/table"
             element={
               <div className="flex-1 flex overflow-hidden">
-                <div className="w-80 border-r overflow-y-auto p-4">
+                <aside className="w-80 border-r overflow-y-auto p-4">
                   <FiltersPanel />
-                </div>
-                <div className="flex-1 overflow-y-auto p-6">
+                </aside>
+                <main className="flex-1 overflow-y-auto p-6">
                   <TableView
-                    incidents={incidents}
-                    totalCount={incidentsData.totalCount}
-                    onIncidentClick={openIncident}
-                    isLoading={incidentsData.isLoading}
-                    isError={incidentsData.isError}
-                    error={incidentsData.error}
-                    onRetry={incidentsData.refresh}
+                    incidents={incidentsTableData.incidents}
+                    pagination={incidentsTableData.pagination}
+                    totalCount={incidentsTableData.totalCount}
+                    remainder={incidentsTableData.remainder}
+                    page={incidentsTableData.page}
+                    pageSize={incidentsTableData.pageSize}
+                    sortBy={filters.sortBy}
+                    sortDirection={filters.sortDirection}
+                    hasNext={incidentsTableData.hasNext}
+                    hasPrevious={incidentsTableData.hasPrevious}
+                    onSortChange={handleTableSortChange}
+                    onPageChange={handleTablePageChange}
+                    onIncidentClick={handleIncidentClick}
+                    isLoading={incidentsTableData.isLoading}
+                    isFetching={incidentsTableData.isFetching}
+                    isError={incidentsTableData.isError}
+                    error={incidentsTableData.error}
+                    onRetry={incidentsTableData.refresh}
+                    activeIncidentId={activeIncidentId ?? undefined}
                   />
-                </div>
+                </main>
               </div>
             }
           />
 
           <Route path="/dashboard" element={<DashboardPage />} />
-
           <Route path="/strategic" element={<StrategicPage />} />
+
+          <Route
+            path="/create"
+            element={
+              user.role === 'admin' ? (
+                <div className="flex-1 overflow-y-auto">
+                  <IncidentForm />
+                </div>
+              ) : (
+                <Navigate to="/map" replace />
+              )
+            }
+          />
 
           <Route path="*" element={<Navigate to="/map" replace />} />
         </Routes>
 
         <IncidentDetailModal />
-
+        <IncidentCreateDrawer />
         <Toaster />
       </div>
     </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </QueryProvider>
   );
 }

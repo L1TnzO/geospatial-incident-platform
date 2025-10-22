@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import type { Incident } from '../types';
-import { AlertTriangle, ChevronDown, ChevronUp, Download, RefreshCw } from 'lucide-react';
+import type { IncidentSortField, PaginationMeta } from '../types/api/incidents';
+import { AlertTriangle, ChevronDown, ChevronUp, Download, Loader2, RefreshCw } from 'lucide-react';
 import {
   Pagination,
   PaginationContent,
@@ -16,16 +17,25 @@ import { Card } from './ui/card';
 
 interface TableViewProps {
   incidents: Incident[];
+  pagination?: PaginationMeta;
   totalCount: number;
+  remainder: number;
+  page: number;
+  pageSize: number;
+  sortBy: IncidentSortField;
+  sortDirection: 'asc' | 'desc';
+  hasNext: boolean;
+  hasPrevious: boolean;
+  onSortChange: (field: IncidentSortField, direction: 'asc' | 'desc') => void;
+  onPageChange: (page: number) => void;
   onIncidentClick: (incident: Incident) => void;
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   error?: string;
   onRetry: () => void;
+  activeIncidentId?: string | null;
 }
-
-type SortField = 'id' | 'reportedAt' | 'occurrenceAt' | 'type' | 'severity' | 'status';
-type SortDirection = 'asc' | 'desc';
 
 const getSeverityColor = (incident: Incident) =>
   incident.severityColor
@@ -46,81 +56,43 @@ const formatDateTime = (value?: string) => {
   }).format(date);
 };
 
+const buildPageRange = (current: number, total: number, maxButtons = 5): number[] => {
+  if (total <= maxButtons) {
+    return Array.from({ length: total }, (_, index) => index + 1);
+  }
+
+  const half = Math.floor(maxButtons / 2);
+  let start = Math.max(1, current - half);
+  const end = Math.min(total, start + maxButtons - 1);
+
+  if (end - start + 1 < maxButtons) {
+    start = Math.max(1, end - maxButtons + 1);
+  }
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
+
 export function TableView({
   incidents,
+  pagination,
   totalCount,
+  remainder,
+  page,
+  pageSize,
+  sortBy,
+  sortDirection,
+  hasNext,
+  hasPrevious,
+  onSortChange,
+  onPageChange,
   onIncidentClick,
   isLoading,
+  isFetching,
   isError,
   error,
   onRetry,
+  activeIncidentId,
 }: TableViewProps) {
-  const [sortField, setSortField] = useState<SortField>('reportedAt');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
-
-  const handleSort = (field: SortField) => {
-    setCurrentPage(1);
-    if (sortField === field) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  };
-
-  const sortedIncidents = useMemo(() => {
-    const getSortValue = (incident: Incident) => {
-      switch (sortField) {
-        case 'id':
-          return incident.id;
-        case 'reportedAt':
-          return incident.reportedAt ?? incident.timestamp;
-        case 'occurrenceAt':
-          return incident.occurrenceAt ?? incident.timestamp;
-        case 'type':
-          return incident.type;
-        case 'severity':
-          return incident.severity;
-        case 'status':
-          return incident.status;
-        default:
-          return undefined;
-      }
-    };
-
-    return [...incidents].sort((a, b) => {
-      const aValue = getSortValue(a);
-      const bValue = getSortValue(b);
-
-      if (!aValue && !bValue) {
-        return 0;
-      }
-
-      if (!aValue) {
-        return sortDirection === 'asc' ? 1 : -1;
-      }
-
-      if (!bValue) {
-        return sortDirection === 'asc' ? -1 : 1;
-      }
-
-      const aDate = Date.parse(String(aValue));
-      const bDate = Date.parse(String(bValue));
-      if (!Number.isNaN(aDate) && !Number.isNaN(bDate)) {
-        return sortDirection === 'asc' ? aDate - bDate : bDate - aDate;
-      }
-
-      const comparison = String(aValue).localeCompare(String(bValue));
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  }, [incidents, sortDirection, sortField]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedIncidents.length / itemsPerPage));
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedIncidents = sortedIncidents.slice(startIndex, startIndex + itemsPerPage);
-
   const locationCounts = useMemo(() => {
     return incidents.reduce<Record<string, number>>((acc, incident) => {
       const key = `${incident.location.lat},${incident.location.lng}`;
@@ -129,12 +101,14 @@ export function TableView({
     }, {});
   }, [incidents]);
 
-  const getRecurrenceCount = (incident: Incident) => {
-    const key = `${incident.location.lat},${incident.location.lng}`;
-    return locationCounts[key] ?? 1;
-  };
+  const totalPages = pagination?.totalPages ?? Math.max(1, Math.ceil(totalCount / pageSize));
+  const pageNumbers = useMemo(() => buildPageRange(page, totalPages), [page, totalPages]);
+  const showingStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const showingEnd = totalCount === 0 ? 0 : showingStart + incidents.length - 1;
+  const showEmptyState = !isLoading && !isError && incidents.length === 0;
+  const showLoadingOverlay = isLoading || (isFetching && incidents.length === 0);
 
-  const exportToCSV = () => {
+  const handleExportCsv = () => {
     if (incidents.length === 0) {
       return;
     }
@@ -150,7 +124,7 @@ export function TableView({
       'Description',
     ];
 
-    const rows = sortedIncidents.map((incident) => [
+    const rows = incidents.map((incident) => [
       incident.id,
       incident.status,
       incident.severity,
@@ -170,76 +144,90 @@ export function TableView({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `incidents_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `incidents_page_${page}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
+  const handleSortClick = (field: IncidentSortField) => {
+    const nextDirection = sortBy === field ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'desc';
+    onSortChange(field, nextDirection);
+  };
+
+  const renderSortIcon = (field: IncidentSortField) => {
+    if (sortBy !== field) {
       return null;
     }
     return sortDirection === 'asc' ? (
-      <ChevronUp className="h-4 w-4 ml-1 inline" />
+      <ChevronUp className="ml-1 inline h-4 w-4" />
     ) : (
-      <ChevronDown className="h-4 w-4 ml-1 inline" />
+      <ChevronDown className="ml-1 inline h-4 w-4" />
     );
   };
-
-  const showEmptyState = !isLoading && !isError && incidents.length === 0;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{incidents.length.toLocaleString()}</span>{' '}
-          incidents loaded
-          {totalCount > incidents.length && <span> (of {totalCount.toLocaleString()} total)</span>}
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading incidents…
+            </span>
+          ) : (
+            <span>
+              Showing{' '}
+              <span className="font-medium text-foreground">
+                {totalCount === 0
+                  ? 0
+                  : `${showingStart.toLocaleString()} – ${showingEnd.toLocaleString()}`}
+              </span>{' '}
+              of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span>{' '}
+              incidents
+              {pagination?.totalPages
+                ? ` • Page ${page.toLocaleString()} of ${pagination.totalPages.toLocaleString()}`
+                : ''}
+            </span>
+          )}
         </div>
-        <Button onClick={exportToCSV} className="gap-2" disabled={incidents.length === 0}>
-          <Download className="h-4 w-4" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          {isFetching && !isLoading && (
+            <span
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+              aria-live="polite"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" /> Updating…
+            </span>
+          )}
+          <Button onClick={handleExportCsv} className="gap-2" disabled={incidents.length === 0}>
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+        </div>
       </div>
 
-      <div className="relative border rounded-lg overflow-hidden">
+      <div className="relative overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Incident</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('id')}
+                className="cursor-pointer select-none hover:bg-muted/50"
+                onClick={() => handleSortClick('severityPriority')}
               >
-                Incident <SortIcon field="id" />
+                Severity {renderSortIcon('severityPriority')}
+              </TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead
+                className="cursor-pointer select-none hover:bg-muted/50"
+                onClick={() => handleSortClick('reportedAt')}
+              >
+                Reported {renderSortIcon('reportedAt')}
               </TableHead>
               <TableHead
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('status')}
+                className="cursor-pointer select-none hover:bg-muted/50"
+                onClick={() => handleSortClick('occurrenceAt')}
               >
-                Status <SortIcon field="status" />
-              </TableHead>
-              <TableHead
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('severity')}
-              >
-                Severity <SortIcon field="severity" />
-              </TableHead>
-              <TableHead
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('type')}
-              >
-                Type <SortIcon field="type" />
-              </TableHead>
-              <TableHead
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('reportedAt')}
-              >
-                Reported <SortIcon field="reportedAt" />
-              </TableHead>
-              <TableHead
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('occurrenceAt')}
-              >
-                Occurrence <SortIcon field="occurrenceAt" />
+                Occurrence {renderSortIcon('occurrenceAt')}
               </TableHead>
               <TableHead>Location</TableHead>
               <TableHead>Recurrence</TableHead>
@@ -247,11 +235,19 @@ export function TableView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedIncidents.map((incident) => {
-              const recurrence = getRecurrenceCount(incident);
+            {incidents.map((incident) => {
+              const key = `${incident.location.lat},${incident.location.lng}`;
+              const recurrence = locationCounts[key] ?? 1;
+              const isActiveRow =
+                activeIncidentId && incident.id.toUpperCase() === activeIncidentId.toUpperCase();
+
               return (
-                <TableRow key={incident.id}>
-                  <TableCell>{incident.id}</TableCell>
+                <TableRow
+                  key={incident.id}
+                  data-selected={isActiveRow}
+                  className={isActiveRow ? 'bg-muted/70' : undefined}
+                >
+                  <TableCell className="font-medium">{incident.id}</TableCell>
                   <TableCell>{incident.status}</TableCell>
                   <TableCell>
                     <Badge variant="outline" style={getSeverityColor(incident)}>
@@ -282,18 +278,18 @@ export function TableView({
           </TableBody>
         </Table>
 
-        {(isLoading || isError || showEmptyState) && (
+        {(showLoadingOverlay || isError || showEmptyState) && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/85 backdrop-blur-sm">
-            <Card className="p-6 text-center space-y-3 shadow-md max-w-sm">
-              {isLoading && (
+            <Card className="max-w-sm space-y-3 p-6 text-center shadow-md">
+              {showLoadingOverlay && (
                 <>
-                  <RefreshCw className="h-6 w-6 animate-spin mx-auto text-primary" />
+                  <RefreshCw className="mx-auto h-6 w-6 animate-spin text-primary" />
                   <p className="font-medium">Loading incidents…</p>
                 </>
               )}
-              {isError && !isLoading && (
+              {isError && !showLoadingOverlay && (
                 <>
-                  <AlertTriangle className="h-6 w-6 text-destructive mx-auto" />
+                  <AlertTriangle className="mx-auto h-6 w-6 text-destructive" />
                   <p className="font-medium text-destructive">
                     {error ?? 'Unable to load incidents.'}
                   </p>
@@ -302,11 +298,11 @@ export function TableView({
                   </Button>
                 </>
               )}
-              {showEmptyState && !isLoading && !isError && (
+              {showEmptyState && !showLoadingOverlay && !isError && (
                 <>
                   <p className="font-medium">No incidents match the filters.</p>
                   <p className="text-sm text-muted-foreground">
-                    Try widening the date range or clearing the filters.
+                    Try adjusting the filters or clearing the incident search.
                   </p>
                 </>
               )}
@@ -315,50 +311,50 @@ export function TableView({
         )}
       </div>
 
-      {sortedIncidents.length > 0 && (
-        <>
+      {totalCount > 0 && (
+        <div className="space-y-3">
           <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
                   size="sm"
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                  className={
-                    currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-                  }
+                  onClick={() => onPageChange(Math.max(1, page - 1))}
+                  className={hasPrevious ? 'cursor-pointer' : 'pointer-events-none opacity-50'}
                 />
               </PaginationItem>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, index) => {
-                const page = index + 1;
-                return (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      size="sm"
-                      onClick={() => setCurrentPage(page)}
-                      isActive={currentPage === page}
-                      className="cursor-pointer"
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              })}
+              {pageNumbers.map((pageNumber) => (
+                <PaginationItem key={pageNumber}>
+                  <PaginationLink
+                    size="sm"
+                    isActive={pageNumber === page}
+                    onClick={() => onPageChange(pageNumber)}
+                    className="cursor-pointer"
+                  >
+                    {pageNumber}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
               <PaginationItem>
                 <PaginationNext
                   size="sm"
-                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                  className={
-                    currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-                  }
+                  onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+                  className={hasNext ? 'cursor-pointer' : 'pointer-events-none opacity-50'}
                 />
               </PaginationItem>
             </PaginationContent>
           </Pagination>
-          <div className="text-sm text-muted-foreground text-center">
-            Showing {startIndex + 1} – {Math.min(startIndex + itemsPerPage, sortedIncidents.length)}{' '}
-            of {sortedIncidents.length} incidents
+          <div className="text-center text-sm text-muted-foreground">
+            Showing {showingStart === 0 ? 0 : showingStart.toLocaleString()} –{' '}
+            {showingEnd === 0 ? 0 : showingEnd.toLocaleString()} of {totalCount.toLocaleString()}{' '}
+            incidents
           </div>
-        </>
+          {remainder > 0 && (
+            <p className="text-center text-xs text-muted-foreground">
+              {remainder.toLocaleString()} additional incidents available. Continue to the next
+              pages to review the remaining records.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

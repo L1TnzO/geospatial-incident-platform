@@ -8,10 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
+import { useCreateIncident } from '../hooks/useCreateIncident';
+import { useIncidentCreateStore } from '../store/incident-create-store';
 
 export function IncidentForm() {
   const navigate = useNavigate();
   const metadataQuery = useIncidentMetadataQuery();
+  const createMutation = useCreateIncident();
+  const { coordinates, close } = useIncidentCreateStore();
   const typeOptions = metadataQuery.data?.types ?? [];
   const severityOptions = metadataQuery.data?.severities ?? [];
   const [formData, setFormData] = useState({
@@ -61,15 +65,45 @@ export function IncidentForm() {
     e.preventDefault();
 
     if (validate()) {
-      // In a real app, this would save to backend
-      toast.success('Incident created successfully!');
-      navigate('/map');
+      if (!coordinates) {
+        toast.error('Please pick a location on the map.');
+        return;
+      }
+
+      const payload = {
+        incidentNumber: `INC-${Date.now()}`,
+        title: formData.description.slice(0, 120) || 'New incident',
+        typeCode: formData.type,
+        severityCode: formData.severity,
+        statusCode: 'OPEN',
+        occurrenceAt: new Date(`${formData.date}T${formData.time}`).toISOString(),
+        reportedAt: new Date().toISOString(),
+        location: {
+          latitude: Number(coordinates.lat),
+          longitude: Number(coordinates.lng),
+        },
+        narrative: formData.description,
+      };
+
+      createMutation.mutate(payload, {
+        onError: (err: unknown) => {
+          const message = err instanceof Error ? err.message : 'Failed to create incident.';
+          toast.error(message);
+        },
+        onSuccess: () => {
+          toast.success('Incident created successfully!');
+          // close drawer
+          close();
+        },
+      });
     } else {
       toast.error('Please fix validation errors');
     }
   };
 
   const handleCancel = () => {
+    // close drawer if open
+    close();
     navigate('/map');
   };
 

@@ -18,6 +18,11 @@ export interface Incident {
   status: string;
   zoneId?: string;
   isActive: boolean;
+  narrative?: string | null;
+  metadata?: Record<string, unknown>;
+  units?: IncidentUnitSummary[];
+  assets?: IncidentAssetSummary[];
+  notes?: IncidentNoteSummary[];
 }
 
 export interface FireStation {
@@ -32,4 +37,25 @@ export interface FireStation {
 export interface User {
   username: string;
   role: 'admin' | 'viewer';
+}
+
+export interface IncidentUnitSummary {
+  stationCode: string;
+  stationName: string;
+  assignmentRole?: string | null;
+  dispatchedAt?: string | null;
+  clearedAt?: string | null;
+}
+
+export interface IncidentAssetSummary {
+  assetIdentifier: string;
+  assetType: string;
+  status?: string | null;
+  notes?: string | null;
+}
+
+export interface IncidentNoteSummary {
+  author: string;
+  note: string;
+  createdAt: string;
 }
