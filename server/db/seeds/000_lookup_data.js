@@ -7,27 +7,27 @@ exports.seed = async function seed(knex) {
     {
       type_code: 'FIRE_STRUCTURE',
       name: 'Structure Fire',
-      description: 'Residential or commercial structure-related fire incident.',
+      description: 'Residential or commercial building fire.',
     },
     {
       type_code: 'FIRE_WILDLAND',
       name: 'Wildland Fire',
-      description: 'Brush, forest, or grassland fire events.',
+      description: 'Brush, forest, or grassland fire.',
     },
     {
-      type_code: 'MEDICAL',
-      name: 'Medical Response',
-      description: 'Medical emergencies requiring EMS response.',
+      type_code: 'FIRE_VEHICLE',
+      name: 'Vehicle Fire',
+      description: 'Car, truck, or vehicle-related fire.',
     },
     {
-      type_code: 'RESCUE',
-      name: 'Rescue',
-      description: 'Technical rescues including vehicle extrication, rope, or water.',
+      type_code: 'FIRE_INDUSTRIAL',
+      name: 'Industrial Fire',
+      description: 'Factory, warehouse, or industrial facility fire.',
     },
     {
-      type_code: 'HAZMAT',
-      name: 'Hazardous Materials',
-      description: 'HazMat spill or release incidents.',
+      type_code: 'FIRE_ELECTRICAL',
+      name: 'Electrical Fire',
+      description: 'Power line, transformer, or electrical equipment fire.',
     },
   ];
 
@@ -100,18 +100,33 @@ exports.seed = async function seed(knex) {
   const incidentSources = [
     {
       source_code: '911',
-      name: 'Emergency Call',
-      description: 'Public safety dispatch center request.',
+      name: '911 Emergency Call',
+      description: 'Public emergency call to dispatch center.',
+    },
+    {
+      source_code: 'FIRE_ALARM',
+      name: 'Fire Alarm System',
+      description: 'Automatic fire detection system alert.',
     },
     {
       source_code: 'FIELD_REPORT',
       name: 'Field Report',
-      description: 'Responder reported incident while on patrol.',
+      description: 'Fire personnel reported incident while on patrol.',
     },
     {
-      source_code: 'SENSOR',
-      name: 'Sensor Alert',
-      description: 'IoT or alarm system triggered alert.',
+      source_code: 'NEIGHBOR_REPORT',
+      name: 'Neighbor Report',
+      description: 'Community member reported smoke or fire.',
+    },
+    {
+      source_code: 'BUSINESS_OWNER',
+      name: 'Business Owner',
+      description: 'Property owner or manager reported fire.',
+    },
+    {
+      source_code: 'SECURITY',
+      name: 'Security Alert',
+      description: 'Building security or monitoring system.',
     },
   ];
 

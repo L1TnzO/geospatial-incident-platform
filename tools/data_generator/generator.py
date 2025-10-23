@@ -26,19 +26,31 @@ faker = Faker("en_US")
 
 _ASSIGNMENT_ROLES = (
   "Primary Engine",
-  "Ladder",
-  "Rescue",
-  "Medic Unit",
+  "Ladder Truck",
+  "Rescue Squad",
   "Battalion Chief",
   "Water Tender",
+  "Hazmat Unit",
 )
-_ASSET_TYPES = ("Engine", "Ladder", "Rescue Boat", "Drone", "Foam Trailer")
+_ASSET_TYPES = ("Engine", "Ladder", "Aerial Platform", "Drone", "Foam Trailer", "Water Tender")
 _NOTE_TOPICS = (
-  "Initial size-up complete.",
-  "Evacuation order issued for adjacent structure.",
-  "Utilities secured prior to overhaul stage.",
-  "Patient transferred to EMS for transport.",
-  "HazMat monitoring indicates no off-site impact.",
+  "Initial size-up complete. Fire showing from second floor.",
+  "Defensive operations established due to structural instability.",
+  "Utilities secured. Gas and electric shutoff confirmed.",
+  "All occupants evacuated. Primary search complete.",
+  "Fire knocked down. Overhaul in progress.",
+  "Thermal imaging scan reveals no hidden hot spots.",
+  "Ventilation operations completed on roof.",
+  "Fire origin investigation underway.",
+)
+
+# Fire-specific narrative templates
+_FIRE_NARRATIVES = (
+  "Units dispatched to reported {} with visible flames. First arriving engine reported heavy smoke conditions. Primary search conducted with negative results. Fire suppression operations established.",
+  "Initial report of {} from {} source. Upon arrival, crews found active fire involvement. Defensive operations initiated due to building conditions. All exposures protected.",
+  "Response to {} alarm activation. Investigation revealed active fire in {}. Aggressive interior attack mounted. Fire brought under control within {} minutes.",
+  "Call received for {} with smoke visible. Crews arrived to find well-involved fire. Ladder operations established for roof ventilation. Fire extinguished, no civilian injuries.",
+  "Dispatch for reported {} at commercial structure. Heavy fire conditions encountered upon arrival. Multiple alarm response requested. Fire contained to area of origin.",
 )
 
 _EXPECTED_COLUMNS: dict[str, list[str]] = {
@@ -167,6 +179,96 @@ def _choose_lookup(lookup_items: Iterable, rng: random.Random):
   return rng.choice(population)
 
 
+def _generate_fire_title(incident_type: str, rng: random.Random) -> str:
+  """Generate realistic fire incident title based on type."""
+  titles_by_type = {
+    "FIRE_STRUCTURE": [
+      "Residential structure fire",
+      "Multi-unit dwelling fire",
+      "Single-family residence fire",
+      "Apartment building fire",
+      "Commercial building fire",
+    ],
+    "FIRE_WILDLAND": [
+      "Brush fire containment",
+      "Vegetation fire spread",
+      "Wildland fire suppression",
+      "Grassland fire response",
+      "Forest fire perimeter control",
+    ],
+    "FIRE_VEHICLE": [
+      "Vehicle fire on roadway",
+      "Car fire with exposure risk",
+      "Commercial vehicle fire",
+      "Multiple vehicle fire",
+      "Passenger vehicle fully involved",
+    ],
+    "FIRE_INDUSTRIAL": [
+      "Industrial facility fire",
+      "Warehouse fire response",
+      "Manufacturing plant fire",
+      "Chemical storage fire",
+      "Factory fire suppression",
+    ],
+    "FIRE_ELECTRICAL": [
+      "Electrical equipment fire",
+      "Power line fire hazard",
+      "Transformer fire response",
+      "Electrical panel fire",
+      "Utility structure fire",
+    ],
+  }
+  
+  type_titles = titles_by_type.get(incident_type, ["Fire incident"])
+  return rng.choice(type_titles)
+
+
+def _generate_fire_narrative(incident_type: str, source: str, severity: str, rng: random.Random) -> str:
+  """Generate realistic fire incident narrative."""
+  template = rng.choice(_FIRE_NARRATIVES)
+  
+  # Customize based on incident type
+  fire_type_desc = {
+    "FIRE_STRUCTURE": "structure fire",
+    "FIRE_WILDLAND": "wildland fire",
+    "FIRE_VEHICLE": "vehicle fire",
+    "FIRE_INDUSTRIAL": "industrial fire",
+    "FIRE_ELECTRICAL": "electrical fire",
+  }.get(incident_type, "fire")
+  
+  # Customize based on source
+  source_desc = {
+    "911": "911 emergency call",
+    "FIRE_ALARM": "automatic fire alarm",
+    "FIELD_REPORT": "field observation",
+    "NEIGHBOR_REPORT": "neighbor report",
+    "BUSINESS_OWNER": "property owner",
+    "SECURITY": "security system",
+  }.get(source, "dispatch")
+  
+  # Location within structure
+  locations = ["basement", "first floor", "upper level", "rear of structure", "kitchen area"]
+  
+  # Response time based on severity
+  response_times = {
+    "LOW": str(rng.randint(45, 90)),
+    "MODERATE": str(rng.randint(30, 60)),
+    "HIGH": str(rng.randint(20, 45)),
+    "CRITICAL": str(rng.randint(15, 30)),
+    "SEVERE": str(rng.randint(10, 25)),
+  }
+  
+  # Format the narrative
+  narrative = template.format(
+    fire_type_desc,
+    source_desc,
+    rng.choice(locations),
+    response_times.get(severity, "30")
+  )
+  
+  return narrative
+
+
 def _generate_station_rows(config: SyntheticDataConfig, rng: random.Random) -> pd.DataFrame:
   west_coast_anchor = (47.6062, -122.3321)  # Seattle reference point
   rows = []
@@ -218,6 +320,12 @@ def _generate_incident_rows(
 
   now = config.start_datetime
   start_window = now - timedelta(days=config.window_days)
+  
+  # Enhanced temporal diversity: create distribution across multiple years
+  # 60% recent (last 90 days), 25% medium term (90-365 days), 15% historical (1-3 years)
+  recent_weight = 0.60
+  medium_weight = 0.25
+  historical_weight = 0.15
 
   station_records = stations_df.to_dict("records")
 
@@ -225,7 +333,24 @@ def _generate_incident_rows(
     base_station = rng.choice(station_records)
     lat, lng = _random_geo_point(base_station["location_lat"], base_station["location_lng"], max_km=3.5, rng=rng)
 
-    occurrence_at = start_window + timedelta(seconds=rng.randint(0, config.window_days * 24 * 60 * 60))
+    # Determine temporal range based on weighted distribution
+    temporal_category = rng.choices(
+      ["recent", "medium", "historical"],
+      weights=[recent_weight, medium_weight, historical_weight]
+    )[0]
+    
+    if temporal_category == "recent":
+      # Last 90 days
+      days_back = rng.randint(0, 90)
+      occurrence_at = now - timedelta(days=days_back, seconds=rng.randint(0, 86400))
+    elif temporal_category == "medium":
+      # 90 days to 1 year
+      days_back = rng.randint(90, 365)
+      occurrence_at = now - timedelta(days=days_back, seconds=rng.randint(0, 86400))
+    else:
+      # 1-3 years historical
+      days_back = rng.randint(365, 365 * 3)
+      occurrence_at = now - timedelta(days=days_back, seconds=rng.randint(0, 86400))
     reported_at = occurrence_at + timedelta(minutes=rng.randint(0, 10))
     dispatch_at = reported_at + timedelta(minutes=rng.randint(0, 6))
     arrival_at = dispatch_at + timedelta(minutes=rng.randint(3, 20))
@@ -233,9 +358,26 @@ def _generate_incident_rows(
 
     type_lookup = _choose_lookup(INCIDENT_TYPES, rng)
     severity_lookup = _choose_lookup(INCIDENT_SEVERITIES, rng)
-    status_lookup = _choose_lookup(INCIDENT_STATUSES, rng)
     source_lookup = _choose_lookup(INCIDENT_SOURCES, rng)
     weather_lookup = _choose_lookup(WEATHER_CONDITIONS, rng)
+    
+    # Determine status based on temporal category
+    # Only recent incidents (last 7 days) can be active (REPORTED, DISPATCHED, ON_SCENE)
+    # Everything else should be RESOLVED or CANCELLED
+    days_old = (now - occurrence_at).days
+    
+    if days_old <= 7:
+      # Recent incidents can have any status
+      status_lookup = _choose_lookup(INCIDENT_STATUSES, rng)
+    else:
+      # Historical incidents must be closed
+      status_lookup = rng.choice([
+        next(s for s in INCIDENT_STATUSES if s.code == "RESOLVED"),
+        next(s for s in INCIDENT_STATUSES if s.code == "CANCELLED"),
+      ])
+      # 90% resolved, 10% cancelled
+      if rng.random() > 0.1:
+        status_lookup = next(s for s in INCIDENT_STATUSES if s.code == "RESOLVED")
 
     if status_lookup.code in {"ON_SCENE", "DISPATCHED"}:
       resolved_at = None
@@ -254,12 +396,21 @@ def _generate_incident_rows(
     elif severity_lookup.code in {"MODERATE"}:
       damage_amount = round(rng.uniform(1_000, 50_000), 2)
 
+    # Generate fire-specific title and narrative
+    fire_title = _generate_fire_title(type_lookup.code, rng)
+    fire_narrative = _generate_fire_narrative(
+      type_lookup.code,
+      source_lookup.code,
+      severity_lookup.code,
+      rng
+    )
+
     incident_rows.append(
       {
         "incident_number": incident_number,
         "external_reference": faker.bothify(text="EXT-#####"),
-        "title": faker.catch_phrase(),
-        "narrative": faker.paragraph(nb_sentences=3),
+        "title": fire_title,
+        "narrative": fire_narrative,
         "type_code": type_lookup.code,
         "severity_code": severity_lookup.code,
         "status_code": status_lookup.code,

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { IncidentSortField } from '../types/api/incidents';
 
-const STORAGE_KEY = 'gip::incidentTableFilters::v1';
-const STORAGE_VERSION = 1;
+const STORAGE_KEY = 'gip::incidentTableFilters::v2'; // Incremented to v2 for fire-focused data
+const STORAGE_VERSION = 2; // Incremented to invalidate old filters with RESCUE/MEDICAL types
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;

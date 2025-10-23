@@ -13,11 +13,11 @@ class LookupItem:
 
 
 INCIDENT_TYPES: Sequence[LookupItem] = (
-  LookupItem("FIRE_STRUCTURE", "Structure Fire", "Residential or commercial structure-related fire incident."),
-  LookupItem("FIRE_WILDLAND", "Wildland Fire", "Brush, forest, or grassland fire events."),
-  LookupItem("MEDICAL", "Medical Response", "Medical emergencies requiring EMS response."),
-  LookupItem("RESCUE", "Rescue", "Technical rescues including vehicle extrication, rope, or water."),
-  LookupItem("HAZMAT", "Hazardous Materials", "HazMat spill or release incidents."),
+  LookupItem("FIRE_STRUCTURE", "Structure Fire", "Residential or commercial building fire."),
+  LookupItem("FIRE_WILDLAND", "Wildland Fire", "Brush, forest, or grassland fire."),
+  LookupItem("FIRE_VEHICLE", "Vehicle Fire", "Car, truck, or vehicle-related fire."),
+  LookupItem("FIRE_INDUSTRIAL", "Industrial Fire", "Factory, warehouse, or industrial facility fire."),
+  LookupItem("FIRE_ELECTRICAL", "Electrical Fire", "Power line, transformer, or electrical equipment fire."),
 )
 
 INCIDENT_SEVERITIES: Sequence[LookupItem] = (
@@ -37,9 +37,12 @@ INCIDENT_STATUSES: Sequence[LookupItem] = (
 )
 
 INCIDENT_SOURCES: Sequence[LookupItem] = (
-  LookupItem("911", "Emergency Call", "Public safety dispatch center request."),
-  LookupItem("FIELD_REPORT", "Field Report", "Responder reported incident while on patrol."),
-  LookupItem("SENSOR", "Sensor Alert", "IoT or alarm system triggered alert."),
+  LookupItem("911", "911 Emergency Call", "Public emergency call to dispatch center."),
+  LookupItem("FIRE_ALARM", "Fire Alarm System", "Automatic fire detection system alert."),
+  LookupItem("FIELD_REPORT", "Field Report", "Fire personnel reported incident while on patrol."),
+  LookupItem("NEIGHBOR_REPORT", "Neighbor Report", "Community member reported smoke or fire."),
+  LookupItem("BUSINESS_OWNER", "Business Owner", "Property owner or manager reported fire."),
+  LookupItem("SECURITY", "Security Alert", "Building security or monitoring system."),
 )
 
 WEATHER_CONDITIONS: Sequence[LookupItem] = (

@@ -10,4 +10,17 @@ export const queryKeys = {
   stations: {
     all: ['stations'] as const,
   },
+  dashboard: {
+    all: ['dashboard'] as const,
+    kpiLast24Hours: (params?: Record<string, unknown>) =>
+      ['dashboard', 'kpi-last-24h', params ? JSON.stringify(params) : 'default'] as const,
+    typeDistribution: (params?: Record<string, unknown>) =>
+      ['dashboard', 'type-distribution', params ? JSON.stringify(params) : 'default'] as const,
+    severityDistribution: (params?: Record<string, unknown>) =>
+      ['dashboard', 'severity-distribution', params ? JSON.stringify(params) : 'default'] as const,
+    dailyTrend: (params?: Record<string, unknown>) =>
+      ['dashboard', 'daily-trend', params ? JSON.stringify(params) : 'default'] as const,
+    recentIncidents: (params?: Record<string, unknown>) =>
+      ['dashboard', 'recent-incidents', params ? JSON.stringify(params) : 'default'] as const,
+  },
 };

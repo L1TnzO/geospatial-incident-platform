@@ -68,7 +68,8 @@ export default [
     ignores: [
       "node_modules/**",
       "client/node_modules/**",
-    "client-old/**",
+      "client-old/**",
+      "client-ui-reference/**",
       "server/node_modules/**",
       "client/dist/**",
       "server/dist/**",
