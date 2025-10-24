@@ -23,6 +23,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { computeIncidentBounds, resolveSeverityColor } from './map/utils';
 import IncidentClusterLayer from './map/IncidentClusterLayer';
 import StationLayer from './map/StationLayer';
+import { HotspotOverlay } from './map/HotspotOverlay';
+import { CoverageOverlay } from './map/CoverageOverlay';
+import { PriorityZoneOverlay } from './map/PriorityZoneOverlay';
+import type {
+  HotspotCell,
+  CoverageBufferFeature,
+  PriorityScoreGroup,
+} from '../types/api/strategic';
 import '../styles/map/map.css';
 
 const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low'];
@@ -44,6 +52,13 @@ interface MapViewProps {
   counts: MapCounts;
   stationsLoading: boolean;
   stationsError?: string;
+  strategicOverlays?: {
+    hotspots: HotspotCell[];
+    coverage: CoverageBufferFeature[];
+    priorityZones: PriorityScoreGroup[];
+    highlightedZone?: PriorityScoreGroup | null;
+  };
+  useStrategicPreferences?: boolean;
 }
 
 const TILE_LAYERS: Record<
@@ -165,22 +180,42 @@ export function MapView({
   counts,
   stationsLoading,
   stationsError,
+  strategicOverlays,
+  useStrategicPreferences = false,
 }: MapViewProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
   const resetView = useMapStore((state) => state.resetView);
-  const { baseLayer, setBaseLayer, showLegend, toggleLegend, showStations, toggleStations } =
-    useMapPreferencesStore(
-      useShallow((state) => ({
-        baseLayer: state.baseLayer,
-        setBaseLayer: state.setBaseLayer,
-        showLegend: state.showLegend,
-        toggleLegend: state.toggleLegend,
-        showStations: state.showStations,
-        toggleStations: state.toggleStations,
-      })),
-    );
+  const {
+    baseLayer,
+    setBaseLayer,
+    showLegend,
+    toggleLegend,
+    showStations,
+    toggleStations,
+    showIncidents,
+    showHotspots,
+    showCoverage,
+    showPriorityZones,
+  } = useMapPreferencesStore(
+    useShallow((state) => ({
+      baseLayer: state.baseLayer,
+      setBaseLayer: state.setBaseLayer,
+      showLegend: useStrategicPreferences ? state.showLegendStrategic : state.showLegend,
+      toggleLegend: useStrategicPreferences ? state.toggleLegendStrategic : state.toggleLegend,
+      showStations: useStrategicPreferences ? state.showStationsStrategic : state.showStations,
+      toggleStations: useStrategicPreferences
+        ? state.toggleStationsStrategic
+        : state.toggleStations,
+      showIncidents: useStrategicPreferences ? state.showIncidentsStrategic : state.showIncidents,
+      showHotspots: useStrategicPreferences ? state.showHotspotsStrategic : state.showHotspots,
+      showCoverage: useStrategicPreferences ? state.showCoverageStrategic : state.showCoverage,
+      showPriorityZones: useStrategicPreferences
+        ? state.showPriorityZonesStrategic
+        : state.showPriorityZones,
+    })),
+  );
 
   const severityLegend = useMemo(() => {
     const entries = new Map<string, string>();
@@ -320,8 +355,33 @@ export function MapView({
         <BaseLayerTile layer={baseLayer} />
         <MapViewportController />
         <MapViewportTracker />
-        <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
+        {showIncidents && (
+          <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
+        )}
         <StationLayer stations={fireStations} isVisible={showStations} />
+
+        {/* Strategic overlays */}
+        {strategicOverlays && (
+          <>
+            <HotspotOverlay
+              cells={strategicOverlays.hotspots}
+              isVisible={showHotspots}
+              intensityExponent={1}
+              priorityZonesVisible={showPriorityZones}
+            />
+            <CoverageOverlay
+              features={strategicOverlays.coverage}
+              isVisible={showCoverage}
+              priorityZonesVisible={showPriorityZones}
+            />
+            <PriorityZoneOverlay
+              zones={strategicOverlays.priorityZones}
+              isVisible={showPriorityZones}
+              highlightedZone={strategicOverlays.highlightedZone}
+            />
+          </>
+        )}
+
         <MapInstanceBinder mapRef={mapRef} onReady={handleMapReady} />
         {isSelectingLocation && <Picker />}
       </MapContainer>

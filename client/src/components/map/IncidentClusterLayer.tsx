@@ -164,8 +164,8 @@ const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLay
         icon={icon}
         eventHandlers={{
           click: () => {
+            // Just center the map on the incident, popup will open automatically
             map.setView({ lat, lng }, map.getZoom(), { animate: true });
-            onIncidentClick(incident);
           },
           keydown: (event) => {
             if (
@@ -174,7 +174,6 @@ const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLay
             ) {
               const marker = event.target as L.Marker;
               marker.openPopup();
-              onIncidentClick(incident);
             }
           },
         }}

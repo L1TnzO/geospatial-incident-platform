@@ -17,6 +17,22 @@ import type {
   DailyTrendResponse,
   RecentIncidentsResponse,
 } from '../types/api/dashboard';
+import type {
+  MonthlyTrendsParams,
+  QuarterlyTrendsParams,
+  TypeTimelinesParams,
+  HotspotsParams,
+  CoverageBuffersParams,
+  ResponseMetricsParams,
+  PriorityScoresParams,
+  StrategicMonthlyTrendResponse,
+  StrategicQuarterlyTrendResponse,
+  StrategicTypeTimelineResponse,
+  StrategicHotspotResponse,
+  StrategicCoverageResponse,
+  StrategicResponseMetricsResponse,
+  StrategicPriorityScoreResponse,
+} from '../types/api/strategic';
 
 export interface FetchIncidentsParams extends Record<string, unknown> {
   page?: number;
@@ -208,6 +224,162 @@ export const apiClient = {
           string | number | boolean | Array<string | number> | undefined
         >,
       }) as Promise<Response>;
+    },
+  },
+  strategic: {
+    monthlyTrends: (
+      params: MonthlyTrendsParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicMonthlyTrendResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicMonthlyTrendResponse>('/strategic/trends/monthly', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicMonthlyTrendResponse>;
+      }
+      return http.get<StrategicMonthlyTrendResponse>('/strategic/trends/monthly', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    quarterlyTrends: (
+      params: QuarterlyTrendsParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicQuarterlyTrendResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicQuarterlyTrendResponse>('/strategic/trends/quarters', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicQuarterlyTrendResponse>;
+      }
+      return http.get<StrategicQuarterlyTrendResponse>('/strategic/trends/quarters', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    typeTimelines: (
+      params: TypeTimelinesParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicTypeTimelineResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicTypeTimelineResponse>('/strategic/trends/types', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicTypeTimelineResponse>;
+      }
+      return http.get<StrategicTypeTimelineResponse>('/strategic/trends/types', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    hotspots: (
+      params: HotspotsParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicHotspotResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicHotspotResponse>('/strategic/hotspots', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicHotspotResponse>;
+      }
+      return http.get<StrategicHotspotResponse>('/strategic/hotspots', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    coverageBuffers: (
+      params: CoverageBuffersParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicCoverageResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicCoverageResponse>('/strategic/coverage-buffers', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicCoverageResponse>;
+      }
+      return http.get<StrategicCoverageResponse>('/strategic/coverage-buffers', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    responseMetrics: (
+      params: ResponseMetricsParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicResponseMetricsResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicResponseMetricsResponse>('/strategic/response-metrics', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicResponseMetricsResponse>;
+      }
+      return http.get<StrategicResponseMetricsResponse>('/strategic/response-metrics', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    priorityScores: (
+      params: PriorityScoresParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicPriorityScoreResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicPriorityScoreResponse>('/strategic/priority-scores', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicPriorityScoreResponse>;
+      }
+      return http.get<StrategicPriorityScoreResponse>('/strategic/priority-scores', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
     },
   },
 };

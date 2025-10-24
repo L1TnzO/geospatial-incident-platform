@@ -23,4 +23,21 @@ export const queryKeys = {
     recentIncidents: (params?: Record<string, unknown>) =>
       ['dashboard', 'recent-incidents', params ? JSON.stringify(params) : 'default'] as const,
   },
+  strategic: {
+    all: ['strategic'] as const,
+    monthlyTrends: (params?: Record<string, unknown>) =>
+      ['strategic', 'monthly-trends', params ? JSON.stringify(params) : 'default'] as const,
+    quarterlyTrends: (params?: Record<string, unknown>) =>
+      ['strategic', 'quarterly-trends', params ? JSON.stringify(params) : 'default'] as const,
+    typeTimelines: (params?: Record<string, unknown>) =>
+      ['strategic', 'type-timelines', params ? JSON.stringify(params) : 'default'] as const,
+    hotspots: (params?: Record<string, unknown>) =>
+      ['strategic', 'hotspots', params ? JSON.stringify(params) : 'default'] as const,
+    coverageBuffers: (params?: Record<string, unknown>) =>
+      ['strategic', 'coverage-buffers', params ? JSON.stringify(params) : 'default'] as const,
+    responseMetrics: (params?: Record<string, unknown>) =>
+      ['strategic', 'response-metrics', params ? JSON.stringify(params) : 'default'] as const,
+    priorityScores: (params?: Record<string, unknown>) =>
+      ['strategic', 'priority-scores', params ? JSON.stringify(params) : 'default'] as const,
+  },
 };

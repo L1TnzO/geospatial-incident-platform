@@ -39,24 +39,6 @@ const resolveIncidentId = (incident: Incident | null): string | null => {
   return fallback ?? null;
 };
 
-const formatMetadataValue = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return '—';
-  }
-  if (typeof value === 'object') {
-    try {
-      return JSON.stringify(value);
-    } catch (error) {
-      console.warn('[IncidentDetailModal] Failed to stringify metadata value:', error);
-      return String(value);
-    }
-  }
-  return String(value);
-};
-
-const sortMetadataEntries = (entries: Array<[string, unknown]>) =>
-  entries.sort(([a], [b]) => a.localeCompare(b));
-
 export function IncidentDetailModal() {
   const { selectedIncident, isOpen, closeIncident } = useIncidentDetailStore();
   const incidentId = resolveIncidentId(selectedIncident ?? null);
@@ -68,12 +50,6 @@ export function IncidentDetailModal() {
     }
     return selectedIncident ?? null;
   }, [detailQuery.data, selectedIncident]);
-  const metadataEntries = useMemo(() => {
-    if (!incident?.metadata) {
-      return [] as Array<[string, unknown]>;
-    }
-    return sortMetadataEntries(Object.entries(incident.metadata));
-  }, [incident?.metadata]);
 
   const units = incident?.units ?? [];
   const assets = incident?.assets ?? [];
@@ -105,13 +81,13 @@ export function IncidentDetailModal() {
         }
       }}
     >
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground">Incident</span>
-              <span className="text-xl font-semibold">
-                {incident?.id ?? incidentId ?? 'Incident'}
+              <span className="text-2xl font-bold">{incident?.id ?? incidentId ?? 'Incident'}</span>
+              <span className="text-sm font-normal text-muted-foreground">
+                {incident?.type || 'Incident Details'}
               </span>
             </DialogTitle>
             {(isInitialLoading || isRefetching) && (
@@ -146,126 +122,85 @@ export function IncidentDetailModal() {
         )}
 
         {incident && !isInitialLoading && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-6">
+            {/* Status and Severity - Prominent at top */}
+            <div className="flex items-center gap-4">
+              <Badge variant="outline" className="text-base py-1 px-3">
+                {incident.status}
+              </Badge>
+              <Badge variant="outline" style={severityColor} className="text-base py-1 px-3">
+                {incident.severity}
+              </Badge>
+            </div>
+
+            {/* Key Information Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-lg">
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Incident type</p>
-                <p className="font-medium">{incident.type}</p>
+                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                  Time Reported
+                </p>
+                <p className="text-base font-medium">
+                  {formatDateTime(incident.reportedAt ?? incident.timestamp)}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Severity</p>
-                <Badge variant="outline" style={severityColor}>
-                  {incident.severity}
-                </Badge>
+                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                  Time Occurred
+                </p>
+                <p className="text-base font-medium">{formatDateTime(incident.occurrenceAt)}</p>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                  Location
+                </p>
+                <p className="text-base font-medium">{incident.location.address}</p>
+                <p className="text-xs text-muted-foreground">
+                  Coordinates: {incident.location.lat.toFixed(4)},{' '}
+                  {incident.location.lng.toFixed(4)}
+                </p>
               </div>
             </div>
 
-            <Separator />
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Reported</p>
-                <p>{formatDateTime(incident.reportedAt ?? incident.timestamp)}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Occurrence</p>
-                <p>{formatDateTime(incident.occurrenceAt)}</p>
-              </div>
+            {/* Description */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Description</p>
+              <p className="text-base leading-relaxed">{incident.description}</p>
             </div>
 
-            <Separator />
-
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Location</p>
-              <p>{incident.location.address}</p>
-              <p className="text-xs text-muted-foreground">
-                {incident.location.lat.toFixed(4)}, {incident.location.lng.toFixed(4)}
-              </p>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Status</p>
-              <Badge variant="outline">{incident.status}</Badge>
-            </div>
-
+            {/* Narrative - Most important for managers */}
             {incident.narrative && (
-              <>
-                <Separator />
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Narrative</p>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Incident Narrative</p>
+                <div className="bg-muted/30 p-4 rounded-lg">
+                  <p className="whitespace-pre-wrap text-base leading-relaxed">
                     {incident.narrative}
                   </p>
                 </div>
-              </>
+              </div>
             )}
 
-            <Separator />
-
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Description</p>
-              <p>{incident.description}</p>
-            </div>
-
-            {metadataEntries.length > 0 && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Metadata</p>
-                  <div className="max-h-48 overflow-y-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-48">Key</TableHead>
-                          <TableHead>Value</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {metadataEntries.map(([key, value]) => (
-                          <TableRow key={key}>
-                            <TableCell className="font-medium">{key}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {formatMetadataValue(value)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              </>
-            )}
-
+            {/* Response Units */}
             {units.length > 0 && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Assigned Units</p>
-                  <IncidentUnitsTable units={units} />
-                </div>
-              </>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Response Units</p>
+                <IncidentUnitsTable units={units} />
+              </div>
             )}
 
+            {/* Assets */}
             {assets.length > 0 && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Assets</p>
-                  <IncidentAssetsTable assets={assets} />
-                </div>
-              </>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Equipment & Assets</p>
+                <IncidentAssetsTable assets={assets} />
+              </div>
             )}
 
+            {/* Field Notes */}
             {notes.length > 0 && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Notes</p>
-                  <IncidentNotesList notes={notes} />
-                </div>
-              </>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Field Notes</p>
+                <IncidentNotesList notes={notes} />
+              </div>
             )}
 
             {detailError && incident.metadata && (
@@ -296,69 +231,85 @@ export function IncidentDetailModal() {
 }
 
 const IncidentUnitsTable = ({ units }: { units: IncidentUnitSummary[] }) => (
-  <div className="max-h-48 overflow-y-auto rounded-md border">
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Station</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Dispatched</TableHead>
-          <TableHead>Cleared</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {units.map((unit) => (
-          <TableRow key={`${unit.stationCode}-${unit.assignmentRole ?? 'role'}`}>
-            <TableCell className="font-medium">
-              {unit.stationCode} — {unit.stationName}
-            </TableCell>
-            <TableCell>{unit.assignmentRole ?? '—'}</TableCell>
-            <TableCell>{formatDateTime(unit.dispatchedAt)}</TableCell>
-            <TableCell>{formatDateTime(unit.clearedAt)}</TableCell>
+  <div className="rounded-lg border overflow-hidden">
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            <TableHead className="font-semibold min-w-[200px]">Station</TableHead>
+            <TableHead className="font-semibold min-w-[120px]">Role</TableHead>
+            <TableHead className="font-semibold min-w-[150px]">Dispatched</TableHead>
+            <TableHead className="font-semibold min-w-[150px]">Cleared</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {units.map((unit) => (
+            <TableRow key={`${unit.stationCode}-${unit.assignmentRole ?? 'role'}`}>
+              <TableCell className="font-medium">
+                <div className="flex flex-col">
+                  <span>{unit.stationName}</span>
+                  <span className="text-xs text-muted-foreground">{unit.stationCode}</span>
+                </div>
+              </TableCell>
+              <TableCell>{unit.assignmentRole ?? '—'}</TableCell>
+              <TableCell className="text-sm whitespace-nowrap">
+                {formatDateTime(unit.dispatchedAt)}
+              </TableCell>
+              <TableCell className="text-sm whitespace-nowrap">
+                {formatDateTime(unit.clearedAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   </div>
 );
 
 const IncidentAssetsTable = ({ assets }: { assets: IncidentAssetSummary[] }) => (
-  <div className="max-h-48 overflow-y-auto rounded-md border">
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Identifier</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Notes</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {assets.map((asset) => (
-          <TableRow key={asset.assetIdentifier}>
-            <TableCell className="font-medium">{asset.assetIdentifier}</TableCell>
-            <TableCell>{asset.assetType}</TableCell>
-            <TableCell>{asset.status ?? '—'}</TableCell>
-            <TableCell>{asset.notes ?? '—'}</TableCell>
+  <div className="rounded-lg border overflow-hidden">
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            <TableHead className="font-semibold min-w-[140px]">Equipment ID</TableHead>
+            <TableHead className="font-semibold min-w-[120px]">Type</TableHead>
+            <TableHead className="font-semibold min-w-[100px]">Status</TableHead>
+            <TableHead className="font-semibold min-w-[200px]">Notes</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {assets.map((asset) => (
+            <TableRow key={asset.assetIdentifier}>
+              <TableCell className="font-medium">{asset.assetIdentifier}</TableCell>
+              <TableCell>{asset.assetType}</TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-xs whitespace-nowrap">
+                  {asset.status ?? 'Unknown'}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-sm">
+                <div className="max-w-md break-words">{asset.notes ?? '—'}</div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   </div>
 );
 
 const IncidentNotesList = ({ notes }: { notes: IncidentNoteSummary[] }) => (
-  <div className="max-h-48 space-y-3 overflow-y-auto rounded-md border p-3">
+  <div className="space-y-3">
     {notes.map((note) => (
-      <div
-        key={`${note.author}-${note.createdAt}`}
-        className="space-y-1 rounded-md bg-muted/40 p-2"
-      >
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{note.author}</span>
-          <span>{formatDateTime(note.createdAt)}</span>
+      <div key={`${note.author}-${note.createdAt}`} className="rounded-lg border bg-muted/20 p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <span className="font-medium text-sm">{note.author}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(note.createdAt)}
+          </span>
         </div>
-        <p className="text-sm leading-relaxed">{note.note}</p>
+        <p className="text-base leading-relaxed">{note.note}</p>
       </div>
     ))}
   </div>
