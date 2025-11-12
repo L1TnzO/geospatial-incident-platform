@@ -29,10 +29,30 @@ export class HttpError extends Error {
   }
 }
 
-const DEFAULT_TIMEOUT_MS = Number.parseInt(import.meta.env.VITE_API_TIMEOUT_MS ?? '15000', 10);
+const DEFAULT_TIMEOUT_MS = Number.parseInt(
+  resolveEnv(
+    () => (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_API_TIMEOUT_MS,
+    '15000',
+  ),
+  10,
+);
+
+function resolveEnv<T>(resolver: () => T | undefined, fallback: T): T {
+  try {
+    const value = resolver();
+    return value === undefined ? fallback : value;
+  } catch (error) {
+    console.warn('Unable to resolve environment variable from import.meta. Using fallback.', error);
+    return fallback;
+  }
+}
 
 const normalizeBaseUrl = (path: string) => {
-  const base = import.meta.env.VITE_API_BASE_URL ?? '/api';
+  const rawBase = resolveEnv(
+    () => (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_API_BASE_URL,
+    '/api',
+  );
+  const base = rawBase.trim() === '' ? '/api' : rawBase.trim();
   if (base.startsWith('http')) {
     return `${base.replace(/\/?$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
   }
