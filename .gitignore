@@ -13,8 +13,13 @@ client/test-results/
 # Environment files
 .env
 .env.*
+!.env.*.example
 server/.env
 server/.env.*
+!server/.env.*.example
+infra/docker/.env
+infra/docker/.env.*
+!infra/docker/.env.*.example
 
 # Logs
 npm-debug.log*
