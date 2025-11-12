@@ -26,6 +26,7 @@ INCIDENT_NUMBER ?=
 
 .PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
 .PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-shell-fixed db-verify-data backend-install
+.PHONY: frontend-check-config frontend-fix-vps
 
 compose-up:
 	$(COMPOSE) up --build -d
@@ -127,3 +128,41 @@ db-api-check:
 	@echo ""
 	@echo "🔍 Checking incidents endpoint..."
 	@curl -s http://localhost:3000/api/incidents?limit=5 | head -c 500 || echo "❌ Incidents endpoint not responding"
+
+frontend-check-config:
+	@echo "🔍 Checking frontend environment configuration..."
+	@if [ -f infra/docker/.env.frontend ]; then \
+		echo "✅ Found infra/docker/.env.frontend"; \
+		grep "VITE_API_BASE_URL" infra/docker/.env.frontend || echo "⚠️  VITE_API_BASE_URL not set"; \
+	else \
+		echo "❌ File infra/docker/.env.frontend not found"; \
+		echo "   Run: cp infra/docker/.env.frontend.example infra/docker/.env.frontend"; \
+	fi
+	@echo ""
+	@echo "💡 For VPS deployment, update VITE_API_BASE_URL to use your public IP:"
+	@echo "   VITE_API_BASE_URL=http://YOUR_PUBLIC_IP:4000"
+	@echo ""
+	@echo "📖 See docs/FRONTEND_VPS_CONFIG.md for details"
+
+frontend-fix-vps:
+	@echo "⚙️  This will update the frontend config for VPS deployment"
+	@echo ""
+	@read -p "Enter your VPS public IP address: " vps_ip; \
+	if [ -z "$$vps_ip" ]; then \
+		echo "❌ No IP provided. Aborted."; \
+		exit 1; \
+	fi; \
+	echo "Updating VITE_API_BASE_URL to http://$$vps_ip:4000..."; \
+	if [ -f infra/docker/.env.frontend ]; then \
+		sed -i.bak "s|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=http://$$vps_ip:4000|g" infra/docker/.env.frontend; \
+		echo "✅ Updated infra/docker/.env.frontend"; \
+		echo "   Backup saved as infra/docker/.env.frontend.bak"; \
+	else \
+		echo "❌ File infra/docker/.env.frontend not found"; \
+		exit 1; \
+	fi; \
+	echo ""; \
+	echo "🔄 Restarting frontend container..."; \
+	$(COMPOSE) restart frontend; \
+	echo "✅ Done! Clear your browser cache (Ctrl+Shift+R) and reload the page."
+

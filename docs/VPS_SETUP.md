@@ -208,16 +208,54 @@ cp infra/docker/.env.postgis.example infra/docker/.env.postgis
 cp infra/docker/.env.backend.example infra/docker/.env.backend
 cp infra/docker/.env.frontend.example infra/docker/.env.frontend
 
-# 3. Iniciar contenedores
+# 3. IMPORTANTE: Configurar la URL del API en el frontend
+# Editar infra/docker/.env.frontend y cambiar:
+# VITE_API_BASE_URL=http://localhost:4000
+# Por tu IP pública:
+# VITE_API_BASE_URL=http://TU_IP_PUBLICA:4000
+nano infra/docker/.env.frontend
+
+# 4. Iniciar contenedores
 make compose-up
 
-# 4. Setup completo de BD
+# 5. Setup completo de BD
 make db-setup-full
 
-# 5. Verificar
+# 6. Verificar
 make db-shell
 # En psql: SELECT COUNT(*) FROM incidents;
+
+# 7. Verificar que el frontend puede conectarse al backend
+# Abrir en navegador: http://TU_IP_PUBLICA:3000
+# NO debería haber errores de CORS en la consola del navegador
 ```
+
+### Error: "Access to fetch at 'http://localhost:4000/...' has been blocked by CORS"
+❌ **Problema** - El frontend está intentando conectarse a `localhost:4000` en lugar de la IP del VPS.
+🔧 **Solución**:
+
+1. Editar el archivo de variables de entorno del frontend:
+   ```bash
+   nano infra/docker/.env.frontend
+   ```
+
+2. Cambiar `VITE_API_BASE_URL`:
+   ```env
+   # Era:
+   VITE_API_BASE_URL=http://localhost:4000
+   
+   # Debe ser (usando tu IP pública):
+   VITE_API_BASE_URL=http://200.13.4.202:4000
+   ```
+
+3. Reiniciar el frontend:
+   ```bash
+   docker compose restart frontend
+   ```
+
+4. Limpiar caché del navegador: `Ctrl + Shift + R`
+
+**Ver documentación completa**: [docs/FRONTEND_VPS_CONFIG.md](./FRONTEND_VPS_CONFIG.md)
 
 ## Notas Importantes
 
