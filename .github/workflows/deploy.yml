@@ -151,9 +151,8 @@ jobs:
             
             # Configure frontend for VPS deployment
             echo "Configuring frontend for VPS (IP: $PUBLIC_IP)..."
-            # If a FRONTEND_API_URL secret is provided, prefer it (allows explicit host or domain)
-            if [ -n "${{ secrets.FRONTEND_API_URL }}" ]; then
-              FRONTEND_URL="${{ secrets.FRONTEND_API_URL }}"
+            if [ -n "${{ secrets.VPS_HOST }}" ]; then
+              FRONTEND_URL="http://${{ secrets.VPS_HOST }}:4000"
             else
               FRONTEND_URL="http://${PUBLIC_IP}:4000"
             fi
