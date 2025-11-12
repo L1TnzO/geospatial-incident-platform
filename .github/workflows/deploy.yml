@@ -151,17 +151,22 @@ jobs:
             
             # Configure frontend for VPS deployment
             echo "Configuring frontend for VPS (IP: $PUBLIC_IP)..."
-            sed -i "s|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=http://${PUBLIC_IP}:4000|g" infra/docker/.env.frontend
-            sed -i "s|VITE_ENV=.*|VITE_ENV=production|g" infra/docker/.env.frontend
-            
-            # Add VITE_ENV if it doesn't exist
-            if ! grep -q "^VITE_ENV=" infra/docker/.env.frontend; then
-              echo "VITE_ENV=production" >> infra/docker/.env.frontend
+            # If a FRONTEND_API_URL secret is provided, prefer it (allows explicit host or domain)
+            if [ -n "${{ secrets.FRONTEND_API_URL }}" ]; then
+              FRONTEND_URL="${{ secrets.FRONTEND_API_URL }}"
+            else
+              FRONTEND_URL="http://${PUBLIC_IP}:4000"
             fi
-            
+
+            # Set API base URL and environment
+            sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_URL}|g" infra/docker/.env.frontend || \
+              echo "VITE_API_BASE_URL=${FRONTEND_URL}" >> infra/docker/.env.frontend
+            sed -i -E "s|^VITE_ENV=.*|VITE_ENV=production|g" infra/docker/.env.frontend || \
+              echo "VITE_ENV=production" >> infra/docker/.env.frontend
+
             echo "Frontend configuration:"
-            grep "VITE_API_BASE_URL" infra/docker/.env.frontend
-            grep "VITE_ENV" infra/docker/.env.frontend
+            grep "VITE_API_BASE_URL" infra/docker/.env.frontend || true
+            grep "VITE_ENV" infra/docker/.env.frontend || true
             
             # Set environment variables for production
             export POSTGIS_ENV_FILE=infra/docker/.env.postgis
