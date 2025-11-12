@@ -25,7 +25,7 @@ BENCHMARK_SCRIPT ?= tools/performance/benchmark.sql
 INCIDENT_NUMBER ?=
 
 .PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
-.PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-verify db-api-check
+.PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-shell-fixed db-verify-data backend-install
 
 compose-up:
 	$(COMPOSE) up --build -d
@@ -97,7 +97,12 @@ db-benchmark:
 		$(if $(INCIDENT_NUMBER),-v incident_number='$(INCIDENT_NUMBER)',) \
 		-f $(BENCHMARK_SCRIPT)
 
-db-init:
+backend-install:
+	@echo "=== Installing backend dependencies ==="
+	$(COMPOSE) exec backend npm install || $(COMPOSE) run --rm backend npm install
+	@echo "=== Backend dependencies installed ==="
+
+db-init: backend-install
 	@echo "=== Initializing database with migrations and seed data ==="
 	$(COMPOSE) run --rm backend npm run migrate:up
 	$(COMPOSE) run --rm backend npm run db:seed

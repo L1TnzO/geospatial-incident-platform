@@ -21,6 +21,16 @@ make compose-up
 
 Espera a que todos los contenedores estén saludables (especialmente `db`).
 
+**Importante**: Verifica que el backend haya instalado las dependencias:
+```bash
+docker compose logs backend | grep "npm install"
+```
+
+Si ves errores o el contenedor se reinicia constantemente, ejecuta manualmente:
+```bash
+make backend-install
+```
+
 ### 2. Ejecutar migraciones y seeds
 
 ```bash
@@ -51,13 +61,15 @@ make db-setup-full
 
 | Comando | Descripción |
 |---------|-------------|
+| `make backend-install` | Instala dependencias del backend |
 | `make db-init` | Migraciones + seeds (tablas de referencia) |
 | `make db-load-data` | Carga masiva de datos CSV |
-| `make db-setup-full` | Todo: init + load data |
+| `make db-setup-full` | Todo: backend install + init + load data |
 | `make db-reset` | Reinicia la BD (rollback + up + seed) |
-| `make db-shell` | Abre una shell de PostgreSQL |
+| `make db-shell-fixed` | Abre una shell de PostgreSQL |
 | `make db-migrate` | Solo migraciones (sin seed) |
 | `make db-seed` | Solo seeds (requiere migraciones previas) |
+| `make db-verify-data` | Verifica cantidad de datos en tablas |
 
 ## Verificación
 
