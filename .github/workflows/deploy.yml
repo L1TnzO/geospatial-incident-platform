@@ -90,7 +90,11 @@ jobs:
             --exclude=client/node_modules \
             --exclude=server/node_modules \
             --exclude=.husky \
-            .
+            --exclude=*.log \
+            --exclude=.npm \
+            --exclude=coverage \
+            --warning=no-file-changed \
+            . || [ $? -eq 1 ]
 
       - name: Copy files to VPS
         run: |
