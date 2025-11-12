@@ -29,6 +29,21 @@ exports.seed = async function seed(knex) {
       name: 'Electrical Fire',
       description: 'Power line, transformer, or electrical equipment fire.',
     },
+    {
+      type_code: 'MEDICAL',
+      name: 'Medical Emergency',
+      description: 'Medical emergency or EMS response.',
+    },
+    {
+      type_code: 'HAZMAT',
+      name: 'Hazardous Materials',
+      description: 'Hazardous materials incident or chemical spill.',
+    },
+    {
+      type_code: 'RESCUE',
+      name: 'Rescue Operation',
+      description: 'Technical rescue or extraction operation.',
+    },
   ];
 
   const incidentSeverities = [
