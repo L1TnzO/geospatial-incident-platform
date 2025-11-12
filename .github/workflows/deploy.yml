@@ -130,6 +130,11 @@ jobs:
             tar -xzf /tmp/deploy.tar.gz
             rm /tmp/deploy.tar.gz
             
+            # Detect public IP
+            echo "Detecting public IP..."
+            PUBLIC_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || echo "localhost")
+            echo "Detected IP: $PUBLIC_IP"
+            
             # Setup environment files if they don't exist
             if [ ! -f infra/docker/.env.postgis ]; then
               cp infra/docker/.env.postgis.example infra/docker/.env.postgis
@@ -140,8 +145,23 @@ jobs:
             fi
             
             if [ ! -f infra/docker/.env.frontend ]; then
+              echo "Creating frontend environment file..."
               cp infra/docker/.env.frontend.example infra/docker/.env.frontend
             fi
+            
+            # Configure frontend for VPS deployment
+            echo "Configuring frontend for VPS (IP: $PUBLIC_IP)..."
+            sed -i "s|VITE_API_BASE_URL=.*|VITE_API_BASE_URL=http://${PUBLIC_IP}:4000|g" infra/docker/.env.frontend
+            sed -i "s|VITE_ENV=.*|VITE_ENV=production|g" infra/docker/.env.frontend
+            
+            # Add VITE_ENV if it doesn't exist
+            if ! grep -q "^VITE_ENV=" infra/docker/.env.frontend; then
+              echo "VITE_ENV=production" >> infra/docker/.env.frontend
+            fi
+            
+            echo "Frontend configuration:"
+            grep "VITE_API_BASE_URL" infra/docker/.env.frontend
+            grep "VITE_ENV" infra/docker/.env.frontend
             
             # Set environment variables for production
             export POSTGIS_ENV_FILE=infra/docker/.env.postgis
