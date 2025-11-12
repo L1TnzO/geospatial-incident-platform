@@ -76,6 +76,18 @@ SELECT COUNT(*) FROM incident_sources;    -- Debería ser 6
 SELECT COUNT(*) FROM weather_conditions;  -- Debería ser 5
 ```
 
+Para verificar que los datos se cargaron correctamente:
+
+```bash
+make db-verify
+```
+
+Para verificar que el backend está funcionando:
+
+```bash
+make db-api-check
+```
+
 ## Tablas de Referencia Requeridas
 
 Estas tablas **DEBEN** tener datos antes de cargar incidentes:
@@ -125,6 +137,39 @@ make db-load-data
 ```bash
 make db-shell
 SELECT COUNT(*) FROM incidents;
+```
+
+### Error: "The requested resource '/incidents' was not found"
+❌ **Problema** - El backend no está corriendo o no puede conectarse a la BD.
+🔧 **Solución**:
+```bash
+# Verificar que todos los contenedores estén corriendo
+docker compose ps
+
+# Verificar logs del backend
+docker compose logs backend | tail -50
+
+# Verificar que la BD esté inicializada
+make db-verify
+
+# Reiniciar backend
+docker compose restart backend
+```
+
+El endpoint correcto es `/api/incidents`, no `/incidents`.
+
+### Error: "psql: error: connection to server on socket"
+❌ **Problema** - Variables de entorno no configuradas en el contenedor.
+🔧 **Solución** - Verificar que existe el archivo `infra/docker/.env.postgis`:
+```bash
+cat infra/docker/.env.postgis
+```
+
+Debería contener:
+```env
+POSTGRES_USER=gis_dev
+POSTGRES_PASSWORD=gis_dev_password
+POSTGRES_DB=gis
 ```
 
 ## Monitoreo

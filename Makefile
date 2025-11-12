@@ -25,7 +25,7 @@ BENCHMARK_SCRIPT ?= tools/performance/benchmark.sql
 INCIDENT_NUMBER ?=
 
 .PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
-.PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full
+.PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-verify db-api-check
 
 compose-up:
 	$(COMPOSE) up --build -d
@@ -47,7 +47,7 @@ compose-restart:
 	$(COMPOSE) up --build -d
 
 db-shell:
-	$(COMPOSE) exec db sh -c "psql -U $$POSTGRES_USER -d $$POSTGRES_DB"
+	$(COMPOSE) exec db psql -U gis_dev -d gis
 
 db-migrate:
 	$(COMPOSE) run --rm backend npm run migrate:up
@@ -105,3 +105,20 @@ db-init:
 
 db-setup-full: db-init db-load-data
 	@echo "=== Full database setup complete ==="
+
+db-verify:
+	@echo "📊 Verifying database data..."
+	@$(COMPOSE) exec db psql -U gis_dev -d gis -c "\
+		SELECT 'incidents' as table_name, COUNT(*) as count FROM incidents \
+		UNION ALL SELECT 'stations', COUNT(*) FROM stations \
+		UNION ALL SELECT 'incident_units', COUNT(*) FROM incident_units \
+		UNION ALL SELECT 'incident_assets', COUNT(*) FROM incident_assets \
+		UNION ALL SELECT 'incident_notes', COUNT(*) FROM incident_notes \
+		ORDER BY table_name;"
+
+db-api-check:
+	@echo "🔍 Checking backend health..."
+	@curl -s http://localhost:3000/health || echo "❌ Backend not responding"
+	@echo ""
+	@echo "🔍 Checking incidents endpoint..."
+	@curl -s http://localhost:3000/api/incidents?limit=5 | head -c 500 || echo "❌ Incidents endpoint not responding"
