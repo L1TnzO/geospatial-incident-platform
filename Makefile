@@ -81,6 +81,12 @@ logs-tail:
 	$(COMPOSE) logs --tail=50
 
 db-load-data:
+	$(COMPOSE) exec db bash -c "cd /data && /load_script/load_data.sh \
+		--data-dir ./bulk_load_batch \
+		--database-url postgres://\$$POSTGRES_USER:\$$POSTGRES_PASSWORD@localhost:5432/\$$POSTGRES_DB \
+		$(if $(filter $(SKIP_VALIDATION),true),--skip-validation,)"
+
+db-load-data-host:
 	$(DATA_LOADER) \
 		--data-dir $(LOAD_DATA_DIR) \
 		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),) \
