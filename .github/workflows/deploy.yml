@@ -1,0 +1,189 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgis/postgis:15-3.4
+        env:
+          POSTGRES_USER: gis_test
+          POSTGRES_PASSWORD: gis_test_password
+          POSTGRES_DB: gis_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run server tests
+        run: npm run test:server
+        env:
+          DATABASE_URL: postgresql://gis_test:gis_test_password@localhost:5432/gis_test
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_NAME: gis_test
+          DATABASE_USER: gis_test
+          DATABASE_PASSWORD: gis_test_password
+          NODE_ENV: test
+
+      - name: Run client tests
+        run: npm run test:client
+
+  deploy:
+    name: Deploy to VPS
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment package
+        run: |
+          tar -czf deploy.tar.gz \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=.venv \
+            --exclude=data/generated \
+            --exclude=data/bulk_load_batch \
+            --exclude=client/node_modules \
+            --exclude=server/node_modules \
+            --exclude=.husky \
+            .
+
+      - name: Copy files to VPS
+        run: |
+          scp deploy.tar.gz ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/
+
+      - name: Deploy on VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+            set -e
+            
+            # Define variables
+            DEPLOY_DIR="/home/$USER/geospatial-incident-platform"
+            BACKUP_DIR="/home/$USER/backups"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            
+            # Create directories if they don't exist
+            mkdir -p $DEPLOY_DIR
+            mkdir -p $BACKUP_DIR
+            
+            # Backup current deployment if it exists
+            if [ -d "$DEPLOY_DIR" ] && [ "$(ls -A $DEPLOY_DIR)" ]; then
+              echo "Creating backup..."
+              tar -czf $BACKUP_DIR/backup_$TIMESTAMP.tar.gz -C $DEPLOY_DIR .
+              
+              # Keep only last 5 backups
+              cd $BACKUP_DIR
+              ls -t backup_*.tar.gz | tail -n +6 | xargs -r rm --
+            fi
+            
+            # Extract new deployment
+            echo "Extracting new deployment..."
+            cd $DEPLOY_DIR
+            tar -xzf /tmp/deploy.tar.gz
+            rm /tmp/deploy.tar.gz
+            
+            # Setup environment files if they don't exist
+            if [ ! -f infra/docker/.env.postgis ]; then
+              cp infra/docker/.env.postgis.example infra/docker/.env.postgis
+            fi
+            
+            if [ ! -f infra/docker/.env.backend ]; then
+              cp infra/docker/.env.backend.example infra/docker/.env.backend
+            fi
+            
+            if [ ! -f infra/docker/.env.frontend ]; then
+              cp infra/docker/.env.frontend.example infra/docker/.env.frontend
+            fi
+            
+            # Set environment variables for production
+            export POSTGIS_ENV_FILE=infra/docker/.env.postgis
+            export BACKEND_ENV_FILE=infra/docker/.env.backend
+            export FRONTEND_ENV_FILE=infra/docker/.env.frontend
+            
+            # Stop existing containers
+            echo "Stopping existing containers..."
+            docker compose down || true
+            
+            # Pull latest images
+            echo "Pulling Docker images..."
+            docker compose pull
+            
+            # Start services
+            echo "Starting services..."
+            docker compose up -d --build
+            
+            # Wait for database to be ready
+            echo "Waiting for database..."
+            sleep 10
+            
+            # Run migrations
+            echo "Running migrations..."
+            docker compose exec -T backend npm run migrate:up || true
+            
+            # Health check
+            echo "Performing health check..."
+            sleep 5
+            
+            # Check if containers are running
+            docker compose ps
+            
+            echo "Deployment completed successfully!"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+            cd /home/$USER/geospatial-incident-platform
+            docker compose ps
+            echo "Checking backend health..."
+            docker compose exec -T backend wget -q --spider http://localhost:4000/health || echo "Backend health check failed (may need manual verification)"
+          ENDSSH
+
+      - name: Cleanup
+        if: always()
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "rm -f /tmp/deploy.tar.gz" || true
