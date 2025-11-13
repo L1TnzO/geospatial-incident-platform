@@ -25,6 +25,11 @@ class SyntheticDataConfig:
   geohash_precision: int = 8
   output_format: str = "csv"  # or "parquet"
   verbose: bool = True
+  span_years: int = 3
+  city_coords_file: Path | None = None
+  region_lookup_file: Path | None = None
+  urban_focus_bias: float = 0.6
+  seasonal_bias_strength: float = 0.5
 
   def __post_init__(self) -> None:  # type: ignore[override]
     if self.units_per_incident_min < 1:
@@ -37,3 +42,9 @@ class SyntheticDataConfig:
       raise ValueError("assets_probability must be between 0 and 1")
     if not (0 <= self.notes_probability <= 1):
       raise ValueError("notes_probability must be between 0 and 1")
+    if self.span_years < 1:
+      raise ValueError("span_years must be at least 1")
+    if not (0 <= self.urban_focus_bias <= 1):
+      raise ValueError("urban_focus_bias must be between 0 and 1")
+    if not (0 <= self.seasonal_bias_strength <= 1):
+      raise ValueError("seasonal_bias_strength must be between 0 and 1")

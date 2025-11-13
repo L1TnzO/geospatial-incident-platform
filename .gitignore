@@ -27,6 +27,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Synthetic datasets
+data/generated/
+data/bulk_load_batch_chile_20y/
+
 # Editor/OS metadata
 .DS_Store
 Thumbs.db

@@ -36,6 +36,12 @@ def build_parser() -> ArgumentParser:
     help="Interval (in days) to distribute incident timestamps.",
   )
   parser.add_argument(
+    "--span-years",
+    type=int,
+    default=3,
+    help="Total temporal span (in years) for incident timestamps.",
+  )
+  parser.add_argument(
     "--start-datetime",
     type=str,
     default=None,
@@ -90,6 +96,30 @@ def build_parser() -> ArgumentParser:
     help="Geohash precision for incident location (3-12).",
   )
   parser.add_argument(
+    "--city-coords-file",
+    type=Path,
+    default=None,
+    help="Optional CSV with commune coordinates (columns: comuna_id, region_id, nombre, latitud, longitud).",
+  )
+  parser.add_argument(
+    "--region-lookup-file",
+    type=Path,
+    default=None,
+    help="Optional CSV with region metadata (columns: region_id, nombre).",
+  )
+  parser.add_argument(
+    "--urban-focus-bias",
+    type=float,
+    default=0.6,
+    help="Bias factor (0-1) that increases the likelihood of urban communes when assigning incidents.",
+  )
+  parser.add_argument(
+    "--seasonal-bias-strength",
+    type=float,
+    default=0.5,
+    help="Strength (0-1) of seasonal incident weighting (summer emphasis).",
+  )
+  parser.add_argument(
     "--verbose",
     action=BooleanOptionalAction,
     default=True,
@@ -121,6 +151,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     raise SystemExit("--notes-probability must be between 0 and 1")
   if not (3 <= args.geohash_precision <= 12):
     raise SystemExit("--geohash-precision must be between 3 and 12")
+  if args.city_coords_file and not args.city_coords_file.exists():
+    raise SystemExit(f"--city-coords-file not found: {args.city_coords_file}")
+  if args.region_lookup_file and not args.region_lookup_file.exists():
+    raise SystemExit(f"--region-lookup-file not found: {args.region_lookup_file}")
+  if args.span_years < 1:
+    raise SystemExit("--span-years must be >= 1")
+  if not (0.0 <= args.urban_focus_bias <= 1.0):
+    raise SystemExit("--urban-focus-bias must be between 0 and 1")
+  if not (0.0 <= args.seasonal_bias_strength <= 1.0):
+    raise SystemExit("--seasonal-bias-strength must be between 0 and 1")
 
   resolved_start = (
     datetime.fromisoformat(args.start_datetime) if args.start_datetime else datetime.now(UTC)
@@ -143,6 +183,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     notes_probability=args.notes_probability,
     geohash_precision=args.geohash_precision,
     verbose=args.verbose,
+    span_years=args.span_years,
+    city_coords_file=args.city_coords_file,
+    region_lookup_file=args.region_lookup_file,
+    urban_focus_bias=args.urban_focus_bias,
+    seasonal_bias_strength=args.seasonal_bias_strength,
   )
 
   dataset = generate_dataset(config)

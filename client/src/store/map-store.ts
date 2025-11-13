@@ -9,8 +9,8 @@ interface MapState {
   resetView: () => void;
 }
 
-const DEFAULT_CENTER: MapCenter = [40.7128, -74.006];
-const DEFAULT_ZOOM = 11;
+const DEFAULT_CENTER: MapCenter = [-38.7357, -72.6193];
+const DEFAULT_ZOOM = 12;
 
 export const useMapStore = create<MapState>((set) => ({
   center: DEFAULT_CENTER,

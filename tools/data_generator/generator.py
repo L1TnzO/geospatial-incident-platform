@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import calendar
 import json
 import math
 import random
+import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import pandas as pd
 import pygeohash
@@ -22,7 +24,7 @@ from .lookups import (
   WEATHER_CONDITIONS,
 )
 
-faker = Faker("en_US")
+faker = Faker("es_CL")
 
 _ASSIGNMENT_ROLES = (
   "Primary Engine",
@@ -129,6 +131,26 @@ _EXPECTED_COLUMNS: dict[str, list[str]] = {
 }
 
 
+_STATUS_INDEX = {status.code: status for status in INCIDENT_STATUSES}
+_RESOLVED_STATUS = _STATUS_INDEX["RESOLVED"]
+_CANCELLED_STATUS = _STATUS_INDEX["CANCELLED"]
+_REPORTED_STATUS = _STATUS_INDEX["REPORTED"]
+_DISPATCHED_STATUS = _STATUS_INDEX["DISPATCHED"]
+_ON_SCENE_STATUS = _STATUS_INDEX["ON_SCENE"]
+
+
+@dataclass
+class CommuneRecord:
+  commune_id: int
+  region_id: int
+  name: str
+  region_name: str
+  lat: float
+  lng: float
+  is_urban: bool
+  weight: float
+
+
 @dataclass
 class GeneratedData:
   stations: pd.DataFrame
@@ -136,6 +158,228 @@ class GeneratedData:
   incident_units: pd.DataFrame
   incident_assets: pd.DataFrame
   incident_notes: pd.DataFrame
+
+
+_URBAN_WEIGHT_MAP: dict[str, float] = {
+  # Metropolitan Region
+  "santiago": 5.0,
+  "puente alto": 3.6,
+  "maipu": 3.4,
+  "las condes": 2.8,
+  "la florida": 2.6,
+  "nunoa": 2.4,
+  "providencia": 2.5,
+  "vitacura": 2.2,
+  "lo barnechea": 2.0,
+  "pudahuel": 2.0,
+  "quilicura": 2.0,
+  "penalolen": 2.0,
+  "san bernardo": 2.2,
+  "la pintana": 1.8,
+  "san miguel": 1.7,
+  "macul": 1.6,
+  "independencia": 1.6,
+  "renca": 1.6,
+  "cerro navia": 1.5,
+  "lo prado": 1.5,
+  "huechuraba": 1.5,
+  "san joaquin": 1.5,
+  "quilpu": 2.2,
+  "villa alemana": 2.0,
+  # Northern Chile hubs
+  "antofagasta": 3.5,
+  "iquique": 2.7,
+  "arica": 2.3,
+  "calama": 2.2,
+  "copiapo": 2.1,
+  # Central Chile hubs
+  "valparaiso": 3.6,
+  "vina del mar": 3.4,
+  "quillota": 1.8,
+  "san antonio": 2.0,
+  "rancagua": 2.7,
+  "talca": 2.6,
+  "curico": 2.1,
+  "chillan": 2.4,
+  "los angeles": 2.4,
+  # Southern Chile hubs
+  "concepcion": 3.5,
+  "talcahuano": 2.4,
+  "san pedro de la paz": 2.1,
+  "coronel": 1.9,
+  "temuco": 4.0,
+  "padre las casas": 1.8,
+  "valdivia": 2.7,
+  "osorno": 2.2,
+  "puerto montt": 2.8,
+  "castro": 1.9,
+  "coyhaique": 2.0,
+  "punta arenas": 2.7,
+}
+
+
+_URBAN_PRIORITY_BONUS: dict[str, float] = {
+  "temuco": 2.5,
+  "santiago": 1.5,
+  "valparaiso": 1.2,
+  "concepcion": 1.2,
+}
+
+
+def _normalize_name(value: str) -> str:
+  normalized = unicodedata.normalize("NFKD", value)
+  ascii_bytes = normalized.encode("ascii", "ignore")
+  return ascii_bytes.decode("ascii").strip().lower()
+
+
+def _seasonal_month_weights(strength: float) -> list[float]:
+  """Return normalized weights per month emphasizing Chilean summer months."""
+
+  base_profile = {
+    1: 1.55,  # January peak summer
+    2: 1.4,
+    3: 1.15,
+    4: 0.95,
+    5: 0.9,
+    6: 0.85,
+    7: 0.85,
+    8: 0.9,
+    9: 1.0,
+    10: 1.1,
+    11: 1.25,
+    12: 1.6,  # December ramp-up
+  }
+
+  weights = []
+  for month in range(1, 13):
+    baseline = base_profile.get(month, 1.0)
+    adjusted = 1.0 + (baseline - 1.0) * strength
+    weights.append(max(adjusted, 0.05))
+
+  total = sum(weights)
+  return [weight / total for weight in weights]
+
+
+def _season_from_month(month: int) -> str:
+  if month in (12, 1, 2):
+    return "summer"
+  if month in (3, 4, 5):
+    return "autumn"
+  if month in (6, 7, 8):
+    return "winter"
+  return "spring"
+
+
+def _load_commune_records(config: SyntheticDataConfig) -> list[CommuneRecord]:
+  if config.city_coords_file is None:
+    return []
+
+  required_columns = {"comuna_id", "region_id", "nombre", "latitud", "longitud"}
+  communes_df = pd.read_csv(config.city_coords_file)
+  missing_columns = required_columns.difference(communes_df.columns)
+  if missing_columns:
+    raise ValueError(
+      f"city_coords_file is missing required columns: {sorted(missing_columns)}"
+    )
+
+  region_lookup: dict[int, str] = {}
+  if config.region_lookup_file is not None:
+    region_df = pd.read_csv(config.region_lookup_file)
+    if {"region_id", "nombre"}.issubset(region_df.columns):
+      region_lookup = {
+        int(row.region_id): str(row.nombre)
+        for row in region_df.itertuples(index=False)
+      }
+
+  records: list[CommuneRecord] = []
+  for row in communes_df.itertuples(index=False):
+    try:
+      commune_id = int(getattr(row, "comuna_id"))
+      region_id = int(getattr(row, "region_id"))
+      lat = float(getattr(row, "latitud"))
+      lng = float(getattr(row, "longitud"))
+    except (TypeError, ValueError):
+      continue
+
+    name_raw = str(getattr(row, "nombre")).strip()
+    if not name_raw:
+      continue
+
+    normalized_name = _normalize_name(name_raw)
+    urban_weight = _URBAN_WEIGHT_MAP.get(normalized_name)
+    base_weight = 1.0 + 0.3 * (1.0 - config.urban_focus_bias)
+    if urban_weight is not None:
+      weight = base_weight + urban_weight * config.urban_focus_bias
+    else:
+      weight = base_weight
+
+    bonus = _URBAN_PRIORITY_BONUS.get(normalized_name)
+    if bonus is not None:
+      weight += bonus * config.urban_focus_bias
+
+    region_name = region_lookup.get(region_id, f"Region {region_id}")
+    records.append(
+      CommuneRecord(
+        commune_id=commune_id,
+        region_id=region_id,
+        name=name_raw,
+        region_name=region_name,
+        lat=lat,
+        lng=lng,
+        is_urban=urban_weight is not None,
+        weight=weight,
+      )
+    )
+
+  return records
+
+
+def _sample_occurrence_timestamp(
+  now: datetime,
+  config: SyntheticDataConfig,
+  rng: random.Random,
+  month_weights: Sequence[float],
+) -> datetime:
+  """Generate an occurrence timestamp across the configured time span with seasonal bias."""
+
+  span_years = max(config.span_years, 1)
+  min_year = now.year - span_years + 1
+
+  year_offsets = list(range(span_years))
+  # Exponential decay so that recent years have higher probability while still covering the full span
+  decay_scale = max(span_years / 6.0, 1.0)
+  year_weights = [math.exp(-offset / decay_scale) for offset in year_offsets]
+  target_offset = rng.choices(year_offsets, weights=year_weights, k=1)[0]
+  target_year = now.year - target_offset
+
+  month_choices = list(range(1, 13))
+  target_month = rng.choices(month_choices, weights=month_weights, k=1)[0]
+
+  max_day = calendar.monthrange(target_year, target_month)[1]
+  target_day = rng.randint(1, max_day)
+  hour = rng.randint(0, 23)
+  minute = rng.randint(0, 59)
+  second = rng.randint(0, 59)
+
+  occurrence = datetime(
+    target_year,
+    target_month,
+    target_day,
+    hour,
+    minute,
+    second,
+    tzinfo=UTC,
+  )
+
+  if occurrence > now:
+    occurrence = occurrence.replace(year=occurrence.year - 1)
+
+  if occurrence.year < min_year:
+    max_day_min = calendar.monthrange(min_year, occurrence.month)[1]
+    clamped_day = min(occurrence.day, max_day_min)
+    occurrence = occurrence.replace(year=min_year, day=clamped_day)
+
+  return occurrence
 
 
 def _random_geo_point(center_lat: float, center_lng: float, max_km: float, rng: random.Random) -> tuple[float, float]:
@@ -164,13 +408,23 @@ def _render_wkt(lat: float, lng: float) -> str:
   return f"POINT({lng:.6f} {lat:.6f})"
 
 
-def _metadata_payload(station_code: str, severity_code: str, rng: random.Random) -> str:
+def _metadata_payload(
+  station_code: str,
+  severity_code: str,
+  rng: random.Random,
+  season_label: str | None = None,
+  urban_cluster: str | None = None,
+) -> str:
   payload = {
     "report_channel": rng.choice(["mobile", "call", "sensor"]),
     "triage_level": severity_code,
     "dispatch_console": faker.pystr(min_chars=4, max_chars=6).upper(),
     "primary_station": station_code,
   }
+  if season_label is not None:
+    payload["season_bias"] = season_label
+  if urban_cluster is not None:
+    payload["urban_cluster"] = urban_cluster
   return json.dumps(payload, separators=(",", ":"))
 
 
@@ -269,28 +523,58 @@ def _generate_fire_narrative(incident_type: str, source: str, severity: str, rng
   return narrative
 
 
-def _generate_station_rows(config: SyntheticDataConfig, rng: random.Random) -> pd.DataFrame:
-  west_coast_anchor = (47.6062, -122.3321)  # Seattle reference point
-  rows = []
+def _generate_station_rows(
+  config: SyntheticDataConfig,
+  rng: random.Random,
+  communes: Sequence[CommuneRecord],
+) -> pd.DataFrame:
+  rows: list[dict] = []
+  use_communes = len(communes) > 0
+  commune_weights = [max(commune.weight, 0.05) for commune in communes]
+
+  current_year = config.start_datetime.year
+
   for idx in range(1, config.station_count + 1):
-    lat, lng = _random_geo_point(west_coast_anchor[0], west_coast_anchor[1], max_km=20, rng=rng)
+    commune = rng.choices(communes, weights=commune_weights, k=1)[0] if use_communes else None
+
+    if commune is not None:
+      jitter_km = 6.0 if commune.is_urban else 18.0
+      lat, lng = _random_geo_point(commune.lat, commune.lng, max_km=jitter_km, rng=rng)
+      city = commune.name
+      region = commune.region_name
+      incident_weight = commune.weight
+      coverage_min, coverage_max = ((3500, 8500) if commune.is_urban else (9000, 20000))
+      anchor_lat = commune.lat
+      anchor_lng = commune.lng
+    else:
+      # Fallback to legacy random US-based data if no communes provided
+      anchor_lat, anchor_lng = 47.6062, -122.3321
+      lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=20, rng=rng)
+      city = faker.city()
+      region = faker.state_abbr()
+      incident_weight = 1.0
+      coverage_min, coverage_max = (4000, 12000)
+
     commissioned_year = rng.randint(1975, 2020)
     commissioned_on = datetime(commissioned_year, rng.randint(1, 12), rng.randint(1, 28)).date()
     decommissioned_on = None
-    if not rng.random() < 0.9:  # small chance a station was decommissioned
-      year = rng.randint(commissioned_year + 5, 2023)
-      decommissioned_on = datetime(year, rng.randint(1, 12), rng.randint(1, 28)).date()
+    if rng.random() > 0.9:
+      year_min = commissioned_year + 5
+      year_max = max(year_min, min(current_year, datetime.now(UTC).year))
+      if year_max >= year_min:
+        year = rng.randint(year_min, year_max)
+        decommissioned_on = datetime(year, rng.randint(1, 12), rng.randint(1, 28)).date()
 
-    station_code = f"STA-{idx:03d}"
+    station_code = f"STA-{idx:04d}" if config.station_count >= 1000 else f"STA-{idx:03d}"
     rows.append(
       {
         "station_code": station_code,
-        "name": f"Station {faker.city()} {idx:03d}",
-        "battalion": f"Battalion {rng.randint(1, 8)}",
+        "name": f"Compania {city} {idx:03d}",
+        "battalion": f"Batallon {rng.randint(1, 12)}",
         "address_line_1": faker.street_address(),
         "address_line_2": None,
-        "city": faker.city(),
-        "region": faker.state_abbr(),
+        "city": city,
+        "region": region,
         "postal_code": faker.postcode(),
         "phone": faker.phone_number(),
         "is_active": decommissioned_on is None,
@@ -300,11 +584,17 @@ def _generate_station_rows(config: SyntheticDataConfig, rng: random.Random) -> p
         "location_lat": lat,
         "location_lng": lng,
         "location_wkt": _render_wkt(lat, lng),
-        "coverage_radius_meters": rng.randint(4000, 12000),
-  "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
-  "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "coverage_radius_meters": rng.randint(coverage_min, coverage_max),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        # Internal-use metadata retained until persistence
+        "incident_weight": incident_weight,
+        "is_urban": bool(commune.is_urban) if commune is not None else False,
+        "anchor_lat": anchor_lat,
+        "anchor_lng": anchor_lng,
       }
     )
+
   return pd.DataFrame(rows)
 
 
@@ -319,90 +609,108 @@ def _generate_incident_rows(
   notes_rows: list[dict] = []
 
   now = config.start_datetime
-  start_window = now - timedelta(days=config.window_days)
-  
-  # Enhanced temporal diversity: create distribution across multiple years
-  # 60% recent (last 90 days), 25% medium term (90-365 days), 15% historical (1-3 years)
-  recent_weight = 0.60
-  medium_weight = 0.25
-  historical_weight = 0.15
+  month_weights = _seasonal_month_weights(config.seasonal_bias_strength)
 
   station_records = stations_df.to_dict("records")
+  if not station_records:
+    raise ValueError("No stations available to generate incidents")
+  station_weights = [max(record.get("incident_weight", 1.0), 0.05) for record in station_records]
 
   for idx in tqdm(range(1, config.incident_count + 1), disable=not config.verbose, desc="Incidents"):
-    base_station = rng.choice(station_records)
-    lat, lng = _random_geo_point(base_station["location_lat"], base_station["location_lng"], max_km=3.5, rng=rng)
+    base_station = rng.choices(station_records, weights=station_weights, k=1)[0]
+    anchor_lat = base_station.get("anchor_lat", base_station["location_lat"])
+    anchor_lng = base_station.get("anchor_lng", base_station["location_lng"])
+    is_urban_station = bool(base_station.get("is_urban", False))
+    jitter_radius = 2.5 if is_urban_station else 9.5
+    lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=jitter_radius, rng=rng)
 
-    # Determine temporal range based on weighted distribution
-    temporal_category = rng.choices(
-      ["recent", "medium", "historical"],
-      weights=[recent_weight, medium_weight, historical_weight]
-    )[0]
-    
-    if temporal_category == "recent":
-      # Last 90 days
-      days_back = rng.randint(0, 90)
-      occurrence_at = now - timedelta(days=days_back, seconds=rng.randint(0, 86400))
-    elif temporal_category == "medium":
-      # 90 days to 1 year
-      days_back = rng.randint(90, 365)
-      occurrence_at = now - timedelta(days=days_back, seconds=rng.randint(0, 86400))
-    else:
-      # 1-3 years historical
-      days_back = rng.randint(365, 365 * 3)
-      occurrence_at = now - timedelta(days=days_back, seconds=rng.randint(0, 86400))
-    reported_at = occurrence_at + timedelta(minutes=rng.randint(0, 10))
-    dispatch_at = reported_at + timedelta(minutes=rng.randint(0, 6))
-    arrival_at = dispatch_at + timedelta(minutes=rng.randint(3, 20))
-    resolved_at = arrival_at + timedelta(minutes=rng.randint(10, 240))
+    occurrence_at = _sample_occurrence_timestamp(now, config, rng, month_weights)
+    season_label = _season_from_month(occurrence_at.month)
+
+    reported_at = occurrence_at + timedelta(minutes=rng.randint(1, 8))
+    dispatch_at = reported_at + timedelta(minutes=rng.randint(1, 6))
+    arrival_at = dispatch_at + timedelta(minutes=rng.randint(3, 18))
+    resolved_at = arrival_at + timedelta(minutes=rng.randint(25, 480))
+
+    # Clamp to "now" for very recent incidents
+    if reported_at > now:
+      reported_at = now
+    if dispatch_at > now:
+      dispatch_at = now
+    if arrival_at > now:
+      arrival_at = now
+    if resolved_at > now:
+      resolved_at = now - timedelta(minutes=rng.randint(5, 90))
+
+    # Maintain chronological order after clamping
+    if dispatch_at < reported_at:
+      dispatch_at = reported_at
+    if arrival_at < dispatch_at:
+      arrival_at = dispatch_at
+    if resolved_at < arrival_at:
+      resolved_at = arrival_at + timedelta(minutes=rng.randint(5, 60))
+      if resolved_at > now:
+        resolved_at = now
 
     type_lookup = _choose_lookup(INCIDENT_TYPES, rng)
     severity_lookup = _choose_lookup(INCIDENT_SEVERITIES, rng)
     source_lookup = _choose_lookup(INCIDENT_SOURCES, rng)
     weather_lookup = _choose_lookup(WEATHER_CONDITIONS, rng)
-    
-    # Determine status based on temporal category
-    # Only recent incidents (last 7 days) can be active (REPORTED, DISPATCHED, ON_SCENE)
-    # Everything else should be RESOLVED or CANCELLED
-    days_old = (now - occurrence_at).days
-    
-    if days_old <= 7:
-      # Recent incidents can have any status
-      status_lookup = _choose_lookup(INCIDENT_STATUSES, rng)
-    else:
-      # Historical incidents must be closed
-      status_lookup = rng.choice([
-        next(s for s in INCIDENT_STATUSES if s.code == "RESOLVED"),
-        next(s for s in INCIDENT_STATUSES if s.code == "CANCELLED"),
-      ])
-      # 90% resolved, 10% cancelled
-      if rng.random() > 0.1:
-        status_lookup = next(s for s in INCIDENT_STATUSES if s.code == "RESOLVED")
 
-    if status_lookup.code in {"ON_SCENE", "DISPATCHED"}:
-      resolved_at = None
+    days_old = max((now - occurrence_at).days, 0)
+    if days_old <= 7:
+      status_lookup = _choose_lookup(INCIDENT_STATUSES, rng)
+    elif days_old <= 30:
+      status_lookup = rng.choices(
+        [_RESOLVED_STATUS, _CANCELLED_STATUS, _ON_SCENE_STATUS],
+        weights=[0.82, 0.08, 0.10],
+      )[0]
+    elif days_old <= 365:
+      status_lookup = rng.choices([_RESOLVED_STATUS, _CANCELLED_STATUS], weights=[0.92, 0.08])[0]
+    else:
+      status_lookup = _RESOLVED_STATUS
+
+    if status_lookup.code in {"ON_SCENE", "DISPATCHED"} and days_old > 2:
+      status_lookup = _RESOLVED_STATUS
+
     if status_lookup.code == "REPORTED":
       dispatch_at = None
       arrival_at = None
       resolved_at = None
+    elif status_lookup.code in {"ON_SCENE", "DISPATCHED"}:
+      resolved_at = None
 
-    incident_number = f"INC-{occurrence_at:%Y%m%d}-{idx:06d}"
+    incident_number = f"INC-{occurrence_at:%Y%m%d}-{idx:07d}" if config.incident_count >= 1_000_000 else f"INC-{occurrence_at:%Y%m%d}-{idx:06d}"
 
-    casualty_count = rng.choices([0, 1, 2, 3], weights=[0.85, 0.1, 0.04, 0.01])[0]
+    casualty_weights = [0.87, 0.08, 0.04, 0.01]
+    if severity_lookup.code in {"CRITICAL", "SEVERE"}:
+      casualty_weights = [0.75, 0.15, 0.08, 0.02]
+    casualty_count = rng.choices([0, 1, 2, 3], weights=casualty_weights)[0]
     responder_injuries = 0 if casualty_count == 0 else rng.choice([0, 1])
+    if severity_lookup.code in {"CRITICAL", "SEVERE"} and rng.random() < 0.15:
+      responder_injuries = rng.choice([1, 2])
+
     damage_amount = 0.0
     if severity_lookup.code in {"HIGH", "CRITICAL", "SEVERE"}:
-      damage_amount = round(rng.uniform(5_000, 500_000), 2)
-    elif severity_lookup.code in {"MODERATE"}:
-      damage_amount = round(rng.uniform(1_000, 50_000), 2)
+      base_min, base_max = (25_000, 750_000) if severity_lookup.code in {"CRITICAL", "SEVERE"} else (5_000, 250_000)
+      damage_amount = round(rng.uniform(base_min, base_max), 2)
+    elif severity_lookup.code == "MODERATE":
+      damage_amount = round(rng.uniform(2_000, 60_000), 2)
 
-    # Generate fire-specific title and narrative
     fire_title = _generate_fire_title(type_lookup.code, rng)
     fire_narrative = _generate_fire_narrative(
       type_lookup.code,
       source_lookup.code,
       severity_lookup.code,
-      rng
+      rng,
+    )
+
+    metadata = _metadata_payload(
+      base_station["station_code"],
+      severity_lookup.code,
+      rng,
+      season_label=season_label,
+      urban_cluster=base_station["city"] if is_urban_station else None,
     )
 
     incident_rows.append(
@@ -435,7 +743,7 @@ def _generate_incident_rows(
         "responder_injuries": responder_injuries,
         "estimated_damage_amount": damage_amount,
         "is_active": status_lookup.code not in {"RESOLVED", "CANCELLED"},
-  "metadata": _metadata_payload(base_station["station_code"], severity_lookup.code, rng),
+        "metadata": metadata,
       }
     )
 
@@ -447,7 +755,7 @@ def _generate_incident_rows(
       )
       for station_code in assigned_station_codes:
         unit_dispatched_at = (dispatch_at or reported_at) + timedelta(minutes=rng.randint(0, 4))
-        unit_cleared_at = (resolved_at or arrival_at or occurrence_at) + timedelta(minutes=rng.randint(0, 15))
+        unit_cleared_at = (resolved_at or arrival_at or occurrence_at) + timedelta(minutes=rng.randint(5, 45))
         unit_rows.append(
           {
             "incident_number": incident_number,
@@ -464,7 +772,7 @@ def _generate_incident_rows(
         assets_rows.append(
           {
             "incident_number": incident_number,
-            "asset_identifier": f"AST-{idx:06d}-{asset_idx+1}",
+            "asset_identifier": f"AST-{idx:07d}-{asset_idx+1}" if config.incident_count >= 1_000_000 else f"AST-{idx:06d}-{asset_idx+1}",
             "asset_type": rng.choice(_ASSET_TYPES),
             "status": rng.choice(["deployed", "staged", "released"]),
             "notes": faker.sentence(),
@@ -473,13 +781,14 @@ def _generate_incident_rows(
 
     if config.include_notes and rng.random() < config.notes_probability:
       notes_count = rng.randint(1, 3)
+      note_timestamp = arrival_at or reported_at
       for _ in range(notes_count):
         notes_rows.append(
           {
             "incident_number": incident_number,
             "author": faker.name(),
             "note": rng.choice(_NOTE_TOPICS),
-            "created_at": (arrival_at or reported_at).isoformat(),
+            "created_at": note_timestamp.isoformat(),
           }
         )
 
@@ -495,7 +804,8 @@ def generate_dataset(config: SyntheticDataConfig) -> GeneratedData:
   rng = random.Random(config.rng_seed)
   Faker.seed(config.rng_seed)
 
-  stations_df = _generate_station_rows(config, rng)
+  communes = _load_commune_records(config)
+  stations_df = _generate_station_rows(config, rng, communes)
   incidents_df, unit_rows, asset_rows, note_rows = _generate_incident_rows(config, rng, stations_df)
 
   unit_df = pd.DataFrame(unit_rows)
