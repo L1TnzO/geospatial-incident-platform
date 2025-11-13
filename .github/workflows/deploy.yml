@@ -152,25 +152,34 @@ jobs:
             # Configure frontend for VPS deployment
             echo "Configuring frontend for VPS (IP: $PUBLIC_IP)..."
             if [ -n "${{ secrets.VPS_HOST }}" ]; then
-              FRONTEND_URL="http://${{ secrets.VPS_HOST }}:4000"
+              API_HOST="${{ secrets.VPS_HOST }}"
             else
-              FRONTEND_URL="http://${PUBLIC_IP}:4000"
+              API_HOST="$PUBLIC_IP"
+            fi
+            FRONTEND_API_BASE="http://${API_HOST}:4000/api"
+
+            sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_API_BASE}|g" infra/docker/.env.frontend || true
+            if ! grep -q '^VITE_API_BASE_URL=' infra/docker/.env.frontend; then
+              echo "VITE_API_BASE_URL=${FRONTEND_API_BASE}" >> infra/docker/.env.frontend
             fi
 
-            # Set API base URL and environment
-            sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_URL}|g" infra/docker/.env.frontend || \
-              echo "VITE_API_BASE_URL=${FRONTEND_URL}" >> infra/docker/.env.frontend
-            sed -i -E "s|^VITE_ENV=.*|VITE_ENV=production|g" infra/docker/.env.frontend || \
+            sed -i.bak -E "s|^VITE_ENV=.*|VITE_ENV=production|g" infra/docker/.env.frontend || true
+            if ! grep -q '^VITE_ENV=' infra/docker/.env.frontend; then
               echo "VITE_ENV=production" >> infra/docker/.env.frontend
+            fi
+
+            rm -f infra/docker/.env.frontend.bak
 
             echo "Frontend configuration:"
             grep "VITE_API_BASE_URL" infra/docker/.env.frontend || true
             grep "VITE_ENV" infra/docker/.env.frontend || true
-            
-            # Set environment variables for production
-            export POSTGIS_ENV_FILE=infra/docker/.env.postgis
-            export BACKEND_ENV_FILE=infra/docker/.env.backend
-            export FRONTEND_ENV_FILE=infra/docker/.env.frontend
+
+            # Ensure docker-compose uses the real env files
+            {
+              echo "FRONTEND_ENV_FILE=infra/docker/.env.frontend"
+              echo "BACKEND_ENV_FILE=infra/docker/.env.backend"
+              echo "POSTGIS_ENV_FILE=infra/docker/.env.postgis"
+            } > .env
             
             # Stop existing containers
             echo "Stopping existing containers..."
