@@ -1,12 +1,20 @@
 import type { Request, Response } from 'express';
+import { performance } from 'node:perf_hooks';
 import { incidentService, type CreateIncidentRequest } from '../services/incidentsService';
 
 export const listIncidents = async (req: Request, res: Response): Promise<void> => {
+  const started = performance.now();
   const options = incidentService.buildListOptions(
     req.query as Record<string, string | string[] | undefined>
   );
   const result = await incidentService.listIncidents(options);
+  const afterQuery = performance.now();
   res.json(result);
+  const afterSend = performance.now();
+  console.log(
+    `[incidentsController] listIncidents page=${options.page} size=${options.pageSize} ` +
+      `query=${(afterQuery - started).toFixed(2)}ms send=${(afterSend - afterQuery).toFixed(2)}ms total=${(afterSend - started).toFixed(2)}ms`
+  );
 };
 
 export const getIncidentDetail = async (req: Request, res: Response): Promise<void> => {

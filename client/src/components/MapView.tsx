@@ -39,6 +39,7 @@ interface MapCounts {
   rendered: number;
   total: number;
   remainder: number;
+  limit: number;
 }
 
 interface MapViewProps {
@@ -327,10 +328,13 @@ export function MapView({
           <p>
             Showing {counts.rendered.toLocaleString()} of {counts.total.toLocaleString()} incidents.
           </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Current render limit: {counts.limit.toLocaleString()} incidents. Adjust “Records to display” in the filters to load more at once.
+          </p>
           {counts.remainder > 0 && (
             <p className="text-xs text-muted-foreground mt-1">
-              {counts.remainder.toLocaleString()} additional incidents are available. Refine filters
-              to narrow the scope.
+              {counts.remainder.toLocaleString()} additional incidents match the current filters.
+              Increase the render limit or refine filters to explore them.
             </p>
           )}
         </Card>

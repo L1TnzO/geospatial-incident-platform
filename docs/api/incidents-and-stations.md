@@ -217,7 +217,7 @@ Provides lookup metadata and range bounds required to render filter controls. Th
   },
   "activeCount": 178,
   "limits": {
-    "maxPageSize": 100,
+  "maxPageSize": 1000,
     "maxTotalResults": 5000
   }
 }

@@ -16,8 +16,8 @@ import { HttpError } from '../errors/httpError';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 100;
-const MAX_TOTAL_RESULTS = 5000;
+const MAX_PAGE_SIZE = 1_000;
+const MAX_TOTAL_RESULTS = 1_000_000;
 const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const SORTABLE_FIELDS: readonly IncidentSortField[] = [

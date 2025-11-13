@@ -45,6 +45,7 @@ function AppRoutes() {
       endDate: state.endDate,
       incidentNumber: state.incidentNumber,
       isActive: state.isActive,
+      renderLimit: state.renderLimit,
     })),
   );
   const setIncidentFilters = useIncidentFiltersStore((state) => state.setFilters);
@@ -60,21 +61,28 @@ function AppRoutes() {
     startDate: filters.startDate,
     endDate: filters.endDate,
     incidentNumber: filters.incidentNumber,
-    isActive: filters.isActive,
+    isActive: filters.isActive ?? true,
+    renderLimit: filters.renderLimit,
   };
 
   const incidentsData = useIncidentsData(fetchParams);
   const incidentsTableData = useIncidentsTableData(fetchParams);
 
-  const stationsData = useStationsData({ isActive: filters.isActive });
+  const stationsData = useStationsData({ isActive: filters.isActive ?? true });
 
   const counts = useMemo(
     () => ({
       rendered: incidentsData.renderedCount,
       total: incidentsData.totalCount,
       remainder: incidentsData.remainder,
+      limit: filters.renderLimit ?? incidentsData.renderedCount,
     }),
-    [incidentsData.renderedCount, incidentsData.totalCount, incidentsData.remainder],
+    [
+      incidentsData.renderedCount,
+      incidentsData.totalCount,
+      incidentsData.remainder,
+      filters.renderLimit,
+    ],
   );
 
   const handleTablePageChange = (page: number) => {

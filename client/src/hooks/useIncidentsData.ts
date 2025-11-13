@@ -2,12 +2,18 @@ import { useMemo } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { mapIncidentToUi } from '../services/incidents';
 import { apiClient, type FetchIncidentsParams } from '../services/api-client';
+import {
+  ACTIVE_RENDER_LIMIT_MAX,
+  DEFAULT_ACTIVE_RENDER_LIMIT,
+  DEFAULT_HISTORICAL_RENDER_LIMIT,
+  HISTORICAL_RENDER_LIMIT_MAX,
+  MIN_RENDER_LIMIT,
+} from '../store/incident-filters-store';
 import type { Incident } from '../types';
 import type { IncidentListResponse, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
-const INCIDENT_RENDER_CAP = 5000;
-const INCIDENT_FETCH_PAGE_SIZE = 100;
+const INCIDENT_FETCH_PAGE_SIZE = 1_000;
 
 export interface IncidentsDataResult {
   incidents: Incident[];
@@ -46,6 +52,24 @@ interface AggregatedIncidentResult {
   remainder: number;
 }
 
+const clampRenderCap = (value: number, isActive: boolean): number => {
+  const upperBound = isActive ? ACTIVE_RENDER_LIMIT_MAX : HISTORICAL_RENDER_LIMIT_MAX;
+  if (!Number.isFinite(value)) {
+    return MIN_RENDER_LIMIT;
+  }
+  const floored = Math.max(Math.floor(value), MIN_RENDER_LIMIT);
+  return Math.min(floored, upperBound);
+};
+
+const resolveRenderCap = (params: FetchIncidentsParams): number => {
+  const isActive = params.isActive !== false;
+  if (typeof params.renderLimit === 'number') {
+    return clampRenderCap(params.renderLimit, isActive);
+  }
+  const fallback = isActive ? DEFAULT_ACTIVE_RENDER_LIMIT : DEFAULT_HISTORICAL_RENDER_LIMIT;
+  return clampRenderCap(fallback, isActive);
+};
+
 const fetchIncidentsAggregated = async (
   params: FetchIncidentsParams,
   signal: AbortSignal,
@@ -53,8 +77,9 @@ const fetchIncidentsAggregated = async (
   const aggregated: Incident[] = [];
   let nextPage = params.page ?? 1;
   let lastTotal = 0;
+  const renderCap = resolveRenderCap(params);
 
-  while (aggregated.length < INCIDENT_RENDER_CAP) {
+  while (aggregated.length < renderCap) {
     if (signal.aborted) {
       throw new DOMException('The operation was aborted.', 'AbortError');
     }
@@ -75,7 +100,7 @@ const fetchIncidentsAggregated = async (
     const pagination = response.pagination;
     lastTotal = pagination.total ?? aggregated.length;
 
-    if (!pagination.hasNext || aggregated.length >= INCIDENT_RENDER_CAP) {
+    if (!pagination.hasNext || aggregated.length >= renderCap) {
       break;
     }
 
@@ -86,7 +111,7 @@ const fetchIncidentsAggregated = async (
     throw new DOMException('The operation was aborted.', 'AbortError');
   }
 
-  const capped = aggregated.slice(0, INCIDENT_RENDER_CAP);
+  const capped = aggregated.slice(0, renderCap);
   const remainder = Math.max(lastTotal - capped.length, 0);
 
   return {
@@ -101,9 +126,15 @@ const buildAggregatedQueryKey = (params: FetchIncidentsParams) =>
   ['incidents', 'list', 'aggregated', JSON.stringify({ ...params, signal: undefined })] as const;
 
 export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataResult => {
+  const normalizedParams: FetchIncidentsParams = {
+    ...params,
+    isActive: params.isActive ?? true,
+    renderLimit: resolveRenderCap(params),
+  };
+
   const query: UseQueryResult<AggregatedIncidentResult, Error> = useQuery({
-    queryKey: buildAggregatedQueryKey(params),
-    queryFn: ({ signal }) => fetchIncidentsAggregated(params, signal),
+    queryKey: buildAggregatedQueryKey(normalizedParams),
+    queryFn: ({ signal }) => fetchIncidentsAggregated(normalizedParams, signal),
     staleTime: 30_000,
     gcTime: 5 * 60_000,
   });

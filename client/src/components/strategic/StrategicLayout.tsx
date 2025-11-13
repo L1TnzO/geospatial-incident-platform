@@ -86,6 +86,7 @@ export function StrategicLayout() {
       rendered: incidents.length,
       total: incidentsQuery.data?.pagination.total || 0,
       remainder: Math.max(0, (incidentsQuery.data?.pagination.total || 0) - incidents.length),
+      limit: incidents.length,
     }),
     [incidents.length, incidentsQuery.data?.pagination.total],
   );

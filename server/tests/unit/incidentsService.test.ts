@@ -111,13 +111,13 @@ describe('IncidentService', () => {
       ).toThrow(HttpError);
     });
 
-    it('enforces maximum page size of 100', () => {
+    it('enforces maximum page size of 1,000', () => {
       const { service } = createService();
 
       expect(() =>
         service.buildListOptions({
           page: '1',
-          pageSize: '5001',
+            pageSize: '1001',
         })
       ).toThrow(HttpError);
     });
@@ -144,14 +144,14 @@ describe('IncidentService', () => {
   });
 
   describe('listIncidents', () => {
-    it('clamps total results to the 5,000 record maximum', async () => {
+    it('clamps total results to the 1,000,000 record maximum', async () => {
       const { service, repository } = createService();
       repository.listIncidents.mockResolvedValue({
         data: [] as IncidentListItem[],
         page: 1,
         pageSize: 100,
-        total: 6000,
-        totalPages: 60,
+        total: 1_250_000,
+        totalPages: 12_500,
         hasNext: true,
         hasPrevious: false,
         sortBy: 'reportedAt',
@@ -165,8 +165,8 @@ describe('IncidentService', () => {
         sortDirection: 'desc',
       });
 
-      expect(response.pagination.total).toBe(5000);
-      expect(response.pagination.totalPages).toBe(50);
+      expect(response.pagination.total).toBe(1_000_000);
+      expect(response.pagination.totalPages).toBe(10_000);
       expect(response.pagination.hasNext).toBe(true);
       expect(response.pagination.hasPrevious).toBe(false);
       expect(repository.listIncidents).toHaveBeenCalledWith({

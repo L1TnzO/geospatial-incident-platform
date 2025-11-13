@@ -12,7 +12,7 @@ export const useIncidentsQuery = (
   params: FetchIncidentsParams = {},
   options?: IncidentsQueryOptions,
 ): UseQueryResult<IncidentListResponse, Error> => {
-  const { signal: userSignal, ...queryParams } = params;
+  const { signal: userSignal, renderLimit, ...queryParams } = params;
 
   return useQuery<IncidentListResponse, Error>({
     queryKey: queryKeys.incidents.list(queryParams),

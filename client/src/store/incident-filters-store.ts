@@ -1,8 +1,17 @@
-import { create } from 'zustand';
+import { create, type StateCreator } from 'zustand';
 import type { IncidentSortField } from '../types/api/incidents';
 
-const STORAGE_KEY = 'gip::incidentTableFilters::v2'; // Incremented to v2 for fire-focused data
-const STORAGE_VERSION = 2; // Incremented to invalidate old filters with RESCUE/MEDICAL types
+export const STORAGE_KEY = 'gip::incidentTableFilters::v3'; // Incremented to enforce active filter default
+export const STORAGE_VERSION = 3;
+export const MIN_RENDER_LIMIT = 100;
+export const ACTIVE_RENDER_LIMIT_MAX = 1_000_000;
+export const HISTORICAL_RENDER_LIMIT_MAX = 1_000_000;
+export const DEFAULT_ACTIVE_RENDER_LIMIT = 2000;
+export const DEFAULT_HISTORICAL_RENDER_LIMIT = 1000;
+export const GLOBAL_RENDER_LIMIT_MAX = Math.max(
+  ACTIVE_RENDER_LIMIT_MAX,
+  HISTORICAL_RENDER_LIMIT_MAX,
+);
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
@@ -22,11 +31,13 @@ export interface IncidentFiltersState {
   incidentNumber?: string;
   isActive?: boolean;
   searchTerm?: string;
+  renderLimit: number;
   setFilters: (filters: Partial<Omit<IncidentFiltersState, 'setFilters' | 'reset'>>) => void;
   reset: () => void;
 }
 
 type StoredFilters = Omit<IncidentFiltersState, 'setFilters' | 'reset'>;
+type PartialFilters = Partial<Omit<IncidentFiltersState, 'setFilters' | 'reset'>>;
 
 type StoragePayload = {
   version: number;
@@ -112,6 +123,15 @@ const sanitizeSortDirection = (value: unknown): 'asc' | 'desc' =>
 const sanitizeBoolean = (value: unknown, fallback: boolean): boolean =>
   typeof value === 'boolean' ? value : fallback;
 
+const clampRenderLimit = (value: unknown): number => {
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) {
+    return DEFAULT_ACTIVE_RENDER_LIMIT;
+  }
+  const floored = Math.floor(numeric);
+  return Math.min(Math.max(floored, MIN_RENDER_LIMIT), GLOBAL_RENDER_LIMIT_MAX);
+};
+
 const loadFiltersFromStorage = (): StoredFilters | null => {
   const storage = getStorage();
 
@@ -132,6 +152,7 @@ const loadFiltersFromStorage = (): StoredFilters | null => {
       sortBy: sanitizeSortBy(parsed.filters.sortBy),
       sortDirection: sanitizeSortDirection(parsed.filters.sortDirection),
       isActive: sanitizeBoolean(parsed.filters.isActive, true),
+      renderLimit: clampRenderLimit(parsed.filters.renderLimit),
     };
 
     const typeCodes = sanitizeStringArray(parsed.filters.typeCodes);
@@ -176,6 +197,7 @@ const buildInitialFilters = (): StoredFilters => ({
   sortBy: DEFAULT_SORT_BY,
   sortDirection: DEFAULT_SORT_DIRECTION,
   isActive: true,
+  renderLimit: DEFAULT_ACTIVE_RENDER_LIMIT,
 });
 
 const initialFilters: StoredFilters = {
@@ -183,9 +205,9 @@ const initialFilters: StoredFilters = {
   ...(loadFiltersFromStorage() ?? {}),
 };
 
-export const useIncidentFiltersStore = create<IncidentFiltersState>((set, get) => ({
+const createIncidentFiltersStore: StateCreator<IncidentFiltersState> = (set, get) => ({
   ...initialFilters,
-  setFilters: (partial) => {
+  setFilters: (partial: PartialFilters) => {
     set((current: IncidentFiltersState) => {
       const next: IncidentFiltersState = {
         ...current,
@@ -218,6 +240,10 @@ export const useIncidentFiltersStore = create<IncidentFiltersState>((set, get) =
         }
       }
 
+      if (partial.renderLimit !== undefined) {
+        next.renderLimit = clampRenderLimit(partial.renderLimit);
+      }
+
       if (
         partial.page === undefined &&
         (partial.typeCodes !== undefined ||
@@ -241,6 +267,7 @@ export const useIncidentFiltersStore = create<IncidentFiltersState>((set, get) =
       sortBy: currentState.sortBy,
       sortDirection: currentState.sortDirection,
       isActive: currentState.isActive,
+      renderLimit: currentState.renderLimit,
     };
 
     if (currentState.typeCodes) toPersist.typeCodes = currentState.typeCodes;
@@ -268,6 +295,8 @@ export const useIncidentFiltersStore = create<IncidentFiltersState>((set, get) =
     }));
     persistFilters(defaults);
   },
-}));
+});
+
+export const useIncidentFiltersStore = create<IncidentFiltersState>(createIncidentFiltersStore);
 
 export const INCIDENT_FILTERS_STORAGE_KEY = STORAGE_KEY;

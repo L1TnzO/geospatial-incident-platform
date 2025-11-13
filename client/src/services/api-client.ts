@@ -46,6 +46,7 @@ export interface FetchIncidentsParams extends Record<string, unknown> {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   incidentNumber?: string;
+  renderLimit?: number;
   signal?: AbortSignal;
 }
 

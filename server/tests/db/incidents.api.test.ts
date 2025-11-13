@@ -256,8 +256,8 @@ describe('Incidents API', () => {
     expect(body.reportedRange.start).not.toBeNull();
     expect(body.reportedRange.end).not.toBeNull();
     expect(body.activeCount).toBeGreaterThan(0);
-    expect(body.limits.maxTotalResults).toBe(5000);
-    expect(body.limits.maxPageSize).toBe(100);
+  expect(body.limits.maxTotalResults).toBe(1_000_000);
+  expect(body.limits.maxPageSize).toBe(1_000);
   });
 
   test('metadata endpoint refresh parameter bypasses cache', async () => {
