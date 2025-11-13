@@ -353,6 +353,20 @@ const hasIncidentFilters = (filters: IncidentListFilters): boolean =>
       filters.incidentNumber
   );
 
+const applyFilterJoins = (query: Knex.QueryBuilder, filters: IncidentListFilters): void => {
+  if (filters.typeCodes?.length) {
+    query.join('incident_types as it', 'i.type_id', 'it.id');
+  }
+
+  if (filters.severityCodes?.length) {
+    query.join('incident_severities as isv', 'i.severity_id', 'isv.id');
+  }
+
+  if (filters.statusCodes?.length) {
+    query.join('incident_statuses as ist', 'i.status_id', 'ist.id');
+  }
+};
+
 const applyFilters = (query: Knex.QueryBuilder, filters: IncidentListFilters): void => {
   if (filters.typeCodes?.length) {
     query.whereIn('it.type_code', filters.typeCodes);
@@ -541,13 +555,7 @@ export class IncidentRepository {
 
     applyFilters(baseQuery, filters);
 
-    const totalRow = await baseQuery
-      .clone()
-      .clearSelect()
-      .clearOrder()
-      .countDistinct<{ total: string }[]>('i.id as total');
-
-    const total = Number(totalRow[0]?.total ?? 0);
+    const total = await this.countIncidents(filters);
 
     const sortBy = filters.sortBy ?? 'reportedAt';
     const sortDirection = filters.sortDirection ?? 'desc';
@@ -628,21 +636,14 @@ export class IncidentRepository {
   }
 
   public async countIncidents(filters: IncidentListFilters = {}): Promise<number> {
-    const query = this.db('incidents as i')
-      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
-      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
-      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+    const query = this.db('incidents as i');
 
+    applyFilterJoins(query, filters);
     applyFilters(query, filters);
 
-    const result = await query
-      .clone()
-      .clearSelect()
-      .clearOrder()
-      .countDistinct<{ total: string }>('i.id as total')
-      .first();
+    const [result] = await query.count<{ total: string }[]>({ total: '*' });
 
-    return Number(result?.total ?? 0);
+    return coerceCount(result?.total ?? 0);
   }
 
   public createIncidentExportStream(
