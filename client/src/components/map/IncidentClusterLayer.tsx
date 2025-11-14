@@ -71,6 +71,8 @@ const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLay
   const [currentZoom, setCurrentZoom] = useState(() => Math.round(map.getZoom()));
   const clusterIconCache = useRef(new Map<number, L.DivIcon>());
   const incidentIconCache = useRef(new Map<string, L.DivIcon>());
+  const featuresRef = useRef<Map<string, IncidentFeature>>(new Map());
+  const clusterIndexRef = useRef<Supercluster<IncidentProperties, ClusterProperties> | null>(null);
 
   const getClusterIcon = (count: number) => {
     if (!clusterIconCache.current.has(count)) {
@@ -88,20 +90,78 @@ const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLay
     return incidentIconCache.current.get(key)!;
   };
 
-  const points = useMemo(() => {
-    return incidents
-      .map(incidentToFeature)
-      .filter((feature): feature is IncidentFeature => feature !== null);
-  }, [incidents]);
-
   const clusterIndex = useMemo(() => {
+    const previousFeatures = featuresRef.current;
+    const nextFeatures = new Map<string, IncidentFeature>();
+    let mutated = false;
+
+    for (const incident of incidents) {
+      const prevFeature = previousFeatures.get(incident.id);
+      const hasValidLocation =
+        typeof incident.location?.lat === 'number' && typeof incident.location?.lng === 'number';
+
+      if (!hasValidLocation) {
+        if (prevFeature) {
+          mutated = true;
+        }
+        continue;
+      }
+
+      if (prevFeature) {
+        const prevIncident = prevFeature.properties.incident;
+        const sameCoords =
+          prevIncident.location.lat === incident.location.lat &&
+          prevIncident.location.lng === incident.location.lng;
+
+        if (sameCoords) {
+          if (prevIncident !== incident) {
+            prevFeature.properties.incident = incident;
+          }
+          nextFeatures.set(incident.id, prevFeature);
+          continue;
+        }
+      }
+
+      const feature = incidentToFeature(incident);
+      if (!feature) {
+        if (prevFeature) {
+          mutated = true;
+        }
+        continue;
+      }
+
+      nextFeatures.set(incident.id, feature);
+      if (!prevFeature) {
+        mutated = true;
+      } else {
+        const prevIncident = prevFeature.properties.incident;
+        if (
+          prevIncident.location.lat !== incident.location.lat ||
+          prevIncident.location.lng !== incident.location.lng
+        ) {
+          mutated = true;
+        }
+      }
+    }
+
+    if (previousFeatures.size !== nextFeatures.size) {
+      mutated = true;
+    }
+
+    featuresRef.current = nextFeatures;
+
+    if (!mutated && clusterIndexRef.current) {
+      return clusterIndexRef.current;
+    }
+
     const index = new Supercluster<IncidentProperties, ClusterProperties>({
       radius: 60,
       maxZoom: 18,
     });
-    index.load(points);
+    index.load(Array.from(nextFeatures.values()));
+    clusterIndexRef.current = index;
     return index;
-  }, [points]);
+  }, [incidents]);
 
   useEffect(() => {
     const syncState = () => {

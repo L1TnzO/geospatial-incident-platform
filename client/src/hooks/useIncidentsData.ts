@@ -103,9 +103,21 @@ const fetchIncidentsAggregated = async (
   const pageSize = INCIDENT_FETCH_PAGE_SIZE;
 
   const backlog = existing ? [...existing.incidents] : [];
-  const aggregated: Incident[] = [];
-  const seen = new Set<string>(backlog.map((incident) => incident.id));
-  let totalCount = existing?.totalCount ?? 0;
+  const aggregatedOrder = backlog.map((incident) => incident.id);
+  const aggregatedOrderSet = new Set<string>(aggregatedOrder);
+  const aggregatedById = new Map<string, Incident>(
+    backlog.map((incident) => [incident.id, incident] as const),
+  );
+  const viewportPriority = new Set<string>();
+
+  const ensureOrder = (id: string) => {
+    if (aggregatedOrderSet.has(id)) {
+      return;
+    }
+    aggregatedOrderSet.add(id);
+    aggregatedOrder.push(id);
+  };
+  let totalCount = existing?.totalCount ?? aggregatedById.size;
 
   const viewportState = viewportParams
     ? clonePhaseState(existing?.viewport, viewportParams.page ?? params.page ?? 1)
@@ -113,36 +125,49 @@ const fetchIncidentsAggregated = async (
   const globalState = clonePhaseState(existing?.global, params.page ?? 1);
 
   const buildSnapshotIncidents = (): Incident[] => {
-    const combined = [...aggregated];
-    const combinedIds = new Set<string>(combined.map((incident) => incident.id));
+    const prioritizeViewport = viewportPriority.size > 0;
+    const prioritized: string[] = [];
+    const fallback: string[] = [];
 
-    if (combined.length < targetLimit && backlog.length > 0) {
-      for (const incident of backlog) {
-        if (combinedIds.has(incident.id)) {
-          continue;
-        }
-        combined.push(incident);
-        combinedIds.add(incident.id);
-        if (combined.length >= targetLimit) {
-          break;
-        }
+    for (const id of aggregatedOrder) {
+      const incident = aggregatedById.get(id);
+      if (!incident) {
+        continue;
+      }
+      if (prioritizeViewport && viewportPriority.has(id)) {
+        prioritized.push(id);
+      } else {
+        fallback.push(id);
       }
     }
 
-    if (combined.length > targetLimit) {
-      return combined.slice(0, targetLimit);
+    const orderedIds: string[] = [];
+
+    for (const id of prioritized) {
+      if (orderedIds.length >= targetLimit) {
+        break;
+      }
+      orderedIds.push(id);
     }
 
-    return combined;
+    for (const id of fallback) {
+      if (orderedIds.length >= targetLimit) {
+        break;
+      }
+      orderedIds.push(id);
+    }
+
+    return orderedIds.map((id) => aggregatedById.get(id)!).filter(Boolean);
   };
 
   const emitPartial = () => {
     if (!onPartialUpdate) {
       return;
     }
-  const normalizedTotal = Math.max(totalCount, aggregated.length, backlog.length);
+    const incidents = buildSnapshotIncidents();
+    const normalizedTotal = Math.max(totalCount, incidents.length, aggregatedById.size);
     onPartialUpdate({
-      incidents: buildSnapshotIncidents(),
+      incidents,
       totalCount: normalizedTotal,
       pageSize,
       viewport: viewportState ? clonePhase(viewportState) : null,
@@ -150,17 +175,21 @@ const fetchIncidentsAggregated = async (
     });
   };
 
-  const appendIncident = (incident: Incident) => {
-    if (seen.has(incident.id)) {
-      return;
+  const registerIncident = (incident: Incident, prioritize: boolean) => {
+    aggregatedById.set(incident.id, incident);
+    ensureOrder(incident.id);
+    if (prioritize) {
+      viewportPriority.add(incident.id);
     }
-    seen.add(incident.id);
-    aggregated.push(incident);
   };
 
-  const runPhase = async (phaseParams: FetchIncidentsParams, state: PhaseState) => {
+  const runPhase = async (
+    phaseParams: FetchIncidentsParams,
+    state: PhaseState,
+    { isViewport }: { isViewport: boolean },
+  ) => {
     const shouldFetch =
-      !state.hasFetched || (state.hasMore && aggregated.length < targetLimit);
+      !state.hasFetched || (state.hasMore && (isViewport || aggregatedById.size < targetLimit));
 
     if (!shouldFetch) {
       return;
@@ -184,10 +213,7 @@ const fetchIncidentsAggregated = async (
       .filter((incident): incident is Incident => incident !== null);
 
     for (const incident of mapped) {
-      appendIncident(incident);
-      if (aggregated.length >= targetLimit) {
-        break;
-      }
+      registerIncident(incident, isViewport);
     }
 
     const pagination = response.pagination;
@@ -200,18 +226,18 @@ const fetchIncidentsAggregated = async (
       state.nextPage = currentPage + 1;
     } else {
       state.hasMore = false;
-      totalCount = Math.max(totalCount, aggregated.length);
+      totalCount = Math.max(totalCount, aggregatedById.size);
       state.nextPage += 1;
     }
-    emitPartial();
+
+    if (mapped.length > 0 || isViewport) {
+      emitPartial();
+    }
   };
 
   if (viewportParams && viewportState) {
-    while (
-      aggregated.length < targetLimit &&
-      (viewportState.hasMore || !viewportState.hasFetched)
-    ) {
-      await runPhase(viewportParams, viewportState);
+    while (viewportState.hasMore || !viewportState.hasFetched) {
+      await runPhase(viewportParams, viewportState, { isViewport: true });
       if (!viewportState.hasMore) {
         break;
       }
@@ -219,23 +245,25 @@ const fetchIncidentsAggregated = async (
   }
 
   const shouldFetchGlobal =
-    aggregated.length < targetLimit || !globalState.hasFetched || totalCount === 0;
+    aggregatedById.size < targetLimit || !globalState.hasFetched || totalCount === 0;
 
   if (shouldFetchGlobal) {
-    while (
-      aggregated.length < targetLimit &&
-      (globalState.hasMore || !globalState.hasFetched)
-    ) {
-      await runPhase(params, globalState);
+    while (globalState.hasMore || !globalState.hasFetched) {
+      if (aggregatedById.size >= targetLimit && globalState.hasFetched) {
+        break;
+      }
+      await runPhase(params, globalState, { isViewport: false });
       if (!globalState.hasMore) {
         break;
       }
     }
   }
-  const normalizedTotal = Math.max(totalCount, aggregated.length, backlog.length);
+
+  const snapshot = buildSnapshotIncidents();
+  const normalizedTotal = Math.max(totalCount, snapshot.length, aggregatedById.size);
 
   return {
-    incidents: buildSnapshotIncidents(),
+    incidents: snapshot,
     totalCount: normalizedTotal,
     pageSize,
     viewport: viewportState,
