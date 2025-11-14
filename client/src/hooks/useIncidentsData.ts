@@ -13,7 +13,7 @@ import type { Incident } from '../types';
 import type { IncidentListResponse, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
-const INCIDENT_FETCH_PAGE_SIZE = 1_000;
+const INCIDENT_FETCH_PAGE_SIZE = 10_000;
 
 export interface IncidentsDataResult {
   incidents: Incident[];
@@ -97,11 +97,10 @@ const fetchIncidentsAggregated = async (
   viewportParams: FetchIncidentsParams | undefined,
   signal: AbortSignal,
   targetLimit: number,
+  pageSize: number,
   existing?: AggregatedIncidentResult,
   onPartialUpdate?: (data: AggregatedIncidentResult) => void,
 ): Promise<AggregatedIncidentResult> => {
-  const pageSize = INCIDENT_FETCH_PAGE_SIZE;
-
   const backlog = existing ? [...existing.incidents] : [];
   const aggregatedOrder = backlog.map((incident) => incident.id);
   const aggregatedOrderSet = new Set<string>(aggregatedOrder);
@@ -278,13 +277,16 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   const queryClient = useQueryClient();
   const { viewportBounds } = params;
 
+  const targetLimit = resolveRenderCap(params);
+  const fetchPageSize = Math.min(targetLimit, INCIDENT_FETCH_PAGE_SIZE);
+
   const normalizedParams: FetchIncidentsParams = {
     ...params,
     viewportBounds: undefined,
     isActive: params.isActive ?? true,
     renderLimit: undefined,
     page: 1,
-    pageSize: INCIDENT_FETCH_PAGE_SIZE,
+    pageSize: fetchPageSize,
   };
 
   const viewportQuery = viewportBounds
@@ -293,8 +295,6 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         viewportBounds,
       }
     : undefined;
-
-  const targetLimit = resolveRenderCap(params);
 
   const queryKey = buildAggregatedQueryKey({
     ...normalizedParams,
@@ -314,7 +314,8 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         normalizedParams,
         viewportQuery,
         signal,
-        targetLimit,
+  targetLimit,
+  fetchPageSize,
         existing,
         (partial) => {
           queryClient.setQueryData(queryKey, partial);

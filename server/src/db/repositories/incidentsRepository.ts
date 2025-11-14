@@ -1,6 +1,7 @@
 import type { Knex } from 'knex';
 import { Readable, Transform, type TransformCallback } from 'stream';
 import { getDb } from '../client';
+import { INCIDENT_MAX_PAGE_SIZE } from '../../config/pagination';
 import {
   type GeoJsonPoint,
   type GeoJsonPolygon,
@@ -47,7 +48,7 @@ export interface IncidentListFilters {
 }
 
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 1_000;
+const MAX_PAGE_SIZE = INCIDENT_MAX_PAGE_SIZE;
 const DEFAULT_STATION_COVERAGE_RADIUS_METERS = 5000;
 
 interface IncidentRowBase {

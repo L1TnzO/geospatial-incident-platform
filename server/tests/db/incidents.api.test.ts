@@ -14,6 +14,7 @@ import {
   type SeededIncidentRecord,
   type SeededIncidentsDataset,
 } from './fixtures/incidentsFilters.fixture';
+import { INCIDENT_MAX_PAGE_SIZE } from '../../src/config/pagination';
 
 const TEST_PREFIX = 'TEST_TASK_3_1';
 
@@ -116,12 +117,12 @@ describe('Incidents API', () => {
 
     const response = await request(app)
       .get('/api/incidents/map')
-      .query({ pageSize: 1000, isActive: true });
+      .query({ pageSize: INCIDENT_MAX_PAGE_SIZE, isActive: true });
 
     expect(response.status).toBe(200);
     const body = response.body as IncidentMapListResponse;
     expect(Array.isArray(body.data)).toBe(true);
-    expect(body.pagination.pageSize).toBeLessThanOrEqual(1000);
+  expect(body.pagination.pageSize).toBeLessThanOrEqual(INCIDENT_MAX_PAGE_SIZE);
 
     const first = body.data[0];
     if (first) {
@@ -287,7 +288,7 @@ describe('Incidents API', () => {
     expect(body.reportedRange.end).not.toBeNull();
     expect(body.activeCount).toBeGreaterThan(0);
   expect(body.limits.maxTotalResults).toBe(1_000_000);
-  expect(body.limits.maxPageSize).toBe(1_000);
+  expect(body.limits.maxPageSize).toBe(INCIDENT_MAX_PAGE_SIZE);
   });
 
   test('metadata endpoint refresh parameter bypasses cache', async () => {

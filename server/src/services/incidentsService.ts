@@ -14,11 +14,11 @@ import {
   type IncidentSearchResult,
   type IncidentLocationInput,
 } from '../db';
+import { INCIDENT_MAX_PAGE_SIZE } from '../config/pagination';
 import { HttpError } from '../errors/httpError';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 1_000;
 const MAX_TOTAL_RESULTS = 1_000_000;
 const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_LATITUDE = -90;
@@ -475,13 +475,14 @@ export class IncidentService {
   public buildListOptions(query: Record<string, QueryValue>): IncidentListOptions {
     const page = parseInteger(query.page, 'page', { min: 1 }) ?? DEFAULT_PAGE;
     const pageSize =
-      parseInteger(query.pageSize, 'pageSize', { min: 1, max: MAX_PAGE_SIZE }) ?? DEFAULT_PAGE_SIZE;
+      parseInteger(query.pageSize, 'pageSize', { min: 1, max: INCIDENT_MAX_PAGE_SIZE }) ??
+      DEFAULT_PAGE_SIZE;
 
     const baseFilters = this.buildFilterOptions(query);
 
     const resolvedPage = baseFilters.incidentNumber ? DEFAULT_PAGE : page;
 
-    const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
+  const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
     if (resolvedPage > maxPage) {
       throw HttpError.badRequest(
         `The combination of page=${resolvedPage} and pageSize=${pageSize} exceeds the maximum supported range of ${MAX_TOTAL_RESULTS} records.`
@@ -536,7 +537,7 @@ export class IncidentService {
     const metadata: IncidentMetadata = {
       ...base,
       limits: {
-        maxPageSize: MAX_PAGE_SIZE,
+  maxPageSize: INCIDENT_MAX_PAGE_SIZE,
         maxTotalResults: MAX_TOTAL_RESULTS,
       },
     };

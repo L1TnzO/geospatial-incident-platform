@@ -4,6 +4,7 @@ import {
   type IncidentListOptions,
 } from '../../src/services/incidentsService';
 import { HttpError } from '../../src/errors/httpError';
+import { INCIDENT_MAX_PAGE_SIZE } from '../../src/config/pagination';
 import {
   IncidentLookupError,
   type IncidentDetail,
@@ -159,13 +160,13 @@ describe('IncidentService', () => {
       ).toThrow(HttpError);
     });
 
-    it('enforces maximum page size of 1,000', () => {
+    it('enforces maximum page size limit', () => {
       const { service } = createService();
 
       expect(() =>
         service.buildListOptions({
           page: '1',
-            pageSize: '1001',
+          pageSize: String(INCIDENT_MAX_PAGE_SIZE + 1),
         })
       ).toThrow(HttpError);
     });
@@ -284,7 +285,7 @@ describe('IncidentService', () => {
       repository.listIncidentsForMap.mockResolvedValue({
         data: [mapItem],
         page: 1,
-        pageSize: 1000,
+        pageSize: INCIDENT_MAX_PAGE_SIZE,
         total: 1,
         totalPages: 1,
         hasNext: false,
@@ -295,7 +296,7 @@ describe('IncidentService', () => {
 
       const response = await service.listMapIncidents({
         page: 1,
-        pageSize: 1000,
+        pageSize: INCIDENT_MAX_PAGE_SIZE,
         sortBy: 'reportedAt',
         sortDirection: 'desc',
       });
@@ -303,7 +304,7 @@ describe('IncidentService', () => {
       expect(repository.listIncidentsForMap).toHaveBeenCalledWith(
         expect.objectContaining({
           page: 1,
-          pageSize: 1000,
+          pageSize: INCIDENT_MAX_PAGE_SIZE,
           sortBy: 'reportedAt',
           sortDirection: 'desc',
         })
@@ -311,7 +312,7 @@ describe('IncidentService', () => {
 
       expect(response.data).toHaveLength(1);
       expect(response.pagination.total).toBe(1);
-      expect(response.pagination.pageSize).toBe(1000);
+      expect(response.pagination.pageSize).toBe(INCIDENT_MAX_PAGE_SIZE);
     });
   });
 
