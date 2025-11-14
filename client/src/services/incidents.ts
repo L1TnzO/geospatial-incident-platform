@@ -2,6 +2,7 @@ import type {
   IncidentDetail,
   IncidentListItem,
   IncidentListResponse,
+  IncidentMapListItem,
   IncidentMetadata,
 } from '../types/api/incidents';
 import type {
@@ -19,7 +20,9 @@ export const listIncidents = async (
 export const getIncidentMetadata = async (): Promise<IncidentMetadata> =>
   apiClient.incidents.metadata();
 
-const extractCoordinates = (incident: IncidentListItem) => {
+type IncidentListLike = IncidentListItem | IncidentMapListItem;
+
+const extractCoordinates = (incident: IncidentListLike) => {
   const coordinates = incident.location.geometry?.coordinates;
   if (!coordinates || coordinates.length < 2) {
     return undefined;
@@ -34,7 +37,7 @@ const extractCoordinates = (incident: IncidentListItem) => {
   return { lat, lng };
 };
 
-const resolveAddress = (incident: IncidentListItem) => {
+const resolveAddress = (incident: IncidentListLike) => {
   const properties = incident.location.properties as Record<string, unknown> | undefined;
   if (!properties) {
     return undefined;
@@ -55,7 +58,7 @@ const resolveAddress = (incident: IncidentListItem) => {
   return (value as string | undefined) ?? undefined;
 };
 
-export const mapIncidentToUi = (incident: IncidentListItem): Incident | null => {
+export const mapIncidentToUi = (incident: IncidentListLike): Incident | null => {
   const coordinates = extractCoordinates(incident);
   if (!coordinates) {
     return null;

@@ -1,8 +1,11 @@
 import { http, type RequestOptions, request } from '../lib/http';
+import type { MapBounds } from '../store/map-store';
+import { serializeBounds } from '../store/map-store';
 import type {
   IncidentCreateRequest,
   IncidentDetail,
   IncidentListResponse,
+  IncidentMapListResponse,
   IncidentMetadata,
   IncidentSearchResult,
 } from '../types/api/incidents';
@@ -48,6 +51,7 @@ export interface FetchIncidentsParams extends Record<string, unknown> {
   incidentNumber?: string;
   renderLimit?: number;
   signal?: AbortSignal;
+  viewportBounds?: MapBounds | null;
 }
 
 export interface IncidentSearchParams {
@@ -81,6 +85,25 @@ export const apiClient = {
           sortBy: params.sortBy,
           sortDirection: params.sortDirection,
           incidentNumber: params.incidentNumber,
+          bbox: serializeBounds(params.viewportBounds ?? null),
+        },
+      }),
+    mapList: (params: FetchIncidentsParams = {}) =>
+      http.get<IncidentMapListResponse>('/incidents/map', {
+        signal: params.signal,
+        query: {
+          page: params.page,
+          pageSize: params.pageSize,
+          typeCodes: params.typeCodes,
+          severityCodes: params.severityCodes,
+          statusCodes: params.statusCodes,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          isActive: params.isActive,
+          sortBy: params.sortBy,
+          sortDirection: params.sortDirection,
+          incidentNumber: params.incidentNumber,
+          bbox: serializeBounds(params.viewportBounds ?? null),
         },
       }),
     metadata: (options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>

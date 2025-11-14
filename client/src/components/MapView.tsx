@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
-import { type Map as LeafletMap } from 'leaflet';
+import {
+  type Map as LeafletMap,
+  type LeafletEvent,
+  type LeafletMouseEvent,
+  type LatLngBounds,
+} from 'leaflet';
 import { Button } from './ui/button';
 import { useIncidentCreateStore } from '../store/incident-create-store';
 import { Card } from './ui/card';
+import { Progress } from './ui/progress';
 import {
   AlertTriangle,
   Flame,
@@ -17,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Incident, FireStation } from '../types';
 import { useMapPreferencesStore, type BaseLayer } from '../store/map-preferences-store';
-import { useMapStore } from '../store/map-store';
+import { useMapStore, type MapBounds } from '../store/map-store';
 import '@/lib/leaflet';
 import { useShallow } from 'zustand/react/shallow';
 import { computeIncidentBounds, resolveSeverityColor } from './map/utils';
@@ -47,6 +53,7 @@ interface MapViewProps {
   fireStations: FireStation[];
   onIncidentClick: (incident: Incident) => void;
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   error?: string;
   onRetry: () => void;
@@ -61,6 +68,30 @@ interface MapViewProps {
   };
   useStrategicPreferences?: boolean;
 }
+
+const roundCoordinate = (value: number): number => Math.round(value * 1_000_000) / 1_000_000;
+
+const toMapBounds = (bounds: LatLngBounds): MapBounds => ({
+  north: roundCoordinate(bounds.getNorth()),
+  south: roundCoordinate(bounds.getSouth()),
+  east: roundCoordinate(bounds.getEast()),
+  west: roundCoordinate(bounds.getWest()),
+});
+
+const boundsAreEqual = (a: MapBounds | null, b: MapBounds | null): boolean => {
+  if (!a || !b) {
+    return a === b;
+  }
+  return (
+    Math.abs(a.north - b.north) < 0.00001 &&
+    Math.abs(a.south - b.south) < 0.00001 &&
+    Math.abs(a.east - b.east) < 0.00001 &&
+    Math.abs(a.west - b.west) < 0.00001
+  );
+};
+
+const isUserGestureEvent = (event: LeafletEvent): boolean =>
+  Boolean((event as LeafletEvent & { originalEvent?: unknown }).originalEvent);
 
 const TILE_LAYERS: Record<
   BaseLayer,
@@ -114,26 +145,59 @@ const MapViewportController = () => {
 };
 
 const MapViewportTracker = () => {
-  const setView = useMapStore((state) => state.setView);
   const map = useMap();
+  const { setView, setBounds, markUserAdjusted } = useMapStore(
+    useShallow((state) => ({
+      setView: state.setView,
+      setBounds: state.setBounds,
+      markUserAdjusted: state.markUserAdjusted,
+    })),
+  );
 
-  const updateStoreFromMap = () => {
+  const updateStoreFromMap = useCallback(() => {
     const nextCenter = map.getCenter();
     const nextZoom = map.getZoom();
-    const { center: currentCenter, zoom: currentZoom } = useMapStore.getState();
+    const nextBounds = toMapBounds(map.getBounds());
+    const { center: currentCenter, zoom: currentZoom, bounds: currentBounds } =
+      useMapStore.getState();
 
     if (
-      Math.abs(currentCenter[0] - nextCenter.lat) < 0.0001 &&
-      Math.abs(currentCenter[1] - nextCenter.lng) < 0.0001 &&
-      currentZoom === nextZoom
+      Math.abs(currentCenter[0] - nextCenter.lat) > 0.0001 ||
+      Math.abs(currentCenter[1] - nextCenter.lng) > 0.0001 ||
+      currentZoom !== nextZoom
     ) {
-      return;
+      setView([nextCenter.lat, nextCenter.lng], nextZoom);
     }
 
-    setView([nextCenter.lat, nextCenter.lng], nextZoom);
-  };
+    if (!boundsAreEqual(currentBounds, nextBounds)) {
+      setBounds(nextBounds);
+    }
+  }, [map, setBounds, setView]);
+
+  useEffect(() => {
+    updateStoreFromMap();
+  }, [updateStoreFromMap]);
 
   useMapEvents({
+    movestart: (event: LeafletEvent) => {
+      if (isUserGestureEvent(event)) {
+        markUserAdjusted();
+      }
+    },
+    zoomstart: (event: LeafletEvent) => {
+      if (isUserGestureEvent(event)) {
+        markUserAdjusted();
+      }
+    },
+    mousedown: () => {
+      markUserAdjusted();
+    },
+    touchstart: () => {
+      markUserAdjusted();
+    },
+    wheel: () => {
+      markUserAdjusted();
+    },
     moveend: updateStoreFromMap,
     zoomend: updateStoreFromMap,
   });
@@ -175,6 +239,7 @@ export function MapView({
   fireStations,
   onIncidentClick,
   isLoading,
+  isFetching,
   isError,
   error,
   onRetry,
@@ -188,6 +253,7 @@ export function MapView({
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
   const resetView = useMapStore((state) => state.resetView);
+  const hasUserAdjusted = useMapStore((state) => state.hasUserAdjusted);
   const {
     baseLayer,
     setBaseLayer,
@@ -263,9 +329,20 @@ export function MapView({
   );
   const isSelectingLocation = useIncidentCreateStore((state) => state.isSelectingLocation);
 
+  const targetCompletionPercent = useMemo(() => {
+    if (counts.limit <= 0) {
+      return 0;
+    }
+    const ratio = counts.rendered / counts.limit;
+    if (!Number.isFinite(ratio)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  }, [counts.limit, counts.rendered]);
+
   const Picker = () => {
     useMapEvents({
-      click: (ev) => {
+      click: (ev: LeafletMouseEvent) => {
         if (!isSelectingLocation) return;
         const { lat, lng } = ev.latlng;
         completeLocationSelection({ lat, lng });
@@ -295,7 +372,7 @@ export function MapView({
   );
 
   useEffect(() => {
-    if (!isMapReady || !mapRef.current || !incidentsBounds) {
+    if (!isMapReady || !mapRef.current || !incidentsBounds || hasUserAdjusted) {
       return;
     }
 
@@ -310,7 +387,13 @@ export function MapView({
     const map = mapRef.current;
     map.fitBounds(incidentsBounds, { padding: [48, 48], maxZoom: 14 });
     setLastFitSignature(incidentsBoundsSignature);
-  }, [incidentsBounds, incidentsBoundsSignature, isMapReady, lastFitSignature]);
+  }, [
+    hasUserAdjusted,
+    incidentsBounds,
+    incidentsBoundsSignature,
+    isMapReady,
+    lastFitSignature,
+  ]);
 
   // Render the picker when selecting a location (mounted directly inside MapContainer)
 
@@ -331,11 +414,25 @@ export function MapView({
           <p className="text-xs text-muted-foreground mt-1">
             Current render limit: {counts.limit.toLocaleString()} incidents. Adjust “Records to display” in the filters to load more at once.
           </p>
+          {isFetching && !isLoading && counts.rendered < counts.limit && (
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+              <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+              Updating incidents for the current map view…
+            </p>
+          )}
           {counts.remainder > 0 && (
             <p className="text-xs text-muted-foreground mt-1">
               {counts.remainder.toLocaleString()} additional incidents match the current filters.
               Increase the render limit or refine filters to explore them.
             </p>
+          )}
+          {counts.limit > 0 && (
+            <div className="mt-2 space-y-1">
+              <Progress value={targetCompletionPercent} aria-label="Incident load progress" />
+              <p className="text-[11px] text-muted-foreground">
+                {targetCompletionPercent}% of target incidents loaded
+              </p>
+            </div>
           )}
         </Card>
         {stationsError && (

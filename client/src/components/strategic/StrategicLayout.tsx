@@ -203,6 +203,7 @@ export function StrategicLayout() {
             fireStations={fireStations}
             onIncidentClick={handleIncidentClick}
             isLoading={incidentsQuery.isLoading}
+            isFetching={incidentsQuery.isFetching}
             isError={incidentsQuery.isError}
             error={incidentsQuery.error?.message}
             onRetry={incidentsQuery.refetch}

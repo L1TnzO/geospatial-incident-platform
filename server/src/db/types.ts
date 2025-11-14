@@ -96,6 +96,22 @@ export interface IncidentListItem {
   } | null;
 }
 
+export interface IncidentMapListItem {
+  incidentNumber: string;
+  title: string;
+  occurrenceAt: string;
+  reportedAt: string;
+  isActive: boolean;
+  location: GeoJsonPoint;
+  type: Pick<IncidentLookupValue, 'code' | 'name'>;
+  severity: Pick<IncidentSeverity, 'code' | 'name' | 'colorHex'>;
+  status: Pick<IncidentStatus, 'code' | 'name'>;
+  primaryStation?: {
+    stationCode: string;
+    name: string;
+  } | null;
+}
+
 export interface IncidentUnit {
   stationCode: string;
   stationName: string;

@@ -94,6 +94,7 @@ const defaultProps: React.ComponentProps<typeof MapView> = {
   ],
   onIncidentClick: vi.fn(),
   isLoading: false,
+  isFetching: false,
   isError: false,
   error: undefined,
   onRetry: vi.fn(),
@@ -101,6 +102,7 @@ const defaultProps: React.ComponentProps<typeof MapView> = {
     rendered: 1,
     total: 1,
     remainder: 0,
+    limit: 1,
   },
   stationsLoading: false,
   stationsError: undefined,
@@ -127,7 +129,7 @@ describe('MapView overlays', () => {
   it('shows loading indicator when incidents are loading', async () => {
     await renderMapView({
       isLoading: true,
-      counts: { rendered: 0, total: 0, remainder: 0 },
+      counts: { rendered: 0, total: 0, remainder: 0, limit: 0 },
       incidents: [],
     });
 
@@ -143,7 +145,7 @@ describe('MapView overlays', () => {
       error: 'Upstream service timeout',
       onRetry,
       incidents: [],
-      counts: { rendered: 0, total: 0, remainder: 0 },
+      counts: { rendered: 0, total: 0, remainder: 0, limit: 0 },
     });
 
     expect(screen.getByText('Unable to load incidents')).toBeVisible();
@@ -156,7 +158,7 @@ describe('MapView overlays', () => {
   it('shows friendly empty state when no incidents are returned', async () => {
     await renderMapView({
       incidents: [],
-      counts: { rendered: 0, total: 0, remainder: 0 },
+      counts: { rendered: 0, total: 0, remainder: 0, limit: 0 },
       isLoading: false,
       isError: false,
     });

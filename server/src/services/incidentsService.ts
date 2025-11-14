@@ -1,8 +1,10 @@
 import {
   incidentRepository,
   IncidentLookupError,
+  type BoundingBox,
   type CreateIncidentInput,
   type IncidentDetail,
+  type IncidentMapListItem,
   type IncidentListFilters,
   type IncidentListItem,
   type IncidentMetadata,
@@ -19,6 +21,11 @@ const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 1_000;
 const MAX_TOTAL_RESULTS = 1_000_000;
 const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
+const MIN_LATITUDE = -90;
+const MAX_LATITUDE = 90;
+const MIN_LONGITUDE = -180;
+const MAX_LONGITUDE = 180;
+const MIN_BOUND_DELTA = 0.0001;
 
 const SORTABLE_FIELDS: readonly IncidentSortField[] = [
   'reportedAt',
@@ -206,10 +213,12 @@ export interface IncidentListOptions extends IncidentListFilters {
 
 export type IncidentFilterOptions = IncidentListFilters;
 
-export interface IncidentListResponse {
-  data: IncidentListItem[];
+export interface IncidentListResponse<T = IncidentListItem> {
+  data: T[];
   pagination: PaginationMeta;
 }
+
+export type IncidentMapListResponse = IncidentListResponse<IncidentMapListItem>;
 
 const normalizeValue = (value: QueryValue): string | undefined => {
   if (value === undefined) {
@@ -312,6 +321,53 @@ const parseIsoDate = (value: QueryValue, field: string): string | undefined => {
   return new Date(timestamp).toISOString();
 };
 
+const parseBoundingBox = (value: QueryValue, field: string): BoundingBox | undefined => {
+  const raw = normalizeValue(value);
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  const parts = raw
+    .split(',')
+    .map((part) => Number.parseFloat(part.trim()))
+    .filter((part) => !Number.isNaN(part));
+
+  if (parts.length !== 4) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' must specify four comma-separated numeric values: west,south,east,north.`
+    );
+  }
+
+  const [west, south, east, north] = parts;
+
+  if (west < MIN_LONGITUDE || west > MAX_LONGITUDE || east < MIN_LONGITUDE || east > MAX_LONGITUDE) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' longitude values must be between ${MIN_LONGITUDE} and ${MAX_LONGITUDE}.`
+    );
+  }
+
+  if (south < MIN_LATITUDE || south > MAX_LATITUDE || north < MIN_LATITUDE || north > MAX_LATITUDE) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' latitude values must be between ${MIN_LATITUDE} and ${MAX_LATITUDE}.`
+    );
+  }
+
+  if (east <= west || north <= south) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' must define a valid rectangle where east > west and north > south.`
+    );
+  }
+
+  if (east - west < MIN_BOUND_DELTA || north - south < MIN_BOUND_DELTA) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' defines an area that is too small to query.`
+    );
+  }
+
+  return { west, south, east, north };
+};
+
 const parseSortBy = (value: QueryValue): SortableField => {
   const raw = normalizeValue(value);
   if (!raw) {
@@ -340,18 +396,18 @@ const parseSortDirection = (value: QueryValue): 'asc' | 'desc' => {
   throw HttpError.badRequest("Query parameter 'sortDirection' must be 'asc' or 'desc'.");
 };
 
-const buildPaginationMeta = (
-  result: PaginatedResult<IncidentListItem>,
+const buildPaginationMeta = <T>(
+  result: PaginatedResult<T>,
   sortBy: SortableField,
   sortDirection: 'asc' | 'desc'
-): IncidentListResponse => {
+): IncidentListResponse<T> => {
   const total = Math.min(result.total, MAX_TOTAL_RESULTS);
   const totalPages = total === 0 ? 0 : Math.ceil(total / result.pageSize);
   const hasNext = totalPages > 0 && result.page < totalPages;
   const hasPrevious = result.page > 1;
 
   return {
-    data: result.data,
+  data: result.data,
     pagination: {
       page: result.page,
       pageSize: result.pageSize,
@@ -367,6 +423,7 @@ const buildPaginationMeta = (
 
 interface IncidentRepositoryLike {
   listIncidents(filters: IncidentListOptions): Promise<PaginatedResult<IncidentListItem>>;
+  listIncidentsForMap(filters: IncidentListOptions): Promise<PaginatedResult<IncidentMapListItem>>;
   getIncidentDetail(incidentNumber: string): Promise<IncidentDetail | null>;
   getIncidentMetadata(): Promise<Omit<IncidentMetadata, 'limits'>>;
   findIncidentSummary(incidentNumber: string): Promise<IncidentSearchResult | null>;
@@ -396,6 +453,7 @@ export class IncidentService {
     const statusCodes = parseStringList(query.statusCodes);
     const startDate = parseIsoDate(query.startDate, 'startDate');
     const endDate = parseIsoDate(query.endDate, 'endDate');
+    const bounds = parseBoundingBox(query.bbox, 'bbox');
 
     let isActive: boolean | undefined;
     if (query.isActive !== undefined) {
@@ -410,6 +468,7 @@ export class IncidentService {
       endDate,
       isActive,
       incidentNumber,
+      bounds,
     };
   }
 
@@ -443,6 +502,13 @@ export class IncidentService {
 
   public async listIncidents(options: IncidentListOptions): Promise<IncidentListResponse> {
     const result = await this.repository.listIncidents(options);
+    return buildPaginationMeta(result, options.sortBy, options.sortDirection);
+  }
+
+  public async listMapIncidents(
+    options: IncidentListOptions
+  ): Promise<IncidentMapListResponse> {
+    const result = await this.repository.listIncidentsForMap(options);
     return buildPaginationMeta(result, options.sortBy, options.sortDirection);
   }
 

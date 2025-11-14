@@ -17,6 +17,7 @@ import { QueryProvider } from './providers/query-client-provider';
 import { AuthProvider } from './providers/auth-provider';
 // import { useAuth } from './hooks/useAuth';
 import { useIncidentFiltersStore } from './store/incident-filters-store';
+import { useMapStore } from './store/map-store';
 import { useIncidentsData, useIncidentsTableData } from './hooks/useIncidentsData';
 import { useIncidentDetailStore } from './store/incident-detail-store';
 import { useStationsData } from './hooks/useStationsData';
@@ -65,7 +66,12 @@ function AppRoutes() {
     renderLimit: filters.renderLimit,
   };
 
-  const incidentsData = useIncidentsData(fetchParams);
+  const viewportBounds = useMapStore((state) => state.bounds);
+
+  const incidentsData = useIncidentsData({
+    ...fetchParams,
+    viewportBounds,
+  });
   const incidentsTableData = useIncidentsTableData(fetchParams);
 
   const stationsData = useStationsData({ isActive: filters.isActive ?? true });
@@ -75,13 +81,13 @@ function AppRoutes() {
       rendered: incidentsData.renderedCount,
       total: incidentsData.totalCount,
       remainder: incidentsData.remainder,
-      limit: filters.renderLimit ?? incidentsData.renderedCount,
+      limit: incidentsData.targetLimit,
     }),
     [
       incidentsData.renderedCount,
       incidentsData.totalCount,
       incidentsData.remainder,
-      filters.renderLimit,
+      incidentsData.targetLimit,
     ],
   );
 
@@ -140,6 +146,7 @@ function AppRoutes() {
                     fireStations={stationsData.stations}
                     onIncidentClick={handleIncidentClick}
                     isLoading={incidentsData.isLoading}
+                    isFetching={incidentsData.isFetching}
                     isError={incidentsData.isError}
                     error={incidentsData.error}
                     onRetry={incidentsData.refresh}

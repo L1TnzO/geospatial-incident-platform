@@ -6,6 +6,7 @@ import {
   type GeoJsonPolygon,
   type IncidentDailyCount,
   type IncidentDetail,
+  type IncidentMapListItem,
   type IncidentListItem,
   type IncidentLookupValue,
   type IncidentMetadata,
@@ -23,6 +24,13 @@ import {
 } from '../types';
 import { geometryToFeature, parseGeometry, parseJsonColumn } from '../utils';
 
+export interface BoundingBox {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
 export interface IncidentListFilters {
   page?: number;
   pageSize?: number;
@@ -35,10 +43,11 @@ export interface IncidentListFilters {
   sortBy?: 'reportedAt' | 'occurrenceAt' | 'severityPriority';
   sortDirection?: 'asc' | 'desc';
   incidentNumber?: string;
+  bounds?: BoundingBox;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 1_000;
 const DEFAULT_STATION_COVERAGE_RADIUS_METERS = 5000;
 
 interface IncidentRowBase {
@@ -75,6 +84,24 @@ interface IncidentRowBase {
   weatherCode: string | null;
   weatherName: string | null;
   weatherDescription: string | null;
+  primaryStationCode: string | null;
+  primaryStationName: string | null;
+}
+
+interface IncidentMapRow {
+  incidentNumber: string;
+  title: string;
+  occurrenceAt: string;
+  reportedAt: string;
+  isActive: boolean;
+  locationGeoJson: unknown;
+  typeCode: string | null;
+  typeName: string | null;
+  severityCode: string | null;
+  severityName: string | null;
+  severityColorHex: string | null;
+  statusCode: string | null;
+  statusName: string | null;
   primaryStationCode: string | null;
   primaryStationName: string | null;
 }
@@ -350,7 +377,8 @@ const hasIncidentFilters = (filters: IncidentListFilters): boolean =>
       typeof filters.isActive === 'boolean' ||
       filters.startDate ||
       filters.endDate ||
-      filters.incidentNumber
+      filters.incidentNumber ||
+      filters.bounds
   );
 
 const applyFilterJoins = (query: Knex.QueryBuilder, filters: IncidentListFilters): void => {
@@ -395,6 +423,16 @@ const applyFilters = (query: Knex.QueryBuilder, filters: IncidentListFilters): v
   if (filters.incidentNumber) {
     query.whereRaw('UPPER(i.incident_number) = ?', [filters.incidentNumber.toUpperCase()]);
   }
+
+  if (filters.bounds) {
+    const { west, south, east, north } = filters.bounds;
+    query.whereRaw('ST_Within(i.location, ST_MakeEnvelope(?, ?, ?, ?, 4326))', [
+      west,
+      south,
+      east,
+      north,
+    ]);
+  }
 };
 
 const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
@@ -430,6 +468,42 @@ const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
     status,
     source,
     weather,
+    primaryStation: row.primaryStationCode
+      ? {
+          stationCode: row.primaryStationCode,
+          name: row.primaryStationName ?? row.primaryStationCode,
+        }
+      : null,
+  };
+};
+
+const mapIncidentRowForMap = (row: IncidentMapRow): IncidentMapListItem => {
+  const locationGeometry = parseGeometry(row.locationGeoJson);
+  const location = geometryToFeature(locationGeometry) as GeoJsonPoint | null;
+  if (!location) {
+    throw new Error('Incident location geometry is missing');
+  }
+
+  return {
+    incidentNumber: row.incidentNumber,
+    title: row.title,
+    occurrenceAt: row.occurrenceAt,
+    reportedAt: row.reportedAt,
+    isActive: row.isActive,
+    location,
+    type: {
+      code: row.typeCode ?? 'UNKNOWN',
+      name: row.typeName ?? row.typeCode ?? 'Unknown',
+    },
+    severity: {
+      code: row.severityCode ?? 'UNKNOWN',
+      name: row.severityName ?? row.severityCode ?? 'Unknown',
+      colorHex: row.severityColorHex ?? '#4B5563',
+    },
+    status: {
+      code: row.statusCode ?? 'UNKNOWN',
+      name: row.statusName ?? row.statusCode ?? 'Unknown',
+    },
     primaryStation: row.primaryStationCode
       ? {
           stationCode: row.primaryStationCode,
@@ -635,6 +709,81 @@ export class IncidentRepository {
     };
   }
 
+  public async listIncidentsForMap(
+    filters: IncidentListFilters = {}
+  ): Promise<PaginatedResult<IncidentMapListItem>> {
+    const page = Math.max(filters.page ?? 1, 1);
+    const rawPageSize = filters.pageSize ?? DEFAULT_PAGE_SIZE;
+    const pageSize = Math.min(Math.max(rawPageSize, 1), MAX_PAGE_SIZE);
+
+    const baseQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .leftJoin('stations as ps', 'i.primary_station_id', 'ps.id');
+
+    applyFilters(baseQuery, filters);
+
+    const total = await this.countIncidents(filters);
+
+    const sortBy = filters.sortBy ?? 'reportedAt';
+    const sortDirection = filters.sortDirection ?? 'desc';
+
+    const sortColumn = (() => {
+      switch (sortBy) {
+        case 'occurrenceAt':
+          return 'i.occurrence_at';
+        case 'severityPriority':
+          return 'isv.priority';
+        case 'reportedAt':
+        default:
+          return 'i.reported_at';
+      }
+    })();
+
+    const rows = (await baseQuery
+      .clone()
+      .select([
+        'i.incident_number as incidentNumber',
+        'i.title as title',
+        'i.occurrence_at as occurrenceAt',
+        'i.reported_at as reportedAt',
+        'i.is_active as isActive',
+        'it.type_code as typeCode',
+        'it.name as typeName',
+        'isv.severity_code as severityCode',
+        'isv.name as severityName',
+        'isv.color_hex as severityColorHex',
+        'ist.status_code as statusCode',
+        'ist.name as statusName',
+        'ps.station_code as primaryStationCode',
+        'ps.name as primaryStationName',
+      ])
+      .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
+      .orderBy(sortColumn, sortDirection)
+      .orderBy('i.id', sortDirection)
+      .limit(pageSize)
+      .offset((page - 1) * pageSize)) as IncidentMapRow[];
+
+    const data = rows.map((row) => mapIncidentRowForMap(row));
+
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const hasNext = totalPages > 0 && page < totalPages;
+    const hasPrevious = page > 1;
+
+    return {
+      data,
+      page,
+      pageSize,
+      total,
+      totalPages,
+      hasNext,
+      hasPrevious,
+      sortBy,
+      sortDirection,
+    };
+  }
+
   public async countIncidents(filters: IncidentListFilters = {}): Promise<number> {
     const query = this.db('incidents as i');
 
@@ -718,7 +867,7 @@ export class IncidentRepository {
     const rawStream = query.stream();
     const mapper = new Transform({
       objectMode: true,
-      transform(chunk: IncidentRowBase, _encoding, callback: TransformCallback) {
+  transform(chunk: IncidentRowBase, _encoding: unknown, callback: TransformCallback) {
         try {
           const item = mapIncidentRow(chunk);
           callback(null, item);
@@ -729,7 +878,7 @@ export class IncidentRepository {
       },
     });
 
-    rawStream.on('error', (error) => {
+    rawStream.on('error', (error: unknown) => {
       const normalizedError = error instanceof Error ? error : new Error(String(error));
       mapper.destroy(normalizedError);
     });
@@ -740,7 +889,7 @@ export class IncidentRepository {
   public async createIncident(input: CreateIncidentInput): Promise<IncidentDetail> {
     const incidentNumber = input.incidentNumber;
 
-    const insertedIncidentNumber = await this.db.transaction(async (trx) => {
+    const insertedIncidentNumber = await this.db.transaction(async (trx: Knex.Transaction) => {
       const references = await this.resolveIncidentReferences(trx, input);
 
       const [row] = await trx('incidents')
@@ -771,7 +920,7 @@ export class IncidentRepository {
           location_geohash: null,
           metadata: trx.raw('?::jsonb', [JSON.stringify(input.metadata ?? {})]),
         })
-        .returning<{ incident_number: string }[]>('incident_number');
+  .returning<{ incident_number: string }[]>('incident_number');
 
       return row.incident_number;
     });

@@ -8,6 +8,7 @@ import {
   IncidentLookupError,
   type IncidentDetail,
   type IncidentListItem,
+  type IncidentMapListItem,
   type IncidentMetadata,
   type IncidentSearchResult,
   type PaginatedResult,
@@ -16,6 +17,7 @@ import {
 const createService = () => {
   const repository = {
     listIncidents: jest.fn<Promise<PaginatedResult<IncidentListItem>>, [IncidentListOptions]>(),
+    listIncidentsForMap: jest.fn<Promise<PaginatedResult<IncidentMapListItem>>, [IncidentListOptions]>(),
     getIncidentDetail: jest.fn<Promise<IncidentDetail | null>, [string]>(),
     getIncidentMetadata: jest.fn<Promise<Omit<IncidentMetadata, 'limits'>>, []>(),
     findIncidentSummary: jest.fn<Promise<IncidentSearchResult | null>, [string]>(),
@@ -62,6 +64,37 @@ describe('IncidentService', () => {
         })
       ).toThrow(HttpError);
     });
+
+    it('parses bounding box filters', () => {
+      const { service } = createService();
+
+      const filters = service.buildFilterOptions({
+        bbox: '-73.6,-39.5,-73.2,-39.1',
+      });
+
+      expect(filters.bounds).toEqual({
+        west: -73.6,
+        south: -39.5,
+        east: -73.2,
+        north: -39.1,
+      });
+    });
+
+    it('rejects malformed bounding boxes', () => {
+      const { service } = createService();
+
+      expect(() =>
+        service.buildFilterOptions({
+          bbox: '-200,0,50,10',
+        })
+      ).toThrow(HttpError);
+
+      expect(() =>
+        service.buildFilterOptions({
+          bbox: '-73.5,-39.5,-73.6,-39.0',
+        })
+      ).toThrow(HttpError);
+    });
   });
 
   describe('buildListOptions', () => {
@@ -100,12 +133,27 @@ describe('IncidentService', () => {
       expect(options.sortDirection).toBe('asc');
     });
 
-    it('throws when page exceeds the 5,000 record window', () => {
+    it('passes bounding box through to list options', () => {
+      const { service } = createService();
+
+      const options = service.buildListOptions({
+        bbox: '-73.6,-39.5,-73.2,-39.1',
+      });
+
+      expect(options.bounds).toEqual({
+        west: -73.6,
+        south: -39.5,
+        east: -73.2,
+        north: -39.1,
+      });
+    });
+
+    it('throws when page exceeds the 1,000,000 record window', () => {
       const { service } = createService();
 
       expect(() =>
         service.buildListOptions({
-          page: '51',
+          page: '10001',
           pageSize: '100',
         })
       ).toThrow(HttpError);
@@ -169,12 +217,14 @@ describe('IncidentService', () => {
       expect(response.pagination.totalPages).toBe(10_000);
       expect(response.pagination.hasNext).toBe(true);
       expect(response.pagination.hasPrevious).toBe(false);
-      expect(repository.listIncidents).toHaveBeenCalledWith({
-        page: 1,
-        pageSize: 100,
-        sortBy: 'reportedAt',
-        sortDirection: 'desc',
-      });
+      expect(repository.listIncidents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 100,
+          sortBy: 'reportedAt',
+          sortDirection: 'desc',
+        })
+      );
     });
 
     it('handles empty result sets', async () => {
@@ -202,6 +252,66 @@ describe('IncidentService', () => {
       expect(response.pagination.totalPages).toBe(0);
       expect(response.pagination.hasNext).toBe(false);
       expect(response.pagination.hasPrevious).toBe(false);
+    });
+  });
+
+  describe('listMapIncidents', () => {
+    it('returns mapped pagination information for map payloads', async () => {
+      const { service, repository } = createService();
+      const mapItem: IncidentMapListItem = {
+        incidentNumber: 'INC-1',
+        title: 'Structure fire',
+        occurrenceAt: '2025-01-01T00:00:00.000Z',
+        reportedAt: '2025-01-01T00:05:00.000Z',
+        isActive: true,
+        location: {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [0, 0],
+          },
+          properties: {},
+        },
+        type: { code: 'FIRE', name: 'Fire' },
+        severity: { code: 'HIGH', name: 'High', colorHex: '#FF0000' },
+        status: { code: 'ACTIVE', name: 'Active' },
+        primaryStation: {
+          stationCode: 'ST-1',
+          name: 'Central',
+        },
+      };
+
+      repository.listIncidentsForMap.mockResolvedValue({
+        data: [mapItem],
+        page: 1,
+        pageSize: 1000,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrevious: false,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      });
+
+      const response = await service.listMapIncidents({
+        page: 1,
+        pageSize: 1000,
+        sortBy: 'reportedAt',
+        sortDirection: 'desc',
+      });
+
+      expect(repository.listIncidentsForMap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          pageSize: 1000,
+          sortBy: 'reportedAt',
+          sortDirection: 'desc',
+        })
+      );
+
+      expect(response.data).toHaveLength(1);
+      expect(response.pagination.total).toBe(1);
+      expect(response.pagination.pageSize).toBe(1000);
     });
   });
 

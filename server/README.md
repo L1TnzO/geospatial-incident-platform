@@ -126,7 +126,7 @@ Each repository returns GeoJSON `Feature` objects for geometry columns and surfa
 
 ### Service Layer
 
-- `IncidentService` (`src/services/incidentsService.ts`) centralizes pagination defaults, filter parsing, and payload shaping for `/api/incidents`. It also supplies cached lookup metadata for `/api/incidents/meta` (5-minute TTL) and normalizes identifier lookups for `/api/incidents/search`. Controllers hand raw query params to the service, which enforces the 5 000-record window and converts repository results into response DTOs.
+- `IncidentService` (`src/services/incidentsService.ts`) centralizes pagination defaults, filter parsing, and payload shaping for `/api/incidents`. It also supplies cached lookup metadata for `/api/incidents/meta` (5-minute TTL) and normalizes identifier lookups for `/api/incidents/search`. Controllers hand raw query params to the service, which enforces the 1,000,000-record safety window and converts repository results into response DTOs.
 - `StrategicAnalyticsService` (`src/services/strategicService.ts`) powers the `/api/strategic/*` endpoints. It reuses incident filters, performs multi-month/quarter aggregations, computes growth metrics, and caches responses for five minutes. Swap the in-memory cache for Redis later without touching controllers.
 
 Need contribution standards or CI expectations? See [`docs/contributing.md`](../docs/contributing.md).
@@ -139,8 +139,8 @@ Returns a paginated list of incident summaries ordered by newest `reportedAt` fi
 
 Query parameters:
 
-- `page` (default `1`) – 1-based index; requests beyond the first 5,000 records are rejected.
-- `pageSize` (default `25`, max `100`) – number of incidents per page.
+- `page` (default `1`) – 1-based index; requests beyond the first 1,000,000 records are rejected.
+- `pageSize` (default `25`, max `1,000`) – number of incidents per page.
 - `typeCodes`, `severityCodes`, `statusCodes` – comma-separated (or repeated) filter lists.
 - `startDate`, `endDate` – ISO-8601 range filters applied to `occurrenceAt`.
 - `isActive` – boolean flag (`true|false|1|0`).
@@ -172,6 +172,10 @@ Response shape:
 ### `GET /api/incidents/:incidentNumber`
 
 Returns the full incident record (including units, assets, notes, metadata) for the specified incident number. Responds with `404` if the incident does not exist and `400` for malformed identifiers.
+
+### `GET /api/incidents/map`
+
+Returns a lightweight incident payload tailored for map rendering (identifier, timestamps, location, severity/status/type metadata, and primary station). Clients can stream up to 1,000 records per page while staying within the shared 1,000,000 record window.
 
 ### `GET /api/incidents/meta`
 

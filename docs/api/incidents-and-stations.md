@@ -8,14 +8,14 @@ This guide describes the REST endpoints exposed by the Geospatial Incident Platf
 
 ## `GET /api/incidents`
 
-Returns a paginated collection of incident summaries suitable for list views and map markers. Results include lookup metadata and GeoJSON points for each incident location.
+Returns a paginated collection of incident summaries suitable for tabular views and detailed exports. Results include lookup metadata and GeoJSON points for each incident location.
 
 ### Query Parameters
 
 | Name            | Type                                             | Description                                                                                                           |
 | --------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `page`          | integer ≥ 1 (default `1`)                        | Zero-offset pagination is not supported.                                                                              |
-| `pageSize`      | integer between 1 and 100 (default `25`)         | Individual page responses are limited to 100 records; the overall window remains limited to 5 000 matching incidents. |
+| `pageSize`      | integer between 1 and 1,000 (default `25`)        | Individual page responses are limited to 1,000 records; the overall window remains limited to 1,000,000 matching incidents. |
 | `typeCodes`     | comma-separated string or repeated query value   | Filters by incident type codes (e.g., `typeCodes=FIRE_STRUCTURE,FIRE_WILDLAND`).                                      |
 | `severityCodes` | comma-separated string or repeated query value   | Filters by severity codes.                                                                                            |
 | `statusCodes`   | comma-separated string or repeated query value   | Filters by incident status codes.                                                                                     |
@@ -92,13 +92,72 @@ Invalid parameter types trigger a `400 BAD_REQUEST` response with a descriptive 
 }
 ```
 
-- `pagination.total` represents the true total number of incidents that match the filters, but is clamped to 5 000 server-side to protect map rendering performance (RF07 cap).
+- `pagination.total` represents the true total number of incidents that match the filters, but is clamped to 1,000,000 server-side to prevent runaway exports and memory pressure.
 - GeoJSON `Feature<Point>` objects follow RFC 7946. Consumers should read coordinates in `[longitude, latitude]` order.
 
 ### Typical Use Cases
 
-- Map data fetch (frontend `useIncidents` hook) with `pageSize=5000` to retrieve as many incidents as the UI can safely render.
-- Filtered list endpoints for dashboards (`typeCodes`, `severityCodes`, `isActive=false`, etc.). Combine with sorting metadata to drive table headers and column sort controls.
+- Table rendering (`/table` view) where the UI consumes one page at a time.
+- Backend integrations that need enriched incident summaries (type, severity, status, station metadata).
+
+## `GET /api/incidents/map`
+
+Returns a lightweight incident payload optimized for geospatial rendering. The response omits narrative fields, counts, and other high-cardinality attributes while retaining identifiers, timestamps, severity/status labels, and GeoJSON coordinates.
+
+All query parameters accepted by [`GET /api/incidents`](#get-apiincidents) are supported. Pagination follows the same 1,000 record per page / 1,000,000 record window limits, but this endpoint is intended for streaming larger result sets into the map in fixed-size chunks.
+
+```json
+{
+  "data": [
+    {
+      "incidentNumber": "INC-20250709-025520",
+      "title": "Structure fire – Midtown",
+      "occurrenceAt": "2025-07-09T02:55:20.000Z",
+      "reportedAt": "2025-07-09T02:56:33.000Z",
+      "isActive": true,
+      "location": {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [-73.9857, 40.7484]
+        },
+        "properties": {}
+      },
+      "type": {
+        "code": "FIRE_STRUCTURE",
+        "name": "Structure Fire"
+      },
+      "severity": {
+        "code": "CRITICAL",
+        "name": "Critical",
+        "colorHex": "#F57C00"
+      },
+      "status": {
+        "code": "DISPATCHED",
+        "name": "Dispatched"
+      },
+      "primaryStation": {
+        "stationCode": "ST-014",
+        "name": "Midtown Engine"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 1000,
+    "total": 4872,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrevious": false,
+    "sortBy": "reportedAt",
+    "sortDirection": "desc"
+  }
+}
+
+### Typical Use Cases
+
+- Frontend map rendering (`/map` view) where the UI incrementally streams 1 000-record batches until the configured render limit is reached.
+- Mobile or thin clients that only need position, severity, and status metadata without the overhead of narrative fields.
 
 ## `GET /api/incidents/{incidentNumber}`
 

@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef } from 'react';
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { mapIncidentToUi } from '../services/incidents';
 import { apiClient, type FetchIncidentsParams } from '../services/api-client';
 import {
@@ -18,6 +18,7 @@ const INCIDENT_FETCH_PAGE_SIZE = 1_000;
 export interface IncidentsDataResult {
   incidents: Incident[];
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
   error?: string;
   refresh: () => void;
@@ -25,6 +26,7 @@ export interface IncidentsDataResult {
   totalCount: number;
   renderedCount: number;
   remainder: number;
+  targetLimit: number;
 }
 
 export interface IncidentsTableDataResult {
@@ -45,11 +47,18 @@ export interface IncidentsTableDataResult {
   hasPrevious: boolean;
 }
 
+interface PhaseState {
+  nextPage: number;
+  hasMore: boolean;
+  hasFetched: boolean;
+}
+
 interface AggregatedIncidentResult {
   incidents: Incident[];
   totalCount: number;
-  renderedCount: number;
-  remainder: number;
+  pageSize: number;
+  viewport: PhaseState | null;
+  global: PhaseState;
 }
 
 const clampRenderCap = (value: number, isActive: boolean): number => {
@@ -70,83 +79,302 @@ const resolveRenderCap = (params: FetchIncidentsParams): number => {
   return clampRenderCap(fallback, isActive);
 };
 
+const clonePhaseState = (state: PhaseState | null | undefined, initialPage: number): PhaseState => {
+  if (state) {
+    return { ...state };
+  }
+  return {
+    nextPage: initialPage,
+    hasMore: true,
+    hasFetched: false,
+  };
+};
+
+const clonePhase = (state: PhaseState): PhaseState => ({ ...state });
+
 const fetchIncidentsAggregated = async (
   params: FetchIncidentsParams,
+  viewportParams: FetchIncidentsParams | undefined,
   signal: AbortSignal,
+  targetLimit: number,
+  existing?: AggregatedIncidentResult,
+  onPartialUpdate?: (data: AggregatedIncidentResult) => void,
 ): Promise<AggregatedIncidentResult> => {
-  const aggregated: Incident[] = [];
-  let nextPage = params.page ?? 1;
-  let lastTotal = 0;
-  const renderCap = resolveRenderCap(params);
+  const pageSize = INCIDENT_FETCH_PAGE_SIZE;
 
-  while (aggregated.length < renderCap) {
+  const backlog = existing ? [...existing.incidents] : [];
+  const aggregated: Incident[] = [];
+  const seen = new Set<string>(backlog.map((incident) => incident.id));
+  let totalCount = existing?.totalCount ?? 0;
+
+  const viewportState = viewportParams
+    ? clonePhaseState(existing?.viewport, viewportParams.page ?? params.page ?? 1)
+    : null;
+  const globalState = clonePhaseState(existing?.global, params.page ?? 1);
+
+  const buildSnapshotIncidents = (): Incident[] => {
+    const combined = [...aggregated];
+    const combinedIds = new Set<string>(combined.map((incident) => incident.id));
+
+    if (combined.length < targetLimit && backlog.length > 0) {
+      for (const incident of backlog) {
+        if (combinedIds.has(incident.id)) {
+          continue;
+        }
+        combined.push(incident);
+        combinedIds.add(incident.id);
+        if (combined.length >= targetLimit) {
+          break;
+        }
+      }
+    }
+
+    if (combined.length > targetLimit) {
+      return combined.slice(0, targetLimit);
+    }
+
+    return combined;
+  };
+
+  const emitPartial = () => {
+    if (!onPartialUpdate) {
+      return;
+    }
+  const normalizedTotal = Math.max(totalCount, aggregated.length, backlog.length);
+    onPartialUpdate({
+      incidents: buildSnapshotIncidents(),
+      totalCount: normalizedTotal,
+      pageSize,
+      viewport: viewportState ? clonePhase(viewportState) : null,
+      global: clonePhase(globalState),
+    });
+  };
+
+  const appendIncident = (incident: Incident) => {
+    if (seen.has(incident.id)) {
+      return;
+    }
+    seen.add(incident.id);
+    aggregated.push(incident);
+  };
+
+  const runPhase = async (phaseParams: FetchIncidentsParams, state: PhaseState) => {
+    const shouldFetch =
+      !state.hasFetched || (state.hasMore && aggregated.length < targetLimit);
+
+    if (!shouldFetch) {
+      return;
+    }
+
     if (signal.aborted) {
       throw new DOMException('The operation was aborted.', 'AbortError');
     }
 
-    const response = await apiClient.incidents.list({
-      ...params,
-      page: nextPage,
-      pageSize: INCIDENT_FETCH_PAGE_SIZE,
+    const response = await apiClient.incidents.mapList({
+      ...phaseParams,
+      page: state.nextPage,
+      pageSize,
       signal,
     });
+
+    state.hasFetched = true;
 
     const mapped = response.data
       .map(mapIncidentToUi)
       .filter((incident): incident is Incident => incident !== null);
 
-    aggregated.push(...mapped);
-
-    const pagination = response.pagination;
-    lastTotal = pagination.total ?? aggregated.length;
-
-    if (!pagination.hasNext || aggregated.length >= renderCap) {
-      break;
+    for (const incident of mapped) {
+      appendIncident(incident);
+      if (aggregated.length >= targetLimit) {
+        break;
+      }
     }
 
-    nextPage += 1;
+    const pagination = response.pagination;
+    if (pagination) {
+      if (typeof pagination.total === 'number') {
+        totalCount = Math.max(totalCount, pagination.total);
+      }
+      state.hasMore = Boolean(pagination.hasNext);
+      const currentPage = pagination.page ?? state.nextPage;
+      state.nextPage = currentPage + 1;
+    } else {
+      state.hasMore = false;
+      totalCount = Math.max(totalCount, aggregated.length);
+      state.nextPage += 1;
+    }
+    emitPartial();
+  };
+
+  if (viewportParams && viewportState) {
+    while (
+      aggregated.length < targetLimit &&
+      (viewportState.hasMore || !viewportState.hasFetched)
+    ) {
+      await runPhase(viewportParams, viewportState);
+      if (!viewportState.hasMore) {
+        break;
+      }
+    }
   }
 
-  if (signal.aborted) {
-    throw new DOMException('The operation was aborted.', 'AbortError');
-  }
+  const shouldFetchGlobal =
+    aggregated.length < targetLimit || !globalState.hasFetched || totalCount === 0;
 
-  const capped = aggregated.slice(0, renderCap);
-  const remainder = Math.max(lastTotal - capped.length, 0);
+  if (shouldFetchGlobal) {
+    while (
+      aggregated.length < targetLimit &&
+      (globalState.hasMore || !globalState.hasFetched)
+    ) {
+      await runPhase(params, globalState);
+      if (!globalState.hasMore) {
+        break;
+      }
+    }
+  }
+  const normalizedTotal = Math.max(totalCount, aggregated.length, backlog.length);
 
   return {
-    incidents: capped,
-    totalCount: lastTotal,
-    renderedCount: capped.length,
-    remainder,
+    incidents: buildSnapshotIncidents(),
+    totalCount: normalizedTotal,
+    pageSize,
+    viewport: viewportState,
+    global: globalState,
   };
 };
 
 const buildAggregatedQueryKey = (params: FetchIncidentsParams) =>
-  ['incidents', 'list', 'aggregated', JSON.stringify({ ...params, signal: undefined })] as const;
+  ['incidents', 'list', 'aggregated', JSON.stringify(params)] as const;
 
 export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataResult => {
+  const queryClient = useQueryClient();
+  const { viewportBounds } = params;
+
   const normalizedParams: FetchIncidentsParams = {
     ...params,
+    viewportBounds: undefined,
     isActive: params.isActive ?? true,
-    renderLimit: resolveRenderCap(params),
+    renderLimit: undefined,
+    page: 1,
+    pageSize: INCIDENT_FETCH_PAGE_SIZE,
   };
 
-  const query: UseQueryResult<AggregatedIncidentResult, Error> = useQuery({
-    queryKey: buildAggregatedQueryKey(normalizedParams),
-    queryFn: ({ signal }) => fetchIncidentsAggregated(normalizedParams, signal),
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
+  const viewportQuery = viewportBounds
+    ? {
+        ...normalizedParams,
+        viewportBounds,
+      }
+    : undefined;
+
+  const targetLimit = resolveRenderCap(params);
+
+  const queryKey = buildAggregatedQueryKey({
+    ...normalizedParams,
+    viewportBounds: viewportBounds ?? null,
+    renderLimit: undefined,
+    signal: undefined,
   });
 
-  const incidents = query.data?.incidents ?? [];
-  const totalCount = query.data?.totalCount ?? 0;
-  const renderedCount = query.data?.renderedCount ?? 0;
-  const remainder = query.data?.remainder ?? 0;
+  const cachedResultRef = useRef<AggregatedIncidentResult | undefined>(undefined);
+
+  const query: UseQueryResult<AggregatedIncidentResult, Error> = useQuery({
+    queryKey,
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const existing =
+        queryClient.getQueryData<AggregatedIncidentResult>(queryKey) ?? cachedResultRef.current;
+      return fetchIncidentsAggregated(
+        normalizedParams,
+        viewportQuery,
+        signal,
+        targetLimit,
+        existing,
+        (partial) => {
+          queryClient.setQueryData(queryKey, partial);
+          cachedResultRef.current = partial;
+        },
+      );
+    },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    keepPreviousData: true,
+    placeholderData: (previousData: AggregatedIncidentResult | undefined) => previousData,
+  });
+
+  const { data, isFetching: queryIsFetching, refetch } = query;
+
+  useEffect(() => {
+    if (data) {
+      cachedResultRef.current = data;
+    }
+  }, [data]);
+
+  const isInitialLoading = query.isLoading && !query.data;
+  const previousDataRef = useRef<AggregatedIncidentResult | undefined>(undefined);
+
+  useEffect(() => {
+    if (!query.data) {
+      return;
+    }
+
+    const currentSnapshot = query.data;
+
+    const previous = previousDataRef.current;
+    if (!previous || currentSnapshot.incidents.length >= previous.incidents.length) {
+      previousDataRef.current = currentSnapshot;
+    }
+  }, [query.data]);
+
+  const effectiveData = useMemo(() => {
+    if (query.data && query.data.incidents.length > 0) {
+      return query.data;
+    }
+    if (previousDataRef.current && previousDataRef.current.incidents.length > 0) {
+      return previousDataRef.current;
+    }
+    return query.data ?? previousDataRef.current;
+  }, [query.data]);
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    if (targetLimit <= data.incidents.length) {
+      return;
+    }
+
+    if (
+      data.totalCount > 0 &&
+      data.totalCount <= data.incidents.length &&
+      !data.global.hasMore &&
+      (!data.viewport || !data.viewport.hasMore)
+    ) {
+      return;
+    }
+
+    if (queryIsFetching) {
+      return;
+    }
+
+    void refetch();
+  }, [data, queryIsFetching, refetch, targetLimit]);
+
+  const incidents = useMemo(() => {
+    const data = effectiveData?.incidents ?? [];
+    if (data.length <= targetLimit) {
+      return data;
+    }
+    return data.slice(0, targetLimit);
+  }, [effectiveData?.incidents, targetLimit]);
+
+  const totalCount = effectiveData?.totalCount ?? 0;
+  const renderedCount = Math.min(incidents.length, targetLimit);
+  const remainder = Math.max(totalCount - renderedCount, 0);
 
   return {
     incidents,
-    isLoading: query.isLoading,
+    isLoading: isInitialLoading,
+    isFetching: queryIsFetching,
     isError: query.isError,
     error: query.error?.message,
     refresh: () => {
@@ -156,6 +384,7 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
     totalCount,
     renderedCount,
     remainder,
+    targetLimit,
   };
 };
 
@@ -177,7 +406,7 @@ const resolvePaginationRemainder = (pagination?: PaginationMeta): number => {
 
 export const useIncidentsTableData = (params: FetchIncidentsParams): IncidentsTableDataResult => {
   const query = useIncidentsQuery(params, {
-    placeholderData: (previousData) => previousData,
+    placeholderData: (previousData: IncidentListResponse | undefined) => previousData,
     refetchOnWindowFocus: false,
   });
 

@@ -2,7 +2,11 @@ import request from 'supertest';
 import type { Knex } from 'knex';
 import createApp from '../../src/app';
 import { closeDb, getDb, type IncidentDetail, type IncidentListItem } from '../../src/db';
-import { incidentService, type IncidentListResponse } from '../../src/services/incidentsService';
+import {
+  incidentService,
+  type IncidentListResponse,
+  type IncidentMapListResponse,
+} from '../../src/services/incidentsService';
 import { purgeTestRecords } from './testUtils';
 import {
   INCIDENT_FIXTURE_COUNT,
@@ -105,6 +109,30 @@ describe('Incidents API', () => {
     expect(data[0]?.location).toMatchObject({ type: 'Feature' });
   });
 
+  test('returns lightweight map incidents payload', async () => {
+    if (!requireDb()) {
+      return;
+    }
+
+    const response = await request(app)
+      .get('/api/incidents/map')
+      .query({ pageSize: 1000, isActive: true });
+
+    expect(response.status).toBe(200);
+    const body = response.body as IncidentMapListResponse;
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.pagination.pageSize).toBeLessThanOrEqual(1000);
+
+    const first = body.data[0];
+    if (first) {
+      expect(first).not.toHaveProperty('casualtyCount');
+      expect(first).not.toHaveProperty('estimatedDamageAmount');
+      expect(first.location).toMatchObject({ type: 'Feature' });
+      expect(first.type).toMatchObject({ code: expect.any(String), name: expect.any(String) });
+      expect(first.severity).toHaveProperty('colorHex');
+    }
+  });
+
   test('supports pagination and filters', async () => {
     if (!requireDb()) {
       return;
@@ -171,11 +199,13 @@ describe('Incidents API', () => {
     expect(occurrences).toEqual(sorted);
   });
 
-  test('rejects requests exceeding the 5,000 record window', async () => {
+  test('rejects requests exceeding the 1,000,000 record window', async () => {
     if (!requireDb()) {
       return;
     }
-    const response = await request(app).get('/api/incidents').query({ page: 51, pageSize: 100 });
+    const response = await request(app)
+      .get('/api/incidents')
+      .query({ page: 10001, pageSize: 100 });
 
     expect(response.status).toBe(400);
     const body = response.body as ErrorResponse;

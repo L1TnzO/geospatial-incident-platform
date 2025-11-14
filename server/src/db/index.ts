@@ -4,6 +4,7 @@ export {
   IncidentRepository,
   incidentRepository,
   type IncidentListFilters,
+  type BoundingBox,
   type CreateIncidentInput,
   type IncidentLocationInput,
   IncidentLookupError,

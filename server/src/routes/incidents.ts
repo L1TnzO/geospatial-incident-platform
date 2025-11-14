@@ -4,6 +4,7 @@ import {
   getIncidentDetail,
   getIncidentMetadata,
   listIncidents,
+  listMapIncidents,
   searchIncidentByNumber,
 } from '../controllers/incidentsController';
 
@@ -12,6 +13,7 @@ const router = Router();
 router.get('/meta', getIncidentMetadata);
 router.get('/search', searchIncidentByNumber);
 router.post('/', createIncident);
+router.get('/map', listMapIncidents);
 router.get('/', listIncidents);
 router.get('/:incidentNumber', getIncidentDetail);
 

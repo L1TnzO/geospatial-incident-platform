@@ -168,12 +168,14 @@ describe('Incidents API – filters, pagination, and validation', () => {
     expect(reportedTimes).toEqual([...reportedTimes].sort((a, b) => b - a));
   });
 
-  test('rejects pagination requests exceeding 5,000 record window', async () => {
+  test('rejects pagination requests exceeding 1,000,000 record window', async () => {
     if (!dbReady) {
       return;
     }
 
-    const response = await request(app).get('/api/incidents').query({ page: 51, pageSize: 100 });
+    const response = await request(app)
+      .get('/api/incidents')
+      .query({ page: 10001, pageSize: 100 });
 
     expect(response.status).toBe(400);
     const errorBody = response.body as ApiErrorResponse;

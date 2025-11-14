@@ -18,6 +18,7 @@ import {
   HISTORICAL_RENDER_LIMIT_MAX,
   MIN_RENDER_LIMIT,
 } from '../store/incident-filters-store';
+import { useMapStore } from '../store/map-store';
 import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 import { useIncidentSearch } from '../hooks/useIncidentSearch';
 import { useIncidentsData } from '../hooks/useIncidentsData';
@@ -158,7 +159,12 @@ export function FiltersPanel() {
   const severityOptions = metadata?.severities ?? [];
   const statusOptions = metadata?.statuses ?? [];
 
-  const incidentsData = useIncidentsData(fetchParams);
+  const viewportBounds = useMapStore((state) => state.bounds);
+
+  const incidentsData = useIncidentsData({
+    ...fetchParams,
+    viewportBounds,
+  });
 
   const reportedStart = metadata?.reportedRange?.start
     ? toDateInputValue(metadata.reportedRange.start)
