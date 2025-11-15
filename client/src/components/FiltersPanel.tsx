@@ -341,7 +341,7 @@ export function FiltersPanel() {
       draft.startDate === storeStartDateInput &&
       draft.endDate === storeEndDateInput &&
       draft.isActive === (isActive ?? true) &&
-  clampRenderLimitDraft(draft.renderLimit) === clampRenderLimitDraft(renderLimit),
+      clampRenderLimitDraft(draft.renderLimit) === clampRenderLimitDraft(renderLimit) &&
       normalizeCodes(draft.typeCodes) === normalizeCodes(typeCodes) &&
       normalizeCodes(draft.severityCodes) === normalizeCodes(severityCodes) &&
       normalizeCodes(draft.statusCodes) === normalizeCodes(statusCodes)
@@ -352,9 +352,9 @@ export function FiltersPanel() {
     draft.startDate,
     draft.endDate,
     draft.isActive,
-  draft.renderLimit,
+    draft.renderLimit,
     isActive,
-  renderLimit,
+    renderLimit,
     draft.typeCodes,
     draft.severityCodes,
     draft.statusCodes,
@@ -363,7 +363,7 @@ export function FiltersPanel() {
     statusCodes,
     storeStartDateInput,
     storeEndDateInput,
-    renderLimitBounds,
+    clampRenderLimitDraft,
   ]);
 
   const searchPlaceholder = metadata?.activeCount

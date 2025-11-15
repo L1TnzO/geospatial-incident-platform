@@ -1,4 +1,4 @@
-import { create, type GetState, type SetState, type StateCreator } from 'zustand';
+import { create, type SetState, type StateCreator } from 'zustand';
 
 export type MapCenter = [number, number];
 
@@ -24,10 +24,7 @@ interface MapState {
 const DEFAULT_CENTER: MapCenter = [-38.7357, -72.6193];
 const DEFAULT_ZOOM = 12;
 
-const createMapState: StateCreator<MapState> = (
-  set: SetState<MapState>,
-  _get: GetState<MapState>,
-) => ({
+const createMapState: StateCreator<MapState> = (set: SetState<MapState>) => ({
   center: DEFAULT_CENTER,
   zoom: DEFAULT_ZOOM,
   bounds: null,

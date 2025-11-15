@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import request from 'supertest';
 import type { Knex } from 'knex';
 import createApp from '../../src/app';
@@ -34,6 +35,24 @@ interface IncidentMetadataResponse {
   activeCount: number;
   limits: { maxPageSize: number; maxTotalResults: number };
 }
+
+const isIncidentMapListResponse = (value: unknown): value is IncidentMapListResponse => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as { data?: unknown; pagination?: unknown };
+  if (!Array.isArray(candidate.data)) {
+    return false;
+  }
+
+  if (typeof candidate.pagination !== 'object' || candidate.pagination === null) {
+    return false;
+  }
+
+  const pagination = candidate.pagination as { pageSize?: unknown };
+  return typeof pagination.pageSize === 'number';
+};
 
 describe('Incidents API', () => {
   let db: Knex;
@@ -120,9 +139,14 @@ describe('Incidents API', () => {
       .query({ pageSize: INCIDENT_MAX_PAGE_SIZE, isActive: true });
 
     expect(response.status).toBe(200);
-    const body = response.body as IncidentMapListResponse;
+    const rawBody = response.body as unknown;
+    expect(isIncidentMapListResponse(rawBody)).toBe(true);
+    if (!isIncidentMapListResponse(rawBody)) {
+      throw new Error('Invalid map list response shape');
+    }
+    const body = rawBody;
     expect(Array.isArray(body.data)).toBe(true);
-  expect(body.pagination.pageSize).toBeLessThanOrEqual(INCIDENT_MAX_PAGE_SIZE);
+    expect(body.pagination.pageSize).toBeLessThanOrEqual(INCIDENT_MAX_PAGE_SIZE);
 
     const first = body.data[0];
     if (first) {
