@@ -303,9 +303,23 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
     signal: undefined,
   });
 
-  const cachedResultRef = useRef<AggregatedIncidentResult | undefined>(undefined);
+  const querySignature = queryKey[3];
 
-  const query: UseQueryResult<AggregatedIncidentResult, Error> = useQuery({
+  const cachedResultRef = useRef<AggregatedIncidentResult | undefined>(undefined);
+  const previousDataRef = useRef<AggregatedIncidentResult | undefined>(undefined);
+  const lastSignatureRef = useRef<string>(querySignature);
+
+  if (lastSignatureRef.current !== querySignature) {
+    // Filters changed; drop cached aggregates so the next fetch starts from scratch.
+    cachedResultRef.current = undefined;
+    previousDataRef.current = undefined;
+    lastSignatureRef.current = querySignature;
+  }
+
+  const query: UseQueryResult<AggregatedIncidentResult, Error> = useQuery<
+    AggregatedIncidentResult,
+    Error
+  >({
     queryKey,
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const existing =
@@ -325,7 +339,6 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
     },
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    keepPreviousData: true,
     placeholderData: (previousData: AggregatedIncidentResult | undefined) => previousData,
   });
 
@@ -338,7 +351,6 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   }, [data]);
 
   const isInitialLoading = query.isLoading && !query.data;
-  const previousDataRef = useRef<AggregatedIncidentResult | undefined>(undefined);
 
   useEffect(() => {
     if (!query.data) {
