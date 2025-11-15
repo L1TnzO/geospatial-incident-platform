@@ -3,12 +3,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import { MapView } from './MapView';
 import { resetMapPreferencesStore } from '../store/map-preferences-store';
+import type { MapBounds } from '../store/map-store';
 
 const mapStoreState = {
   center: [40.7128, -74.006] as [number, number],
   zoom: 11,
+  bounds: null as MapBounds | null,
+  hasUserAdjusted: false,
   setView: vi.fn(),
-  resetView: vi.fn(),
+  setBounds: vi.fn((bounds: MapBounds | null) => {
+    mapStoreState.bounds = bounds;
+  }),
+  markUserAdjusted: vi.fn(() => {
+    mapStoreState.hasUserAdjusted = true;
+  }),
+  clearUserAdjusted: vi.fn(() => {
+    mapStoreState.hasUserAdjusted = false;
+  }),
+  resetView: vi.fn(() => {
+    mapStoreState.center = [40.7128, -74.006];
+    mapStoreState.zoom = 11;
+    mapStoreState.bounds = null;
+    mapStoreState.hasUserAdjusted = false;
+  }),
 };
 
 vi.mock('../store/map-store', () => {
@@ -121,7 +138,12 @@ afterEach(() => {
   resetMapPreferencesStore();
   mapStoreState.center = [40.7128, -74.006];
   mapStoreState.zoom = 11;
+  mapStoreState.bounds = null;
+  mapStoreState.hasUserAdjusted = false;
   mapStoreState.setView.mockClear();
+  mapStoreState.setBounds.mockClear();
+  mapStoreState.markUserAdjusted.mockClear();
+  mapStoreState.clearUserAdjusted.mockClear();
   mapStoreState.resetView.mockClear();
 });
 
