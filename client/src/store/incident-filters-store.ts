@@ -4,8 +4,8 @@ import type { IncidentSortField } from '../types/api/incidents';
 export const STORAGE_KEY = 'gip::incidentTableFilters::v3'; // Incremented to enforce active filter default
 export const STORAGE_VERSION = 3;
 export const MIN_RENDER_LIMIT = 100;
-export const ACTIVE_RENDER_LIMIT_MAX = 1_000_000;
-export const HISTORICAL_RENDER_LIMIT_MAX = 1_000_000;
+export const ACTIVE_RENDER_LIMIT_MAX = 100_000;
+export const HISTORICAL_RENDER_LIMIT_MAX = 100_000;
 export const DEFAULT_ACTIVE_RENDER_LIMIT = 2000;
 export const DEFAULT_HISTORICAL_RENDER_LIMIT = 1000;
 export const GLOBAL_RENDER_LIMIT_MAX = Math.max(

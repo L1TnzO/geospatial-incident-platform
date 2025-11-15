@@ -13,7 +13,7 @@ import type { Incident } from '../types';
 import type { IncidentListResponse, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
-const INCIDENT_FETCH_PAGE_SIZE = 10_000;
+const INCIDENT_FETCH_PAGE_SIZE = 1_000;
 
 export interface IncidentsDataResult {
   incidents: Incident[];

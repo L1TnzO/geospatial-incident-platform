@@ -15,7 +15,7 @@ Returns a paginated collection of incident summaries suitable for tabular views 
 | Name            | Type                                             | Description                                                                                                           |
 | --------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `page`          | integer ≥ 1 (default `1`)                        | Zero-offset pagination is not supported.                                                                              |
-| `pageSize`      | integer between 1 and 10,000 (default `25`)       | Individual page responses are limited to 10,000 records; the overall window remains limited to 1,000,000 matching incidents. |
+| `pageSize`      | integer between 1 and 1,000 (default `25`)        | Individual page responses are limited to 1,000 records; the overall window remains limited to 1,000,000 matching incidents. |
 | `typeCodes`     | comma-separated string or repeated query value   | Filters by incident type codes (e.g., `typeCodes=FIRE_STRUCTURE,FIRE_WILDLAND`).                                      |
 | `severityCodes` | comma-separated string or repeated query value   | Filters by severity codes.                                                                                            |
 | `statusCodes`   | comma-separated string or repeated query value   | Filters by incident status codes.                                                                                     |
@@ -104,7 +104,7 @@ Invalid parameter types trigger a `400 BAD_REQUEST` response with a descriptive 
 
 Returns a lightweight incident payload optimized for geospatial rendering. The response omits narrative fields, counts, and other high-cardinality attributes while retaining identifiers, timestamps, severity/status labels, and GeoJSON coordinates.
 
-All query parameters accepted by [`GET /api/incidents`](#get-apiincidents) are supported. Pagination follows the same 10,000 record per page / 1,000,000 record window limits, but this endpoint is intended for streaming larger result sets into the map in fixed-size chunks.
+All query parameters accepted by [`GET /api/incidents`](#get-apiincidents) are supported. Pagination follows the same 1,000 record per page / 1,000,000 record window limits, but this endpoint is intended for streaming larger result sets into the map in fixed-size chunks.
 
 ```json
 {
@@ -144,7 +144,7 @@ All query parameters accepted by [`GET /api/incidents`](#get-apiincidents) are s
   ],
   "pagination": {
     "page": 1,
-  "pageSize": 10000,
+    "pageSize": 1000,
     "total": 4872,
     "totalPages": 5,
     "hasNext": true,
@@ -156,7 +156,7 @@ All query parameters accepted by [`GET /api/incidents`](#get-apiincidents) are s
 
 ### Typical Use Cases
 
-- Frontend map rendering (`/map` view) where the UI incrementally streams up to 10 000-record batches until the configured render limit is reached.
+- Frontend map rendering (`/map` view) where the UI incrementally streams up to 1 000-record batches until the configured render limit is reached.
 - Mobile or thin clients that only need position, severity, and status metadata without the overhead of narrative fields.
 
 ## `GET /api/incidents/{incidentNumber}`
@@ -276,7 +276,7 @@ Provides lookup metadata and range bounds required to render filter controls. Th
   },
   "activeCount": 178,
   "limits": {
-  "maxPageSize": 10000,
+  "maxPageSize": 1000,
     "maxTotalResults": 5000
   }
 }

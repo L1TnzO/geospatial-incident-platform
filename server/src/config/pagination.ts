@@ -1,1 +1,1 @@
-export const INCIDENT_MAX_PAGE_SIZE = 10_000;
+export const INCIDENT_MAX_PAGE_SIZE = 1_000;

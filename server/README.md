@@ -140,7 +140,7 @@ Returns a paginated list of incident summaries ordered by newest `reportedAt` fi
 Query parameters:
 
 - `page` (default `1`) – 1-based index; requests beyond the first 1,000,000 records are rejected.
-- `pageSize` (default `25`, max `10,000`) – number of incidents per page.
+- `pageSize` (default `25`, max `1,000`) – number of incidents per page.
 - `typeCodes`, `severityCodes`, `statusCodes` – comma-separated (or repeated) filter lists.
 - `startDate`, `endDate` – ISO-8601 range filters applied to `occurrenceAt`.
 - `isActive` – boolean flag (`true|false|1|0`).
@@ -175,7 +175,7 @@ Returns the full incident record (including units, assets, notes, metadata) for 
 
 ### `GET /api/incidents/map`
 
-Returns a lightweight incident payload tailored for map rendering (identifier, timestamps, location, severity/status/type metadata, and primary station). Clients can stream up to 10,000 records per page while staying within the shared 1,000,000 record window.
+Returns a lightweight incident payload tailored for map rendering (identifier, timestamps, location, severity/status/type metadata, and primary station). Clients can stream up to 1,000 records per page while staying within the shared 1,000,000 record window.
 
 ### `GET /api/incidents/meta`
 
