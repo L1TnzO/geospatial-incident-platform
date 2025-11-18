@@ -1,6 +1,5 @@
 import { http, type RequestOptions, request } from '../lib/http';
-import type { MapBounds } from '../store/map-store';
-import { serializeBounds } from '../store/map-store';
+import type { MapBounds, MapCenter } from '../store/map-store';
 import type {
   IncidentCreateRequest,
   IncidentDetail,
@@ -52,6 +51,7 @@ export interface FetchIncidentsParams extends Record<string, unknown> {
   renderLimit?: number;
   signal?: AbortSignal;
   viewportBounds?: MapBounds | null;
+  priorityCenter?: MapCenter | null;
 }
 
 export interface IncidentSearchParams {
@@ -85,7 +85,6 @@ export const apiClient = {
           sortBy: params.sortBy,
           sortDirection: params.sortDirection,
           incidentNumber: params.incidentNumber,
-          bbox: serializeBounds(params.viewportBounds ?? null),
         },
       }),
     mapList: (params: FetchIncidentsParams = {}) =>
@@ -103,7 +102,8 @@ export const apiClient = {
           sortBy: params.sortBy,
           sortDirection: params.sortDirection,
           incidentNumber: params.incidentNumber,
-          bbox: serializeBounds(params.viewportBounds ?? null),
+          centerLat: params.priorityCenter?.[0],
+          centerLng: params.priorityCenter?.[1],
         },
       }),
     metadata: (options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>

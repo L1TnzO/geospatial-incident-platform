@@ -45,6 +45,10 @@ export interface IncidentListFilters {
   sortDirection?: 'asc' | 'desc';
   incidentNumber?: string;
   bounds?: BoundingBox;
+  center?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -761,6 +765,14 @@ export class IncidentRepository {
         'ps.name as primaryStationName',
       ])
       .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
+      .modify((query) => {
+        if (filters.center) {
+          query.orderByRaw('i.location <-> ST_SetSRID(ST_MakePoint(?, ?), 4326)', [
+            filters.center.longitude,
+            filters.center.latitude,
+          ]);
+        }
+      })
       .orderBy(sortColumn, sortDirection)
       .orderBy('i.id', sortDirection)
       .limit(pageSize)

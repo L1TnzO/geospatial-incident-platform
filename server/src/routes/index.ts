@@ -7,10 +7,19 @@ import strategicRouter from './strategic';
 
 const router = Router();
 
-router.use('/api/incidents', incidentsRouter);
-router.use('/api/dashboard', dashboardRouter);
-router.use('/api/stations', stationsRouter);
-router.use('/api/strategic', strategicRouter);
+const mountRoutes = (prefix: string) => {
+	const normalizedPrefix = prefix === '' ? '' : `/${prefix.replace(/^\/+|\/+$/g, '')}`;
+
+	router.use(`${normalizedPrefix}/incidents`, incidentsRouter);
+	router.use(`${normalizedPrefix}/dashboard`, dashboardRouter);
+	router.use(`${normalizedPrefix}/stations`, stationsRouter);
+	router.use(`${normalizedPrefix}/strategic`, strategicRouter);
+};
+
+// Expose routes under both /api and root for environments with different reverse proxies.
+mountRoutes('api');
+mountRoutes('');
+
 router.use(healthRouter);
 
 export default router;

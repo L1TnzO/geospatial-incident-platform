@@ -321,6 +321,112 @@ const parseIsoDate = (value: QueryValue, field: string): string | undefined => {
   return new Date(timestamp).toISOString();
 };
 
+const parseFloatInRange = (
+  value: QueryValue,
+  field: string,
+  { min, max }: { min: number; max: number }
+): number | undefined => {
+  const raw = normalizeValue(value);
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number.parseFloat(raw.trim());
+
+  if (Number.isNaN(parsed)) {
+    throw HttpError.badRequest(`Query parameter '${field}' must be a number.`);
+  }
+
+  if (parsed < min || parsed > max) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' must be between ${min} and ${max}.`
+    );
+  }
+
+  return parsed;
+};
+
+const parseCoordinateComponent = (
+  raw: string,
+  field: string,
+  { min, max }: { min: number; max: number }
+): number => {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    throw HttpError.badRequest(`Query parameter '${field}' must not be empty.`);
+  }
+
+  const parsed = Number.parseFloat(trimmed);
+  if (Number.isNaN(parsed)) {
+    throw HttpError.badRequest(`Query parameter '${field}' must be a number.`);
+  }
+
+  if (parsed < min || parsed > max) {
+    throw HttpError.badRequest(
+      `Query parameter '${field}' must be between ${min} and ${max}.`
+    );
+  }
+
+  return parsed;
+};
+
+const parseCenterPoint = (
+  query: Record<string, QueryValue>
+): { latitude: number; longitude: number } | undefined => {
+  let latitude = parseFloatInRange(query.centerLat, 'centerLat', {
+    min: MIN_LATITUDE,
+    max: MAX_LATITUDE,
+  });
+  let longitude = parseFloatInRange(query.centerLng, 'centerLng', {
+    min: MIN_LONGITUDE,
+    max: MAX_LONGITUDE,
+  });
+
+  const centerRaw = normalizeValue(query.center);
+  if (centerRaw) {
+    const parts = centerRaw
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length !== 2) {
+      throw HttpError.badRequest(
+        "Query parameter 'center' must specify two comma-separated numeric values: latitude,longitude."
+      );
+    }
+
+    if (latitude === undefined) {
+      latitude = parseCoordinateComponent(parts[0], 'center latitude', {
+        min: MIN_LATITUDE,
+        max: MAX_LATITUDE,
+      });
+    }
+
+    if (longitude === undefined) {
+      longitude = parseCoordinateComponent(parts[1], 'center longitude', {
+        min: MIN_LONGITUDE,
+        max: MAX_LONGITUDE,
+      });
+    }
+  }
+
+  if (latitude === undefined && longitude === undefined) {
+    return undefined;
+  }
+
+  if (latitude === undefined || longitude === undefined) {
+    throw HttpError.badRequest(
+      "Query parameters 'centerLat' and 'centerLng' must be used together."
+    );
+  }
+
+  return {
+    latitude,
+    longitude,
+  };
+};
+
 const parseBoundingBox = (value: QueryValue, field: string): BoundingBox | undefined => {
   const raw = normalizeValue(value);
 
@@ -454,6 +560,7 @@ export class IncidentService {
     const startDate = parseIsoDate(query.startDate, 'startDate');
     const endDate = parseIsoDate(query.endDate, 'endDate');
     const bounds = parseBoundingBox(query.bbox, 'bbox');
+    const center = parseCenterPoint(query);
 
     let isActive: boolean | undefined;
     if (query.isActive !== undefined) {
@@ -469,6 +576,7 @@ export class IncidentService {
       isActive,
       incidentNumber,
       bounds,
+      center,
     };
   }
 

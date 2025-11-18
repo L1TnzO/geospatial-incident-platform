@@ -66,11 +66,11 @@ function AppRoutes() {
     renderLimit: filters.renderLimit,
   };
 
-  const viewportBounds = useMapStore((state) => state.bounds);
+  const viewportCenter = useMapStore((state) => state.center);
 
   const incidentsData = useIncidentsData({
     ...fetchParams,
-    viewportBounds,
+    priorityCenter: viewportCenter,
   });
   const incidentsTableData = useIncidentsTableData(fetchParams);
 

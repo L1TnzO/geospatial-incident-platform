@@ -159,11 +159,11 @@ export function FiltersPanel() {
   const severityOptions = metadata?.severities ?? [];
   const statusOptions = metadata?.statuses ?? [];
 
-  const viewportBounds = useMapStore((state) => state.bounds);
+  const viewportCenter = useMapStore((state) => state.center);
 
   const incidentsData = useIncidentsData({
     ...fetchParams,
-    viewportBounds,
+    priorityCenter: viewportCenter,
   });
 
   const reportedStart = metadata?.reportedRange?.start
@@ -534,13 +534,15 @@ export function FiltersPanel() {
               max={renderLimitBounds.max}
               step={renderLimitStep}
               value={[draft.renderLimit]}
-              onValueChange={([value]) =>
+              onValueChange={(values: number[]) => {
+                const [value] = values;
                 setDraft((current) => ({
                   ...current,
                   renderLimit: clampRenderLimitDraft(value ?? current.renderLimit),
-                }))
-              }
-              onValueCommit={([value]) => {
+                }));
+              }}
+              onValueCommit={(values: number[]) => {
+                const [value] = values;
                 const nextValue = clampRenderLimitDraft(value ?? draft.renderLimit);
                 setDraft((current) => ({ ...current, renderLimit: nextValue }));
                 setFilters({ renderLimit: nextValue });
