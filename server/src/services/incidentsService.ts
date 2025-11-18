@@ -27,6 +27,10 @@ const MIN_LONGITUDE = -180;
 const MAX_LONGITUDE = 180;
 const MIN_BOUND_DELTA = 0.0001;
 
+const SERVICE_LOG_SCOPE = '[IncidentsService]';
+// eslint-disable-next-line no-console
+const serviceLog = (...args: unknown[]): void => console.log(SERVICE_LOG_SCOPE, ...args);
+
 const SORTABLE_FIELDS: readonly IncidentSortField[] = [
   'reportedAt',
   'occurrenceAt',
@@ -567,7 +571,7 @@ export class IncidentService {
       isActive = parseBoolean(query.isActive, 'isActive');
     }
 
-    return {
+    const result: IncidentFilterOptions = {
       typeCodes,
       severityCodes,
       statusCodes,
@@ -578,6 +582,16 @@ export class IncidentService {
       bounds,
       center,
     };
+    serviceLog('buildFilterOptions', {
+      incidentNumber,
+      typeCount: typeCodes?.length ?? 0,
+      severityCount: severityCodes?.length ?? 0,
+      statusCount: statusCodes?.length ?? 0,
+      hasBounds: Boolean(bounds),
+      hasCenter: Boolean(center),
+      isActive,
+    });
+    return result;
   }
 
   public buildListOptions(query: Record<string, QueryValue>): IncidentListOptions {
@@ -600,24 +614,65 @@ export class IncidentService {
     const sortBy = parseSortBy(query.sortBy);
     const sortDirection = parseSortDirection(query.sortDirection);
 
-    return {
+    const options: IncidentListOptions = {
       ...baseFilters,
       page: resolvedPage,
       pageSize,
       sortBy,
       sortDirection,
     };
+    serviceLog('buildListOptions', {
+      page: options.page,
+      pageSize: options.pageSize,
+      sortBy: options.sortBy,
+      sortDirection: options.sortDirection,
+      hasBounds: Boolean(options.bounds),
+      hasCenter: Boolean(options.center),
+      incidentNumber: options.incidentNumber ?? null,
+    });
+    return options;
   }
 
   public async listIncidents(options: IncidentListOptions): Promise<IncidentListResponse> {
+    serviceLog('listIncidents:request', {
+      page: options.page,
+      pageSize: options.pageSize,
+      sortBy: options.sortBy,
+      sortDirection: options.sortDirection,
+      hasBounds: Boolean(options.bounds),
+      hasCenter: Boolean(options.center),
+      incidentNumber: options.incidentNumber ?? null,
+    });
     const result = await this.repository.listIncidents(options);
+    serviceLog('listIncidents:response', {
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+      returned: result.data.length,
+      hasNext: result.hasNext,
+    });
     return buildPaginationMeta(result, options.sortBy, options.sortDirection);
   }
 
   public async listMapIncidents(
     options: IncidentListOptions
   ): Promise<IncidentMapListResponse> {
+    serviceLog('listMapIncidents:request', {
+      page: options.page,
+      pageSize: options.pageSize,
+      sortBy: options.sortBy,
+      sortDirection: options.sortDirection,
+      hasBounds: Boolean(options.bounds),
+      hasCenter: Boolean(options.center),
+    });
     const result = await this.repository.listIncidentsForMap(options);
+    serviceLog('listMapIncidents:response', {
+      page: result.page,
+      pageSize: result.pageSize,
+      total: result.total,
+      returned: result.data.length,
+      hasNext: result.hasNext,
+    });
     return buildPaginationMeta(result, options.sortBy, options.sortDirection);
   }
 

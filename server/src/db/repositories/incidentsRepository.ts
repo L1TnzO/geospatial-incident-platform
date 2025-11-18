@@ -54,6 +54,9 @@ export interface IncidentListFilters {
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = INCIDENT_MAX_PAGE_SIZE;
 const DEFAULT_STATION_COVERAGE_RADIUS_METERS = 5000;
+const REPO_LOG_SCOPE = '[IncidentsRepository]';
+// eslint-disable-next-line no-console
+const repoLog = (...args: unknown[]): void => console.log(REPO_LOG_SCOPE, ...args);
 
 interface IncidentRowBase {
   incidentId: number | string;
@@ -720,6 +723,17 @@ export class IncidentRepository {
     const page = Math.max(filters.page ?? 1, 1);
     const rawPageSize = filters.pageSize ?? DEFAULT_PAGE_SIZE;
     const pageSize = Math.min(Math.max(rawPageSize, 1), MAX_PAGE_SIZE);
+    repoLog('listIncidentsForMap:start', {
+      page,
+      pageSize,
+      sortBy: filters.sortBy ?? 'reportedAt',
+      sortDirection: filters.sortDirection ?? 'desc',
+      hasBounds: Boolean(filters.bounds),
+      hasCenter: Boolean(filters.center),
+      typeCodes: filters.typeCodes?.length ?? 0,
+      severityCodes: filters.severityCodes?.length ?? 0,
+      statusCodes: filters.statusCodes?.length ?? 0,
+    });
 
     const baseQuery = this.db('incidents as i')
       .leftJoin('incident_types as it', 'i.type_id', 'it.id')
@@ -730,6 +744,7 @@ export class IncidentRepository {
     applyFilters(baseQuery, filters);
 
     const total = await this.countIncidents(filters);
+    repoLog('listIncidentsForMap:count', { total });
 
     const sortBy = filters.sortBy ?? 'reportedAt';
     const sortDirection = filters.sortDirection ?? 'desc';
@@ -777,6 +792,11 @@ export class IncidentRepository {
       .orderBy('i.id', sortDirection)
       .limit(pageSize)
       .offset((page - 1) * pageSize)) as IncidentMapRow[];
+    repoLog('listIncidentsForMap:rows', {
+      fetched: rows.length,
+      firstIncident: rows[0]?.incidentNumber ?? null,
+      lastIncident: rows[rows.length - 1]?.incidentNumber ?? null,
+    });
 
     const data = rows.map((row) => mapIncidentRowForMap(row));
 
@@ -805,7 +825,16 @@ export class IncidentRepository {
 
     const [result] = await query.count<{ total: string }[]>({ total: '*' });
 
-    return coerceCount(result?.total ?? 0);
+    const total = coerceCount(result?.total ?? 0);
+    repoLog('countIncidents', {
+      total,
+      hasBounds: Boolean(filters.bounds),
+      hasCenter: Boolean(filters.center),
+      typeCodes: filters.typeCodes?.length ?? 0,
+      severityCodes: filters.severityCodes?.length ?? 0,
+      statusCodes: filters.statusCodes?.length ?? 0,
+    });
+    return total;
   }
 
   public createIncidentExportStream(

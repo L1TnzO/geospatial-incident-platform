@@ -14,6 +14,9 @@ import type { IncidentListResponse, PaginationMeta } from '../types/api/incident
 import { useIncidentsQuery } from './useIncidentsQuery';
 
 const INCIDENT_FETCH_PAGE_SIZE = 1_000;
+const AGGREGATION_LOG_SCOPE = '[IncidentsAggregator]';
+// eslint-disable-next-line no-console
+const logAggregation = (...args: unknown[]) => console.log(AGGREGATION_LOG_SCOPE, ...args);
 
 export interface IncidentsDataResult {
   incidents: Incident[];
@@ -109,6 +112,12 @@ const fetchIncidentsAggregated = async (
   existing?: AggregatedIncidentResult,
   onPartialUpdate?: (data: AggregatedIncidentResult) => void,
 ): Promise<AggregatedIncidentResult> => {
+  logAggregation('fetch:start', {
+    targetLimit,
+    pageSize,
+    existingSize: existing?.incidents.length ?? 0,
+    hasViewportPhase: Boolean(viewportParams),
+  });
   const backlog = existing ? [...existing.incidents] : [];
   const aggregatedOrder = backlog.map((incident) => incident.id);
   const aggregatedOrderSet = new Set<string>(aggregatedOrder);
@@ -173,13 +182,20 @@ const fetchIncidentsAggregated = async (
     }
     const incidents = buildSnapshotIncidents();
     const normalizedTotal = Math.max(totalCount, incidents.length, aggregatedById.size);
-    onPartialUpdate({
+    const snapshot: AggregatedIncidentResult = {
       incidents,
       totalCount: normalizedTotal,
       pageSize,
       viewport: viewportState ? clonePhase(viewportState) : null,
       global: clonePhase(globalState),
+    };
+    logAggregation('emitPartial', {
+      incidents: snapshot.incidents.length,
+      totalCount: snapshot.totalCount,
+      viewport: snapshot.viewport,
+      global: snapshot.global,
     });
+    onPartialUpdate(snapshot);
   };
 
   const registerIncident = (incident: Incident, prioritize: boolean) => {
@@ -195,9 +211,19 @@ const fetchIncidentsAggregated = async (
     state: PhaseState,
     { isViewport }: { isViewport: boolean },
   ): Promise<boolean> => {
+    logAggregation('phase:start', {
+      phase: isViewport ? 'viewport' : 'global',
+      nextPage: state.nextPage,
+      hasMore: state.hasMore,
+      hasFetched: state.hasFetched,
+      priorityComplete: state.priorityComplete,
+    });
     const shouldFetch = !state.hasFetched || state.hasMore;
 
     if (!shouldFetch) {
+      logAggregation('phase:skip', {
+        phase: isViewport ? 'viewport' : 'global',
+      });
       return false;
     }
 
@@ -210,6 +236,12 @@ const fetchIncidentsAggregated = async (
       page: state.nextPage,
       pageSize,
       signal,
+    });
+    logAggregation('phase:response', {
+      phase: isViewport ? 'viewport' : 'global',
+      page: state.nextPage,
+      received: response.data.length,
+      pagination: response.pagination,
     });
 
     state.hasFetched = true;
@@ -240,23 +272,46 @@ const fetchIncidentsAggregated = async (
     if (!isViewport && !state.priorityComplete && aggregatedById.size >= targetLimit) {
       state.priorityComplete = true;
       newlyCompleted = true;
+      logAggregation('phase:priorityComplete', {
+        aggregated: aggregatedById.size,
+        targetLimit,
+      });
     }
 
     if (mapped.length > 0 || isViewport || newlyCompleted) {
+      logAggregation('phase:emitPartialTrigger', {
+        phase: isViewport ? 'viewport' : 'global',
+        mapped: mapped.length,
+        newlyCompleted,
+      });
       emitPartial();
     }
 
     if (!isViewport && newlyCompleted) {
+      logAggregation('phase:haltAfterPriorityComplete');
       return false;
     }
 
-    return state.hasMore;
+    const continuePhase = state.hasMore;
+    logAggregation('phase:complete', {
+      phase: isViewport ? 'viewport' : 'global',
+      continuePhase,
+      nextPage: state.nextPage,
+    });
+    return continuePhase;
   };
 
   if (viewportParams && viewportState) {
+    logAggregation('viewportPhase:init', {
+      nextPage: viewportState.nextPage,
+      hasMore: viewportState.hasMore,
+    });
     while (viewportState.hasMore || !viewportState.hasFetched) {
       const shouldContinue = await runPhase(viewportParams, viewportState, { isViewport: true });
       if (!shouldContinue) {
+        logAggregation('viewportPhase:break', {
+          hasMore: viewportState.hasMore,
+        });
         break;
       }
     }
@@ -268,11 +323,27 @@ const fetchIncidentsAggregated = async (
     totalCount === 0 ||
     (!globalState.priorityComplete && globalState.hasMore);
   const needsBackgroundGlobal = globalState.priorityComplete && globalState.hasMore;
+  logAggregation('globalPhase:decision', {
+    aggregatedSize: aggregatedById.size,
+    targetLimit,
+    totalCount,
+    globalState,
+    shouldFetchGlobal,
+    needsBackgroundGlobal,
+  });
 
   if (shouldFetchGlobal || needsBackgroundGlobal) {
+    logAggregation('globalPhase:init', {
+      shouldFetchGlobal,
+      needsBackgroundGlobal,
+    });
     while (globalState.hasMore || !globalState.hasFetched) {
       const shouldContinue = await runPhase(params, globalState, { isViewport: false });
       if (!shouldContinue) {
+        logAggregation('globalPhase:break', {
+          hasMore: globalState.hasMore,
+          priorityComplete: globalState.priorityComplete,
+        });
         break;
       }
     }
@@ -342,12 +413,36 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   const previousDataRef = useRef<AggregatedIncidentResult | undefined>(undefined);
   const filterSignatureRef = useRef<string>(filterSignature);
   const viewportSignatureRef = useRef<string>(viewportSignature);
+  const persistedResultsRef = useRef<Map<string, AggregatedIncidentResult>>(new Map());
 
   if (filterSignatureRef.current !== filterSignature) {
+    const previousSignature = filterSignatureRef.current;
+    if (previousSignature) {
+      const snapshotToPersist =
+        cachedResultRef.current ??
+        previousDataRef.current ??
+        persistedResultsRef.current.get(previousSignature);
+      if (snapshotToPersist) {
+        persistedResultsRef.current.set(previousSignature, snapshotToPersist);
+        logAggregation('cache:persistPrevious', {
+          signature: previousSignature,
+          incidents: snapshotToPersist.incidents.length,
+        });
+      }
+    }
     cachedResultRef.current = undefined;
     previousDataRef.current = undefined;
     filterSignatureRef.current = filterSignature;
     viewportSignatureRef.current = viewportSignature;
+    const restored = persistedResultsRef.current.get(filterSignature);
+    if (restored) {
+      cachedResultRef.current = restored;
+      previousDataRef.current = restored;
+      logAggregation('cache:restorePersisted', {
+        signature: filterSignature,
+        incidents: restored.incidents.length,
+      });
+    }
   } else if (viewportSignatureRef.current !== viewportSignature) {
     if (cachedResultRef.current) {
       cachedResultRef.current = {
@@ -370,8 +465,16 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   >({
     queryKey,
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      const restored = persistedResultsRef.current.get(filterSignature);
       const existing =
-        queryClient.getQueryData<AggregatedIncidentResult>(queryKey) ?? cachedResultRef.current;
+        queryClient.getQueryData<AggregatedIncidentResult>(queryKey) ??
+        cachedResultRef.current ??
+        restored;
+      logAggregation('queryFn:start', {
+        signature: filterSignature,
+        hasExisting: Boolean(existing),
+        incidents: existing?.incidents.length ?? 0,
+      });
       return fetchIncidentsAggregated(
         normalizedParams,
         viewportQuery,
@@ -382,6 +485,12 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         (partial) => {
           queryClient.setQueryData(queryKey, partial);
           cachedResultRef.current = partial;
+          persistedResultsRef.current.set(filterSignature, partial);
+          logAggregation('queryFn:updateCache', {
+            signature: filterSignature,
+            incidents: partial.incidents.length,
+            totalCount: partial.totalCount,
+          });
         },
       );
     },
@@ -395,8 +504,14 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   useEffect(() => {
     if (data) {
       cachedResultRef.current = data;
+      persistedResultsRef.current.set(filterSignature, data);
+      logAggregation('query:dataEffect', {
+        signature: filterSignature,
+        incidents: data.incidents.length,
+        totalCount: data.totalCount,
+      });
     }
-  }, [data]);
+  }, [data, filterSignature]);
 
   const isInitialLoading = query.isLoading && !query.data;
 
