@@ -11,34 +11,8 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      db: ${{ steps.filter.outputs.db }}
-      app: ${{ steps.filter.outputs.app }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            db:
-              - 'infra/docker/docker-compose.yml'
-              - 'infra/docker/.env.postgis*'
-              - 'tools/bulk_load/**'
-              - 'tools/data_generator/**'
-              - 'server/db/**'
-              - 'server/knexfile.*'
-            app:
-              - 'client/**'
-              - 'server/**'
-              - 'infra/docker/**'
-              - '.github/workflows/deploy.yml'
-
   deploy-db:
     name: Deploy Database (VPS 2)
-    needs: changes
-    if: ${{ needs.changes.outputs.db == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -124,8 +98,7 @@ jobs:
 
   deploy-app:
     name: Deploy App (VPS 1)
-    needs: [changes, deploy-db]
-    if: ${{ always() && (needs.changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch') && (needs.deploy-db.result == 'success' || needs.deploy-db.result == 'skipped') }}
+    needs: deploy-db
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
