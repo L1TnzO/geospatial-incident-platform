@@ -23,10 +23,25 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
+      - name: Debug Network & Secrets
+        run: |
+          echo "Checking secrets presence..."
+          if [ -z "${{ secrets.VPS_DB_HOST }}" ]; then echo "ERROR: VPS_DB_HOST is empty"; else echo "VPS_DB_HOST is set (length: ${#VPS_DB_HOST})"; fi
+          if [ -z "${{ secrets.VPS_DB_USER }}" ]; then echo "ERROR: VPS_DB_USER is empty"; else echo "VPS_DB_USER is set"; fi
+          
+          echo "Testing connectivity to DB Host..."
+          # Try ping (might be blocked by firewall, but worth a shot)
+          ping -c 3 ${{ secrets.VPS_DB_HOST }} || echo "Ping failed (ICMP might be blocked)"
+          
+          echo "Testing SSH port reachability..."
+          # Use netcat to check port 22 with 5s timeout
+          nc -zv -w 5 ${{ secrets.VPS_DB_HOST }} 22 || echo "Port 22 unreachable via netcat"
+
       - name: Add VPS to known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VPS_DB_HOST }} >> ~/.ssh/known_hosts
+          echo "Running ssh-keyscan with verbose output..."
+          ssh-keyscan -v -H ${{ secrets.VPS_DB_HOST }} >> ~/.ssh/known_hosts 2> keyscan_error.log || cat keyscan_error.log
 
       - name: Create deployment package
         run: |
