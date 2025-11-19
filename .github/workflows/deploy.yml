@@ -252,6 +252,11 @@ jobs:
             
             # Start App Services
             echo "Starting App Services..."
+            
+            # Export env file locations so Docker Compose uses the real files, not the .example ones
+            export BACKEND_ENV_FILE=infra/docker/.env.backend
+            export FRONTEND_ENV_FILE=infra/docker/.env.frontend
+            
             # Stop local DB if it was accidentally started
             docker compose stop db || true
             docker compose rm -f db || true
@@ -259,7 +264,7 @@ jobs:
             # Start backend and frontend without starting their dependencies (local db)
             docker compose up -d --no-deps backend frontend
             
-            # Force restart frontend to pick up new VITE_API_BASE_URL
+            # Force restart to ensure env vars are picked up
             docker compose restart frontend
             
             # Health Check
