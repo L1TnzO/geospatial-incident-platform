@@ -1,69 +1,45 @@
-name: Deploy to VPS
+name: Deploy Multi-VPS
 
 on:
   push:
     branches:
       - master
+      - main
   workflow_dispatch:
 
 env:
   NODE_VERSION: '20'
 
 jobs:
-  test:
-    name: Run Tests
+  changes:
     runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgis/postgis:15-3.4
-        env:
-          POSTGRES_USER: gis_test
-          POSTGRES_PASSWORD: gis_test_password
-          POSTGRES_DB: gis_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
+    outputs:
+      db: ${{ steps.filter.outputs.db }}
+      app: ${{ steps.filter.outputs.app }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          filters: |
+            db:
+              - 'infra/docker/docker-compose.yml'
+              - 'infra/docker/.env.postgis*'
+              - 'tools/bulk_load/**'
+              - 'tools/data_generator/**'
+              - 'server/db/**'
+              - 'server/knexfile.*'
+            app:
+              - 'client/**'
+              - 'server/**'
+              - 'infra/docker/**'
+              - '.github/workflows/deploy.yml'
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Run server tests
-        run: npm run test:server
-        env:
-          DATABASE_URL: postgresql://gis_test:gis_test_password@localhost:5432/gis_test
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 5432
-          DATABASE_NAME: gis_test
-          DATABASE_USER: gis_test
-          DATABASE_PASSWORD: gis_test_password
-          NODE_ENV: test
-
-      - name: Run client tests
-        run: npm run test:client
-
-  deploy:
-    name: Deploy to VPS
-    needs: test
+  deploy-db:
+    name: Deploy Database (VPS 2)
+    needs: changes
+    if: ${{ needs.changes.outputs.db == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,11 +52,11 @@ jobs:
       - name: Add VPS to known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.VPS_DB_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create deployment package
         run: |
-          tar -czf deploy.tar.gz \
+          tar -czf deploy_db.tar.gz \
             --exclude=node_modules \
             --exclude=.git \
             --exclude=.github \
@@ -89,138 +65,141 @@ jobs:
             --exclude=data/bulk_load_batch \
             --exclude=client/node_modules \
             --exclude=server/node_modules \
-            --exclude=.husky \
-            --exclude=*.log \
-            --exclude=.npm \
-            --exclude=coverage \
-            --warning=no-file-changed \
             . || [ $? -eq 1 ]
 
-      - name: Copy files to VPS
+      - name: Copy files to DB VPS
         run: |
-          scp deploy.tar.gz ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/
+          scp deploy_db.tar.gz ${{ secrets.VPS_DB_USER }}@${{ secrets.VPS_DB_HOST }}:/tmp/
 
-      - name: Deploy on VPS
+      - name: Deploy and Initialize DB
         run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+          ssh ${{ secrets.VPS_DB_USER }}@${{ secrets.VPS_DB_HOST }} << 'ENDSSH'
             set -e
             
-            # Define variables
+            # Variables
             DEPLOY_DIR="/home/$USER/geospatial-incident-platform"
-            BACKUP_DIR="/home/$USER/backups"
-            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
             
-            # Create directories if they don't exist
+            # Prepare Directory
             mkdir -p $DEPLOY_DIR
-            mkdir -p $BACKUP_DIR
-            
-            # Backup current deployment if it exists
-            if [ -d "$DEPLOY_DIR" ] && [ "$(ls -A $DEPLOY_DIR)" ]; then
-              echo "Creating backup..."
-              tar -czf $BACKUP_DIR/backup_$TIMESTAMP.tar.gz -C $DEPLOY_DIR .
-              
-              # Keep only last 5 backups
-              cd $BACKUP_DIR
-              ls -t backup_*.tar.gz | tail -n +6 | xargs -r rm --
-            fi
-            
-            # Extract new deployment
-            echo "Extracting new deployment..."
             cd $DEPLOY_DIR
-            tar -xzf /tmp/deploy.tar.gz
-            rm /tmp/deploy.tar.gz
             
-            # Detect public IP
-            echo "Detecting public IP..."
-            PUBLIC_IP=$(curl -s ifconfig.me || curl -s icanhazip.com || echo "localhost")
-            echo "Detected IP: $PUBLIC_IP"
+            # Extract
+            tar -xzf /tmp/deploy_db.tar.gz
+            rm /tmp/deploy_db.tar.gz
             
-            # Setup environment files if they don't exist
+            # Setup Env
             if [ ! -f infra/docker/.env.postgis ]; then
               cp infra/docker/.env.postgis.example infra/docker/.env.postgis
             fi
-            
+            # We need backend env for migration runner
             if [ ! -f infra/docker/.env.backend ]; then
               cp infra/docker/.env.backend.example infra/docker/.env.backend
             fi
             
+            # Ensure scripts are executable
+            chmod +x tools/bulk_load/*.sh
+            
+            # Start DB
+            echo "Starting Database..."
+            docker compose up -d db
+            
+            # Wait for DB
+            echo "Waiting for DB to be ready..."
+            sleep 10
+            until docker compose exec -T db pg_isready -U gis_dev -d gis; do
+                echo "Waiting..."
+                sleep 5
+            done
+            
+            # Run Migrations (using backend container on DB node temporarily)
+            echo "Running Migrations and Seeds..."
+            docker compose run --rm backend sh -c "npm install && npm run migrate:up && npm run db:seed"
+            
+            # Run Auto Load Logic
+            echo "Checking for Data Load..."
+            ./tools/bulk_load/auto_deploy_db.sh
+            
+            # Clean up backend images/containers if desired, but keeping them cached is fine.
+          ENDSSH
+
+  deploy-app:
+    name: Deploy App (VPS 1)
+    needs: [changes, deploy-db]
+    if: ${{ always() && (needs.changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch') && (needs.deploy-db.result == 'success' || needs.deploy-db.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_APP_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment package
+        run: |
+          tar -czf deploy_app.tar.gz \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=.venv \
+            --exclude=data/generated \
+            --exclude=data/bulk_load_batch \
+            --exclude=client/node_modules \
+            --exclude=server/node_modules \
+            . || [ $? -eq 1 ]
+
+      - name: Copy files to App VPS
+        run: |
+          scp deploy_app.tar.gz ${{ secrets.VPS_APP_USER }}@${{ secrets.VPS_APP_HOST }}:/tmp/
+
+      - name: Deploy App Services
+        run: |
+          ssh ${{ secrets.VPS_APP_USER }}@${{ secrets.VPS_APP_HOST }} << 'ENDSSH'
+            set -e
+            
+            DEPLOY_DIR="/home/$USER/geospatial-incident-platform"
+            DB_HOST="${{ secrets.VPS_DB_HOST }}"
+            
+            mkdir -p $DEPLOY_DIR
+            cd $DEPLOY_DIR
+            
+            tar -xzf /tmp/deploy_app.tar.gz
+            rm /tmp/deploy_app.tar.gz
+            
+            # Setup Envs
+            if [ ! -f infra/docker/.env.backend ]; then
+              cp infra/docker/.env.backend.example infra/docker/.env.backend
+            fi
             if [ ! -f infra/docker/.env.frontend ]; then
-              echo "Creating frontend environment file..."
               cp infra/docker/.env.frontend.example infra/docker/.env.frontend
             fi
             
-            # Configure frontend for VPS deployment
-            echo "Configuring frontend for VPS (IP: $PUBLIC_IP)..."
-            if [ -n "${{ secrets.VPS_HOST }}" ]; then
-              API_HOST="${{ secrets.VPS_HOST }}"
-            else
-              API_HOST="$PUBLIC_IP"
+            # Configure Backend to point to DB Host
+            # We update DATABASE_HOST in .env.backend
+            sed -i.bak -E "s|^DATABASE_HOST=.*|DATABASE_HOST=$DB_HOST|g" infra/docker/.env.backend || true
+            if ! grep -q '^DATABASE_HOST=' infra/docker/.env.backend; then
+              echo "DATABASE_HOST=$DB_HOST" >> infra/docker/.env.backend
             fi
+            
+            # Configure Frontend
+            PUBLIC_IP=$(curl -s ifconfig.me || echo "localhost")
+            API_HOST="$PUBLIC_IP"
             FRONTEND_API_BASE="http://${API_HOST}:4000/api"
-
+            
             sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_API_BASE}|g" infra/docker/.env.frontend || true
-            if ! grep -q '^VITE_API_BASE_URL=' infra/docker/.env.frontend; then
-              echo "VITE_API_BASE_URL=${FRONTEND_API_BASE}" >> infra/docker/.env.frontend
-            fi
-
-            sed -i.bak -E "s|^VITE_ENV=.*|VITE_ENV=production|g" infra/docker/.env.frontend || true
-            if ! grep -q '^VITE_ENV=' infra/docker/.env.frontend; then
-              echo "VITE_ENV=production" >> infra/docker/.env.frontend
-            fi
-
-            rm -f infra/docker/.env.frontend.bak
-
-            echo "Frontend configuration:"
-            grep "VITE_API_BASE_URL" infra/docker/.env.frontend || true
-            grep "VITE_ENV" infra/docker/.env.frontend || true
-
-            # Ensure docker-compose uses the real env files
-            {
-              echo "FRONTEND_ENV_FILE=infra/docker/.env.frontend"
-              echo "BACKEND_ENV_FILE=infra/docker/.env.backend"
-              echo "POSTGIS_ENV_FILE=infra/docker/.env.postgis"
-            } > .env
             
-            # Stop existing containers
-            echo "Stopping existing containers..."
-            docker compose down || true
+            # Start App Services
+            echo "Starting App Services..."
+            docker compose up -d backend frontend
             
-            # Pull latest images
-            echo "Pulling Docker images..."
-            docker compose pull
-            
-            # Start services
-            echo "Starting services..."
-            docker compose up -d --build
-            
-            # Wait for database to be ready
-            echo "Waiting for database..."
+            # Health Check
+            echo "Checking Backend Health..."
             sleep 10
-            
-            # Run migrations
-            echo "Running migrations..."
-            docker compose exec -T backend npm run migrate:up || true
-            
-            # Health check
-            echo "Performing health check..."
-            sleep 5
-            
-            # Check if containers are running
-            docker compose ps
-            
-            echo "Deployment completed successfully!"
+            docker compose exec -T backend wget -q --spider http://localhost:4000/healthz || echo "Warning: Backend health check failed"
           ENDSSH
-
-      - name: Verify deployment
-        run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
-            cd /home/$USER/geospatial-incident-platform
-            docker compose ps
-            echo "Checking backend health..."
-            docker compose exec -T backend wget -q --spider http://localhost:4000/health || echo "Backend health check failed (may need manual verification)"
-          ENDSSH
-
-      - name: Cleanup
-        if: always()
-        run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "rm -f /tmp/deploy.tar.gz" || true

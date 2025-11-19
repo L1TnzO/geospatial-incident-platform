@@ -1,33 +1,21 @@
 # Bulk Data Load & Validation
 
-Task 2.4 introduces a repeatable workflow for moving synthetic CSV datasets into the PostGIS schema and validating the results. The tooling lives under `tools/bulk_load/` and automates staging, transformation, loading, and verification.
+This document describes the technical details of the bulk data loading process. For a step-by-step guide on setting up the database and loading data in a deployment environment (including the split VPS architecture), please refer to [**DATABASE_SETUP_AND_LOAD.md**](./DATABASE_SETUP_AND_LOAD.md).
+
+The tooling lives under `tools/bulk_load/` and automates staging, transformation, loading, and verification.
 
 > For schema context, lookup references, and performance guidance, review [`docs/data-model/README.md`](./data-model/README.md).
 
 ## Prerequisites
 
-- PostGIS container running locally: `docker compose up db -d`
-- PostgreSQL client (`psql`) installed on the host
-- Database schema migrated and lookup seeds applied:
-  ```bash
-  docker compose run --rm backend sh -c "npm install && npm run migrate:up"
-  docker compose run --rm backend sh -c "npm install && npm run db:seed"
-  ```
-- Synthetic dataset generated with the Python CLI (CSV output)
-  ```bash
-  .venv/bin/python -m tools.data_generator.cli \
-    --incident-count 20000 \
-    --station-count 40 \
-    --seed 4242 \
-    --output-format csv \
-    --assets-probability 0.6 \
-    --notes-probability 0.7 \
-    --output-dir data/bulk_load_batch
-  ```
+- PostGIS container running.
+- PostgreSQL client (`psql`) installed (or available inside the container).
+- Database schema migrated and lookup seeds applied.
+- Synthetic dataset generated (CSV output).
 
 ## Running the Loader
 
-The `load_data.sh` orchestrator accepts the dataset directory and an optional `DATABASE_URL` (defaults to the Docker Compose credentials).
+The `load_data.sh` orchestrator accepts the dataset directory and an optional `DATABASE_URL`.
 
 ```bash
 # From repository root
@@ -47,7 +35,7 @@ All console output is mirrored into `data/<batch>/load_report_<timestamp>.log` f
 
 ### Makefile Helper
 
-A convenience target wires the loader into existing tooling:
+A convenience target wires the loader into existing tooling (runs inside the container):
 
 ```bash
 make db-load-data DATA_DIR=data/bulk_load_batch DATABASE_URL=postgres://gis_dev:gis_dev_password@localhost:5432/gis

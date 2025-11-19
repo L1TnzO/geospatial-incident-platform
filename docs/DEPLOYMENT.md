@@ -1,103 +1,68 @@
-# Guía de Despliegue en VPS
+# Guía de Despliegue Automatizado (Multi-VPS)
 
-Esta guía explica cómo configurar el despliegue automático de la aplicación Geospatial Incident Platform en un VPS usando GitHub Actions.
+Esta guía explica cómo configurar el despliegue automático de la aplicación Geospatial Incident Platform utilizando GitHub Actions en una arquitectura de dos servidores (App + DB).
 
-## Índice
+## Arquitectura de Despliegue
 
-1. [Requisitos Previos](#requisitos-previos)
-2. [Configuración del VPS](#configuración-del-vps)
-3. [Configuración de GitHub](#configuración-de-github)
-4. [Configuración de Variables de Entorno](#configuración-de-variables-de-entorno)
-5. [Proceso de Despliegue](#proceso-de-despliegue)
-6. [Solución de Problemas](#solución-de-problemas)
+- **VPS 1 (App)**: Aloja el Frontend y Backend.
+- **VPS 2 (DB)**: Aloja PostgreSQL + PostGIS y ejecuta la carga de datos.
 
 ## Requisitos Previos
 
-- VPS con Ubuntu 20.04+ o Debian 11+
-- Acceso SSH al VPS
-- Cuenta de GitHub con permisos de administrador en el repositorio
-- Al menos 2GB de RAM en el VPS
-- Al menos 20GB de espacio en disco
+- Dos servidores VPS (Ubuntu 20.04+ recomendado).
+- Acceso SSH a ambos servidores.
+- Docker y Docker Compose instalados en ambos servidores.
+- Python 3.10+ instalado en el VPS 2 (para generación de datos).
 
-## Configuración del VPS
+## Configuración de GitHub Secrets
 
-### 1. Conexión Inicial al VPS
+Para que el flujo de trabajo (`.github/workflows/deploy.yml`) funcione, debes configurar los siguientes secretos en tu repositorio de GitHub (Settings > Secrets and variables > Actions):
 
-```bash
-ssh hito3@200.13.4.202
-# Contraseña: cxzdsaewq3
-```
+| Nombre del Secreto | Descripción | Ejemplo |
+|-------------------|-------------|---------|
+| `VPS_APP_HOST` | Dirección IP o Hostname del VPS 1 (App) | `200.13.4.201` |
+| `VPS_DB_HOST` | Dirección IP o Hostname del VPS 2 (DB) | `200.13.4.202` |
+| `VPS_APP_USER` | Usuario SSH para el VPS 1 (App) | `ubuntu` |
+| `VPS_DB_USER` | Usuario SSH para el VPS 2 (DB) | `root` |
+| `VPS_SSH_PRIVATE_KEY` | Clave privada SSH para acceder a ambos servidores | `-----BEGIN OPENSSH PRIVATE KEY...` |
 
-### 2. Ejecutar Script de Setup
+> **Nota:** Asegúrate de que la clave pública correspondiente a `VPS_SSH_PRIVATE_KEY` esté agregada al archivo `~/.ssh/authorized_keys` en **ambos** servidores.
 
-Copia y ejecuta el script de configuración:
+## Flujo de Trabajo Automático
 
-```bash
-# Descargar el script desde el repositorio
-wget https://raw.githubusercontent.com/TU-USUARIO/geospatial-incident-platform/master/infra/scripts/setup-vps.sh
+El archivo `deploy.yml` realiza las siguientes acciones automáticamente al hacer push a `main` o `master`:
 
-# O crear el archivo manualmente y copiar el contenido
-nano setup-vps.sh
+### 1. Job: Deploy Database (VPS 2)
+1.  Copia los archivos necesarios al VPS 2.
+2.  Configura las variables de entorno (`.env.postgis`).
+3.  Levanta el contenedor de base de datos (`docker compose up -d db`).
+4.  Ejecuta migraciones (utilizando un contenedor temporal de backend).
+5.  Ejecuta el script `tools/bulk_load/auto_deploy_db.sh`:
+    -   Verifica si la base de datos tiene datos.
+    -   Si está vacía, genera datos sintéticos y los carga masivamente.
 
-# Dar permisos de ejecución
-chmod +x setup-vps.sh
+### 2. Job: Deploy App (VPS 1)
+1.  Se ejecuta solo si el despliegue de base de datos fue exitoso.
+2.  Copia los archivos al VPS 1.
+3.  Configura las variables de entorno (`.env.backend`, `.env.frontend`).
+4.  **Automáticamente** apunta el backend al `VPS_DB_HOST`.
+5.  Levanta los contenedores de Frontend y Backend.
+6.  Realiza un chequeo de salud (`health check`).
 
-# Ejecutar el script
-./setup-vps.sh
-```
+## Configuración Manual Inicial (Opcional pero Recomendada)
 
-### 3. Generar Par de Claves SSH
+Aunque el script intenta crear los archivos `.env` basándose en los ejemplos, se recomienda configurar manualmente los archivos `.env` en los servidores si necesitas contraseñas específicas o configuraciones de producción diferentes a las de ejemplo.
 
-**En tu máquina local**, genera un par de claves SSH para el despliegue:
+Ubicaciones de archivos `.env` en el servidor (dentro de `~/geospatial-incident-platform/infra/docker/`):
+- `.env.postgis` (VPS 2)
+- `.env.backend` (VPS 1)
+- `.env.frontend` (VPS 1)
 
-```bash
-# Generar nueva clave SSH (sin passphrase para automatización)
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/vps_deploy_key -N ""
+## Solución de Problemas
 
-# Esto creará dos archivos:
-# ~/.ssh/vps_deploy_key (clave privada - para GitHub Secrets)
-# ~/.ssh/vps_deploy_key.pub (clave pública - para el VPS)
-```
-
-### 4. Agregar Clave Pública al VPS
-
-```bash
-# En tu máquina local, copia la clave pública al VPS
-ssh-copy-id -i ~/.ssh/vps_deploy_key.pub hito3@200.13.4.202
-
-# O manualmente:
-cat ~/.ssh/vps_deploy_key.pub
-# Copia el contenido y luego en el VPS:
-# mkdir -p ~/.ssh
-# echo "CONTENIDO_DE_LA_CLAVE_PUBLICA" >> ~/.ssh/authorized_keys
-# chmod 600 ~/.ssh/authorized_keys
-# chmod 700 ~/.ssh
-```
-
-### 5. Probar Conexión SSH
-
-```bash
-# En tu máquina local
-ssh -i ~/.ssh/vps_deploy_key hito3@200.13.4.202
-# Deberías conectarte sin solicitar contraseña
-```
-
-### 6. Configurar Variables de Entorno en el VPS
-
-```bash
-# Conectarse al VPS
-ssh hito3@200.13.4.202
-
-# Navegar al directorio del proyecto
-cd ~/geospatial-incident-platform
-
-# Crear y editar archivo de entorno para PostgreSQL
-nano infra/docker/.env.postgis
-```
-
-Contenido sugerido para `.env.postgis`:
-
-```env
+- **Error de Conexión SSH**: Verifica que la clave pública esté en ambos servidores y que el usuario `VPS_USER` tenga permisos.
+- **Base de Datos no accesible**: Asegúrate de que el puerto 5432 esté abierto en el firewall del VPS 2 y acepte conexiones desde el IP del VPS 1.
+- **Datos no cargados**: Revisa los logs del paso "Deploy and Initialize DB" en GitHub Actions. El script `auto_deploy_db.sh` solo carga datos si la tabla `incidents` está vacía.
 POSTGRES_USER=gis_prod
 POSTGRES_PASSWORD=TU_PASSWORD_SEGURO_AQUI
 POSTGRES_DB=gis_production

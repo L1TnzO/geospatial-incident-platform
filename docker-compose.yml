@@ -30,11 +30,12 @@ services:
     env_file:
       - ${BACKEND_ENV_FILE:-infra/docker/.env.backend.example}
     environment:
-      DATABASE_HOST: db
+      DATABASE_HOST: ${DATABASE_HOST:-db}
       DATABASE_PORT: 5432
     depends_on:
       db:
         condition: service_healthy
+        required: false
     ports:
       - '4000:4000'
     volumes:
@@ -56,6 +57,7 @@ services:
     depends_on:
       backend:
         condition: service_started
+        required: false
     ports:
       - '3000:3000'
     volumes:

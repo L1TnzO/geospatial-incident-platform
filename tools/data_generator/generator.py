@@ -551,7 +551,8 @@ def _generate_station_rows(
       anchor_lat, anchor_lng = 47.6062, -122.3321
       lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=20, rng=rng)
       city = faker.city()
-      region = faker.state_abbr()
+      # region = faker.state_abbr() # Not available in es_CL
+      region = faker.region()
       incident_weight = 1.0
       coverage_min, coverage_max = (4000, 12000)
 

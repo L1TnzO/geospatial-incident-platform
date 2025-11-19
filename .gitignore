@@ -40,3 +40,7 @@ Thumbs.db
 
 # Python virtual environments
 .venv/
+
+.specify/
+.github/agents/
+.github/prompts/
