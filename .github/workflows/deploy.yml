@@ -259,6 +259,9 @@ jobs:
             # Start backend and frontend without starting their dependencies (local db)
             docker compose up -d --no-deps backend frontend
             
+            # Force restart frontend to pick up new VITE_API_BASE_URL
+            docker compose restart frontend
+            
             # Health Check
             echo "Checking Backend Health..."
             sleep 10
