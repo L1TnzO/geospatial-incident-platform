@@ -253,9 +253,13 @@ jobs:
             # Start App Services
             echo "Starting App Services..."
             
-            # Export env file locations so Docker Compose uses the real files, not the .example ones
+            # Export env file locations so Docker Compose uses the real files
             export BACKEND_ENV_FILE=infra/docker/.env.backend
             export FRONTEND_ENV_FILE=infra/docker/.env.frontend
+            
+            # CRITICAL: Export DATABASE_HOST so docker-compose.yml substitutes ${DATABASE_HOST:-db} 
+            # with the real IP instead of falling back to 'db'
+            export DATABASE_HOST=$DB_HOST
             
             # Stop local DB if it was accidentally started
             docker compose stop db || true
