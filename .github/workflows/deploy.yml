@@ -140,6 +140,10 @@ jobs:
             # Ensure scripts are executable
             chmod +x tools/bulk_load/*.sh
             
+            # Prepare data directory with correct permissions for Docker
+            mkdir -p data/bulk_load_batch
+            chmod 777 data/bulk_load_batch
+            
             # Start DB
             echo "Starting Database..."
             docker compose up -d db
