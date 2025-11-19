@@ -243,6 +243,10 @@ jobs:
               echo "DATABASE_HOST=$DB_HOST" >> infra/docker/.env.backend
             fi
             
+            # CRITICAL: Update DATABASE_URL to use the correct host instead of 'db'
+            # This is required because Prisma/TypeORM often prioritize DATABASE_URL over individual vars
+            sed -i.bak -E "s|@db:5432|@$DB_HOST:5432|g" infra/docker/.env.backend || true
+            
             # Configure Frontend
             # Use the configured secret IP instead of auto-detection to avoid localhost fallback issues
             API_HOST="${{ secrets.VPS_APP_HOST }}"
