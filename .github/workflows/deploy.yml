@@ -24,18 +24,52 @@ jobs:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
 
       - name: Debug Network & Secrets
+        env:
+          DB_HOST: ${{ secrets.VPS_DB_HOST }}
+          DB_USER: ${{ secrets.VPS_DB_USER }}
         run: |
-          echo "Checking secrets presence..."
-          if [ -z "${{ secrets.VPS_DB_HOST }}" ]; then echo "ERROR: VPS_DB_HOST is empty"; else echo "VPS_DB_HOST is set (length: ${#VPS_DB_HOST})"; fi
-          if [ -z "${{ secrets.VPS_DB_USER }}" ]; then echo "ERROR: VPS_DB_USER is empty"; else echo "VPS_DB_USER is set"; fi
+          echo "=== DIAGNÓSTICO DE SECRETOS ==="
           
-          echo "Testing connectivity to DB Host..."
-          # Try ping (might be blocked by firewall, but worth a shot)
-          ping -c 3 ${{ secrets.VPS_DB_HOST }} || echo "Ping failed (ICMP might be blocked)"
+          # 1. Verificar HOST
+          if [ -z "$DB_HOST" ]; then 
+            echo "❌ ERROR: VPS_DB_HOST está vacío."
+            exit 1
+          else 
+            echo "✅ VPS_DB_HOST tiene valor."
+            echo "   Longitud: ${#DB_HOST} caracteres."
+            
+            # Chequear espacios o saltos de línea
+            if [[ "$DB_HOST" =~ [[:space:]] ]]; then
+              echo "⚠️  ALERTA CRÍTICA: VPS_DB_HOST contiene espacios o saltos de línea. ¡Edita el secreto y bórralos!"
+              # Intentamos mostrar dónde (reemplazando espacios por _)
+              echo "   Valor sanitizado visualmente: '${DB_HOST// /_}'"
+            else
+              echo "✅ Formato parece correcto (sin espacios)."
+            fi
+          fi
+
+          # 2. Verificar USER
+          if [ -z "$DB_USER" ]; then 
+             echo "❌ ERROR: VPS_DB_USER está vacío."
+          else
+             echo "✅ VPS_DB_USER configurado: '$DB_USER'"
+          fi
           
-          echo "Testing SSH port reachability..."
-          # Use netcat to check port 22 with 5s timeout
-          nc -zv -w 5 ${{ secrets.VPS_DB_HOST }} 22 || echo "Port 22 unreachable via netcat"
+          echo ""
+          echo "=== DIAGNÓSTICO DE RED ==="
+          echo "Intentando conectar al puerto 22 (SSH) en $DB_HOST..."
+          
+          # Usamos timeout de 5 segundos
+          if nc -zv -w 5 "$DB_HOST" 22; then
+            echo "✅ CONEXIÓN EXITOSA: El puerto 22 está abierto y responde."
+          else
+            echo "❌ CONEXIÓN FALLIDA: No se puede llegar al puerto 22."
+            echo "   Causas probables:"
+            echo "   1. La IP '$DB_HOST' es incorrecta."
+            echo "   2. El Firewall del VPS está bloqueando la IP de GitHub Actions."
+            echo "   3. El servicio SSHD no está corriendo en el VPS."
+            exit 1
+          fi
 
       - name: Add VPS to known hosts
         run: |
