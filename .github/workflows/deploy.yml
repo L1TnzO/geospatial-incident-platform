@@ -45,6 +45,22 @@ jobs:
         run: |
           scp deploy_db.tar.gz ${{ secrets.VPS_DB_USER }}@${{ secrets.VPS_DB_HOST }}:/tmp/
 
+      - name: Provision DB Server
+        run: |
+          ssh ${{ secrets.VPS_DB_USER }}@${{ secrets.VPS_DB_HOST }} << 'ENDSSH'
+            set -e
+            DEPLOY_DIR="/home/$USER/geospatial-incident-platform"
+            mkdir -p $DEPLOY_DIR
+            cd $DEPLOY_DIR
+            
+            # Extract for provisioning
+            tar -xzf /tmp/deploy_db.tar.gz
+            
+            # Run Provisioning
+            chmod +x infra/scripts/provision.sh
+            ./infra/scripts/provision.sh
+          ENDSSH
+
       - name: Deploy and Initialize DB
         run: |
           ssh ${{ secrets.VPS_DB_USER }}@${{ secrets.VPS_DB_HOST }} << 'ENDSSH'
@@ -57,9 +73,11 @@ jobs:
             mkdir -p $DEPLOY_DIR
             cd $DEPLOY_DIR
             
-            # Extract
-            tar -xzf /tmp/deploy_db.tar.gz
-            rm /tmp/deploy_db.tar.gz
+            # Extract (Again, to be sure or just use existing)
+            # We already extracted in provision step, but let's ensure clean state if needed
+            # Actually, we can just continue.
+            
+            rm -f /tmp/deploy_db.tar.gz
             
             # Setup Env
             if [ ! -f infra/docker/.env.postgis ]; then
@@ -131,6 +149,22 @@ jobs:
         run: |
           scp deploy_app.tar.gz ${{ secrets.VPS_APP_USER }}@${{ secrets.VPS_APP_HOST }}:/tmp/
 
+      - name: Provision App Server
+        run: |
+          ssh ${{ secrets.VPS_APP_USER }}@${{ secrets.VPS_APP_HOST }} << 'ENDSSH'
+            set -e
+            DEPLOY_DIR="/home/$USER/geospatial-incident-platform"
+            mkdir -p $DEPLOY_DIR
+            cd $DEPLOY_DIR
+            
+            # Extract for provisioning
+            tar -xzf /tmp/deploy_app.tar.gz
+            
+            # Run Provisioning
+            chmod +x infra/scripts/provision.sh
+            ./infra/scripts/provision.sh
+          ENDSSH
+
       - name: Deploy App Services
         run: |
           ssh ${{ secrets.VPS_APP_USER }}@${{ secrets.VPS_APP_HOST }} << 'ENDSSH'
@@ -142,8 +176,8 @@ jobs:
             mkdir -p $DEPLOY_DIR
             cd $DEPLOY_DIR
             
-            tar -xzf /tmp/deploy_app.tar.gz
-            rm /tmp/deploy_app.tar.gz
+            # Already extracted in provision step
+            rm -f /tmp/deploy_app.tar.gz
             
             # Setup Envs
             if [ ! -f infra/docker/.env.backend ]; then
