@@ -252,7 +252,12 @@ jobs:
             
             # Start App Services
             echo "Starting App Services..."
-            docker compose up -d backend frontend
+            # Stop local DB if it was accidentally started
+            docker compose stop db || true
+            docker compose rm -f db || true
+            
+            # Start backend and frontend without starting their dependencies (local db)
+            docker compose up -d --no-deps backend frontend
             
             # Health Check
             echo "Checking Backend Health..."
