@@ -156,13 +156,9 @@ jobs:
                 sleep 5
             done
             
-            # Run Migrations (using backend container on DB node temporarily)
-            echo "Running Migrations and Seeds..."
-            docker compose run --rm backend sh -c "npm install && npm run migrate:up && npm run db:seed"
-            
-            # Run Auto Load Logic
-            echo "Checking for Data Load..."
-            ./tools/bulk_load/auto_deploy_db.sh
+            # NOTE: Data loading is now a manual process to be run once on the VPS.
+            # Run: ./tools/bulk_load/auto_deploy_db.sh
+            echo "Database deployed. Run auto_deploy_db.sh manually to seed data if needed."
             
             # Clean up backend images/containers if desired, but keeping them cached is fine.
           ENDSSH
@@ -278,6 +274,13 @@ jobs:
             
             # Force restart to ensure env vars are picked up
             docker compose restart frontend
+            
+            # Run Migrations from Backend Container (VPS 1)
+            # This is the safest place to run them as the backend container has the code and connection
+            echo "Running Database Migrations..."
+            sleep 10 # Wait for backend to be fully up
+            docker compose exec -T backend npm run migrate:up || echo "Migration failed or already up to date"
+            docker compose exec -T backend npm run db:seed || echo "Seed failed or already done"
             
             # Health Check
             echo "Checking Backend Health..."
