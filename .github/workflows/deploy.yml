@@ -244,8 +244,8 @@ jobs:
             fi
             
             # Configure Frontend
-            PUBLIC_IP=$(curl -s ifconfig.me || echo "localhost")
-            API_HOST="$PUBLIC_IP"
+            # Use the configured secret IP instead of auto-detection to avoid localhost fallback issues
+            API_HOST="${{ secrets.VPS_APP_HOST }}"
             FRONTEND_API_BASE="http://${API_HOST}:4000/api"
             
             sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_API_BASE}|g" infra/docker/.env.frontend || true
