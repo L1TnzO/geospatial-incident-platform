@@ -158,10 +158,6 @@
   background-color: rgba(226, 232, 240, 1);
 }
 
-.map-legend__swatch--station {
-  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-}
-
 .map-legend__empty {
   font-size: 0.75rem;
   color: rgba(226, 232, 240, 0.75);
