@@ -4,9 +4,10 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
 import { useIncidentDetailStore } from '../store/incident-detail-store';
 import { useIncidentDetail } from '../hooks/useIncidentDetail';
+import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import type {
   Incident,
   IncidentAssetSummary,
@@ -50,6 +51,41 @@ export function IncidentDetailModal() {
     }
     return selectedIncident ?? null;
   }, [detailQuery.data, selectedIncident]);
+
+  const coordinates = incident?.location;
+  const hasCoordinates =
+    typeof coordinates?.lat === 'number' && typeof coordinates?.lng === 'number';
+  const reportedAddress = coordinates?.address?.trim();
+  const normalizedReportedAddress = reportedAddress &&
+    !/unknown|unavailable|no data/i.test(reportedAddress)
+      ? reportedAddress
+      : '';
+
+  const reverseGeocodeQuery = useReverseGeocode({
+    lat: hasCoordinates ? coordinates?.lat : undefined,
+    lng: hasCoordinates ? coordinates?.lng : undefined,
+    enabled: isOpen && hasCoordinates,
+  });
+
+  const resolvedAddress =
+    reverseGeocodeQuery.data?.shortLabel || reverseGeocodeQuery.data?.displayName || '';
+
+  const locationLabel = (() => {
+    if (normalizedReportedAddress) {
+      return normalizedReportedAddress;
+    }
+    if (reverseGeocodeQuery.isLoading && hasCoordinates) {
+      return 'Loading location…';
+    }
+    if (resolvedAddress) {
+      return resolvedAddress;
+    }
+    return 'Location unavailable';
+  })();
+
+  const googleMapsUrl = hasCoordinates
+    ? `https://www.google.com/maps/search/?api=1&query=${coordinates?.lat},${coordinates?.lng}`
+    : null;
 
   const units = incident?.units ?? [];
   const assets = incident?.assets ?? [];
@@ -153,11 +189,22 @@ export function IncidentDetailModal() {
                 <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
                   Location
                 </p>
-                <p className="text-base font-medium">{incident.location.address}</p>
-                <p className="text-xs text-muted-foreground">
-                  Coordinates: {incident.location.lat.toFixed(4)},{' '}
-                  {incident.location.lng.toFixed(4)}
-                </p>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <p className="text-base font-medium">{locationLabel}</p>
+                  {googleMapsUrl && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                        Go to Location <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>
+                    Coordinates: {incident.location.lat.toFixed(4)},{' '}
+                    {incident.location.lng.toFixed(4)}
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -40,4 +40,8 @@ export const queryKeys = {
     priorityScores: (params?: Record<string, unknown>) =>
       ['strategic', 'priority-scores', params ? JSON.stringify(params) : 'default'] as const,
   },
+  location: {
+    reverseGeocode: (lat?: number, lng?: number) =>
+      ['location', 'reverse-geocode', lat ?? null, lng ?? null] as const,
+  },
 };
