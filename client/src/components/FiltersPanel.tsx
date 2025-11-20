@@ -22,6 +22,7 @@ import { useMapStore } from '../store/map-store';
 import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 import { useIncidentSearch } from '../hooks/useIncidentSearch';
 import { useIncidentsData } from '../hooks/useIncidentsData';
+import { isMobile } from '../utils/platform';
 
 interface DraftFilters {
   startDate: string;
@@ -72,7 +73,7 @@ const toDraft = (filters: FilterSnapshot): DraftFilters => ({
   typeCodes: filters.typeCodes ?? [],
   severityCodes: filters.severityCodes ?? [],
   statusCodes: filters.statusCodes ?? [],
-  isActive: filters.isActive ?? true,
+  isActive: isMobile() ? true : (filters.isActive ?? true),
   renderLimit: resolveDraftRenderLimit(filters),
 });
 
@@ -507,17 +508,19 @@ export function FiltersPanel() {
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label className="flex items-center justify-between">
-            Active incidents
-            <Switch
-              checked={draft.isActive}
-              onCheckedChange={(checked: boolean) =>
-                setDraft((current) => ({ ...current, isActive: checked }))
-              }
-            />
-          </Label>
-        </div>
+        {!isMobile() && (
+          <div className="space-y-2">
+            <Label className="flex items-center justify-between">
+              Active incidents
+              <Switch
+                checked={draft.isActive}
+                onCheckedChange={(checked: boolean) =>
+                  setDraft((current) => ({ ...current, isActive: checked }))
+                }
+              />
+            </Label>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="render-limit-slider" className="flex items-center justify-between">

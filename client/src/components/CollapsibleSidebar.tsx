@@ -3,13 +3,14 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { FiltersPanel } from './FiltersPanel';
 import { cn } from './ui/utils';
+import { isMobile } from '../utils/platform';
 
 interface CollapsibleSidebarProps {
   defaultOpen?: boolean;
 }
 
 export function CollapsibleSidebar({ defaultOpen = true }: CollapsibleSidebarProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [isOpen, setIsOpen] = useState(isMobile() ? false : defaultOpen);
 
   return (
     <>

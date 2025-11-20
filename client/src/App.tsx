@@ -23,11 +23,14 @@ import { useIncidentDetailStore } from './store/incident-detail-store';
 import { useStationsData } from './hooks/useStationsData';
 import type { Incident } from './types';
 import type { IncidentSortField } from './types/api/incidents';
+import { isMobile } from './utils/platform';
 
 function AppRoutes() {
   // TEMPORARILY BYPASS LOGIN FOR DEBUGGING
   const user = { username: 'admin', role: 'admin' as const };
   const logout = () => {};
+
+  const mobile = isMobile();
 
   // const { user, isAuthenticated, login, logout } = useAuth();
   const openIncident = useIncidentDetailStore((state) => state.openIncident);
@@ -162,62 +165,74 @@ function AppRoutes() {
           <Route
             path="/table"
             element={
-              <div className="flex-1 flex overflow-hidden relative">
-                <CollapsibleSidebar />
-                <main className="flex-1 overflow-y-auto p-6 relative z-0">
-                  <TableView
-                    incidents={incidentsTableData.incidents}
-                    pagination={incidentsTableData.pagination}
-                    totalCount={incidentsTableData.totalCount}
-                    remainder={incidentsTableData.remainder}
-                    page={incidentsTableData.page}
-                    pageSize={incidentsTableData.pageSize}
-                    sortBy={filters.sortBy}
-                    sortDirection={filters.sortDirection}
-                    hasNext={incidentsTableData.hasNext}
-                    hasPrevious={incidentsTableData.hasPrevious}
-                    onSortChange={handleTableSortChange}
-                    onPageChange={handleTablePageChange}
-                    onIncidentClick={handleIncidentClick}
-                    isLoading={incidentsTableData.isLoading}
-                    isFetching={incidentsTableData.isFetching}
-                    isError={incidentsTableData.isError}
-                    error={incidentsTableData.error}
-                    onRetry={incidentsTableData.refresh}
-                    activeIncidentId={activeIncidentId ?? undefined}
-                  />
-                </main>
-              </div>
+              !mobile ? (
+                <div className="flex-1 flex overflow-hidden relative">
+                  <CollapsibleSidebar />
+                  <main className="flex-1 overflow-y-auto p-6 relative z-0">
+                    <TableView
+                      incidents={incidentsTableData.incidents}
+                      pagination={incidentsTableData.pagination}
+                      totalCount={incidentsTableData.totalCount}
+                      remainder={incidentsTableData.remainder}
+                      page={incidentsTableData.page}
+                      pageSize={incidentsTableData.pageSize}
+                      sortBy={filters.sortBy}
+                      sortDirection={filters.sortDirection}
+                      hasNext={incidentsTableData.hasNext}
+                      hasPrevious={incidentsTableData.hasPrevious}
+                      onSortChange={handleTableSortChange}
+                      onPageChange={handleTablePageChange}
+                      onIncidentClick={handleIncidentClick}
+                      isLoading={incidentsTableData.isLoading}
+                      isFetching={incidentsTableData.isFetching}
+                      isError={incidentsTableData.isError}
+                      error={incidentsTableData.error}
+                      onRetry={incidentsTableData.refresh}
+                      activeIncidentId={activeIncidentId ?? undefined}
+                    />
+                  </main>
+                </div>
+              ) : (
+                <Navigate to="/map" replace />
+              )
             }
           />
 
           <Route
             path="/dashboard"
             element={
-              <div className="flex-1 flex overflow-hidden relative">
-                <CollapsibleSidebar />
-                <main className="flex-1 relative z-0">
-                  <DashboardPage />
-                </main>
-              </div>
+              !mobile ? (
+                <div className="flex-1 flex overflow-hidden relative">
+                  <CollapsibleSidebar />
+                  <main className="flex-1 relative z-0">
+                    <DashboardPage />
+                  </main>
+                </div>
+              ) : (
+                <Navigate to="/map" replace />
+              )
             }
           />
           <Route
             path="/strategic"
             element={
-              <div className="flex-1 flex overflow-hidden relative">
-                <CollapsibleSidebar />
-                <main className="flex-1 overflow-y-auto relative z-0">
-                  <StrategicPage />
-                </main>
-              </div>
+              !mobile ? (
+                <div className="flex-1 flex overflow-hidden relative">
+                  <CollapsibleSidebar />
+                  <main className="flex-1 overflow-y-auto relative z-0">
+                    <StrategicPage />
+                  </main>
+                </div>
+              ) : (
+                <Navigate to="/map" replace />
+              )
             }
           />
 
           <Route
             path="/create"
             element={
-              user.role === 'admin' ? (
+              user.role === 'admin' && !mobile ? (
                 <div className="flex-1 overflow-y-auto">
                   <IncidentForm />
                 </div>
