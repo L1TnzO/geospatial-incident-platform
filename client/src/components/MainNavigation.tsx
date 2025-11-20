@@ -18,15 +18,13 @@ export function MainNavigation({ user, onLogout }: MainNavigationProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center px-4">
-        {isDesktop && (
-          <div className="flex items-center gap-2 mr-8">
-            <MapPin className="h-6 w-6 text-primary" />
-            <span className="font-semibold">Firesight</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 mr-8">
+          <MapPin className="h-6 w-6 text-primary" />
+          <span className="font-semibold">Firesight</span>
+        </div>
 
         <nav className="flex items-center gap-1 flex-1">
-          {isDesktop ? (
+          {isDesktop && (
             <>
               <Link to="/map">
                 <Button
@@ -71,28 +69,19 @@ export function MainNavigation({ user, onLogout }: MainNavigationProps) {
                 </Link>
               </div>
             </>
-          ) : (
-            <Link to="/map">
-              <Button
-                variant={isActive('/map') ? 'secondary' : 'ghost'}
-                size="sm"
-                className="gap-2"
-              >
-                <MapPin className="h-4 w-4" />
-                Map View
-              </Button>
-            </Link>
           )}
         </nav>
 
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
-            {user.username} {isDesktop ? `(${user.role})` : ''}
+            {isDesktop ? `${user.username} (${user.role})` : 'Guest'}
           </span>
-          <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2">
-            <LogOut className="h-4 w-4" />
-            {isDesktop && 'Logout'}
-          </Button>
+          {isDesktop && (
+            <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          )}
         </div>
       </div>
     </header>

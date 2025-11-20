@@ -1,5 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -20,7 +19,6 @@ import {
 } from '../store/incident-filters-store';
 import { useMapStore } from '../store/map-store';
 import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
-import { useIncidentSearch } from '../hooks/useIncidentSearch';
 import { useIncidentsData } from '../hooks/useIncidentsData';
 import { isMobile } from '../utils/platform';
 import { useMediaQuery } from '../hooks/use-media-query';
@@ -58,8 +56,6 @@ const toDateInputValue = (value?: string): string => {
   return date.toISOString().slice(0, 10);
 };
 
-const normalizeIncidentNumberValue = (value: string): string => value.trim().toUpperCase();
-
 const resolveDraftRenderLimit = (filters: FilterSnapshot): number => {
   const isActive = filters.isActive !== false;
   const fallback = isActive ? DEFAULT_ACTIVE_RENDER_LIMIT : DEFAULT_HISTORICAL_RENDER_LIMIT;
@@ -80,8 +76,6 @@ const toDraft = (filters: FilterSnapshot, isMobileLayout: boolean): DraftFilters
 
 export function FiltersPanel() {
   const {
-    incidentNumber,
-    searchTerm,
     startDate,
     endDate,
     typeCodes,
@@ -147,25 +141,6 @@ export function FiltersPanel() {
     }
   }, [isMobileLayout, isActive, setFilters]);
 
-  const {
-    term: searchValue,
-    setTerm: setSearchValue,
-    isSearching,
-    searchError,
-    lastResult,
-    suggestions,
-    history,
-    search: executeSearch,
-    selectHistoryEntry,
-    clearHistory,
-    clearSearchError,
-    reset: resetSearchControls,
-  } = useIncidentSearch({
-    initialTerm: searchTerm ?? incidentNumber ?? '',
-  });
-
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-
   const metadata = metadataQuery.data;
   const typeOptions = metadata?.types ?? [];
   const severityOptions = metadata?.severities ?? [];
@@ -229,65 +204,6 @@ export function FiltersPanel() {
     });
   }, [clampRenderLimitDraft, setFilters]);
 
-  const handleSearchChange = (value: string) => {
-    setSearchValue(normalizeIncidentNumberValue(value));
-    if (searchError) {
-      clearSearchError();
-    }
-  };
-
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsSearchFocused(false);
-    void executeSearch(searchValue, { force: true });
-  };
-
-  useEffect(() => {
-    if (!lastResult) {
-      return;
-    }
-
-    const normalized = normalizeIncidentNumberValue(lastResult.incidentNumber);
-    const current = incidentNumber ? normalizeIncidentNumberValue(incidentNumber) : undefined;
-
-    if (current === normalized) {
-      return;
-    }
-
-    setFilters({
-      incidentNumber: normalized,
-      searchTerm: normalized,
-      page: 1,
-    });
-  }, [incidentNumber, lastResult, setFilters]);
-
-  useEffect(() => {
-    if (searchValue.trim().length > 0) {
-      return;
-    }
-
-    if (!incidentNumber && !searchTerm) {
-      return;
-    }
-
-    setFilters({
-      incidentNumber: undefined,
-      searchTerm: undefined,
-      page: 1,
-    });
-  }, [incidentNumber, searchTerm, searchValue, setFilters]);
-
-  const handleClearSearch = () => {
-    resetSearchControls();
-    clearSearchError();
-    setIsSearchFocused(false);
-    setFilters({
-      incidentNumber: undefined,
-      searchTerm: undefined,
-      page: 1,
-    });
-  };
-
   const toggleCode = (
     key: keyof Pick<DraftFilters, 'typeCodes' | 'severityCodes' | 'statusCodes'>,
     code: string,
@@ -307,11 +223,9 @@ export function FiltersPanel() {
   };
 
   const handleApply = () => {
-    const normalizedSearch = searchValue ? normalizeIncidentNumberValue(searchValue) : undefined;
-
     setFilters({
-      incidentNumber: normalizedSearch,
-      searchTerm: normalizedSearch,
+      incidentNumber: undefined,
+      searchTerm: undefined,
       startDate: draft.startDate || undefined,
       endDate: draft.endDate || undefined,
       typeCodes: draft.typeCodes.length > 0 ? draft.typeCodes : undefined,
@@ -325,8 +239,6 @@ export function FiltersPanel() {
 
   const handleReset = () => {
     reset();
-    resetSearchControls();
-    clearSearchError();
     setDraft(
       toDraft({
         startDate: undefined,
@@ -336,20 +248,14 @@ export function FiltersPanel() {
         statusCodes: undefined,
         isActive: true,
         renderLimit: DEFAULT_ACTIVE_RENDER_LIMIT,
-      }),
+      }, isMobileLayout),
     );
   };
 
   const normalizeCodes = (values?: string[]) => (values ?? []).slice().sort().join('|');
 
-  const normalizedDraftIncident = searchValue ? normalizeIncidentNumberValue(searchValue) : '';
-  const normalizedStoreIncident = incidentNumber
-    ? normalizeIncidentNumberValue(incidentNumber)
-    : '';
-
   const isApplyDisabled = useMemo(() => {
     return (
-      normalizedDraftIncident === normalizedStoreIncident &&
       draft.startDate === storeStartDateInput &&
       draft.endDate === storeEndDateInput &&
       draft.isActive === (isActive ?? true) &&
@@ -359,8 +265,6 @@ export function FiltersPanel() {
       normalizeCodes(draft.statusCodes) === normalizeCodes(statusCodes)
     );
   }, [
-    normalizedDraftIncident,
-    normalizedStoreIncident,
     draft.startDate,
     draft.endDate,
     draft.isActive,
@@ -378,10 +282,6 @@ export function FiltersPanel() {
     clampRenderLimitDraft,
   ]);
 
-  const searchPlaceholder = metadata?.activeCount
-    ? `Search ${metadata.activeCount.toLocaleString()} incidents…`
-    : 'Search by incident number…';
-
   const totalCountLabel =
     incidentsData.totalCount === 0 && incidentsData.isLoading
       ? '…'
@@ -393,102 +293,6 @@ export function FiltersPanel() {
         <CardTitle>Filters &amp; Search</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="incident-search">Incident search</Label>
-            {history.length > 0 && (
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                className="px-0 text-xs"
-                onClick={clearHistory}
-              >
-                Clear history
-              </Button>
-            )}
-          </div>
-          <form onSubmit={handleSearchSubmit} className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <Input
-                id="incident-search"
-                type="search"
-                autoComplete="off"
-                value={searchValue}
-                placeholder={searchPlaceholder}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                onChange={(event) => handleSearchChange(event.target.value)}
-              />
-              <Button type="submit" disabled={isSearching || searchValue.trim().length === 0}>
-                {isSearching ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="mr-2 h-4 w-4" />
-                )}
-                Search
-              </Button>
-            </div>
-          </form>
-          <div className="min-h-[1.5rem] text-sm" aria-live="polite">
-            {isSearching && (
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Searching…
-              </span>
-            )}
-            {!isSearching && searchError && (
-              <span className="text-destructive" role="alert">
-                {searchError}
-              </span>
-            )}
-            {!isSearching && !searchError && lastResult && (
-              <span className="text-muted-foreground" role="status">
-                Found{' '}
-                <span className="font-medium text-foreground">{lastResult.incidentNumber}</span> (
-                {lastResult.type.name})
-              </span>
-            )}
-            {!isSearching && !searchError && !lastResult && metadataQuery.isLoading && (
-              <span className="text-muted-foreground">Loading search metadata…</span>
-            )}
-          </div>
-          {isSearchFocused && suggestions.length > 0 && (
-            <div className="rounded-md border bg-card shadow-sm">
-              <ScrollArea className="max-h-40">
-                <ul className="divide-y">
-                  {suggestions.map((entry) => (
-                    <li key={`${entry.incidentNumber}-${entry.timestamp}`}>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => {
-                          selectHistoryEntry(entry);
-                          setIsSearchFocused(false);
-                        }}
-                      >
-                        <span className="font-mono text-xs text-foreground">
-                          {entry.incidentNumber}
-                        </span>
-                        <span className="flex-1 truncate text-xs text-muted-foreground">
-                          {entry.title}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            </div>
-          )}
-          {searchValue && (
-            <div>
-              <Button type="button" variant="ghost" size="sm" onClick={handleClearSearch}>
-                Clear search
-              </Button>
-            </div>
-          )}
-        </div>
-
         <div className="space-y-2">
           <Label>Date range</Label>
           <div className="space-y-2">
@@ -533,58 +337,60 @@ export function FiltersPanel() {
           </div>
         )}
 
-        <div className="space-y-2">
-          <Label htmlFor="render-limit-slider" className="flex items-center justify-between">
-            Records to display
-            <span className="text-xs text-muted-foreground">
-              {draft.renderLimit.toLocaleString()} /{' '}
-              {totalCountLabel}
-            </span>
-          </Label>
-          <div className="flex items-center gap-3">
-            <Slider
-              id="render-limit-slider"
-              min={renderLimitBounds.min}
-              max={renderLimitBounds.max}
-              step={renderLimitStep}
-              value={[draft.renderLimit]}
-              onValueChange={(values: number[]) => {
-                const [value] = values;
-                setDraft((current) => ({
-                  ...current,
-                  renderLimit: clampRenderLimitDraft(value ?? current.renderLimit),
-                }));
-              }}
-              onValueCommit={(values: number[]) => {
-                const [value] = values;
-                const nextValue = clampRenderLimitDraft(value ?? draft.renderLimit);
-                setDraft((current) => ({ ...current, renderLimit: nextValue }));
-                setFilters({ renderLimit: nextValue });
-              }}
-              className="flex-1"
-            />
-            <Input
-              type="number"
-              inputMode="numeric"
-              min={renderLimitBounds.min}
-              max={renderLimitBounds.max}
-              step={renderLimitStep}
-              value={draft.renderLimit}
-              onChange={(event) => {
-                const nextValue = clampRenderLimitDraft(Number(event.target.value));
-                setDraft((current) => ({ ...current, renderLimit: nextValue }));
-              }}
-              onBlur={() => {
-                const nextValue = clampRenderLimitDraft(draft.renderLimit);
-                setFilters({ renderLimit: nextValue });
-              }}
-              className="w-28"
-            />
+        {!isMobileLayout && (
+          <div className="space-y-2">
+            <Label htmlFor="render-limit-slider" className="flex items-center justify-between">
+              Records to display
+              <span className="text-xs text-muted-foreground">
+                {draft.renderLimit.toLocaleString()} /{' '}
+                {totalCountLabel}
+              </span>
+            </Label>
+            <div className="flex items-center gap-3">
+              <Slider
+                id="render-limit-slider"
+                min={renderLimitBounds.min}
+                max={renderLimitBounds.max}
+                step={renderLimitStep}
+                value={[draft.renderLimit]}
+                onValueChange={(values: number[]) => {
+                  const [value] = values;
+                  setDraft((current) => ({
+                    ...current,
+                    renderLimit: clampRenderLimitDraft(value ?? current.renderLimit),
+                  }));
+                }}
+                onValueCommit={(values: number[]) => {
+                  const [value] = values;
+                  const nextValue = clampRenderLimitDraft(value ?? draft.renderLimit);
+                  setDraft((current) => ({ ...current, renderLimit: nextValue }));
+                  setFilters({ renderLimit: nextValue });
+                }}
+                className="flex-1"
+              />
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={renderLimitBounds.min}
+                max={renderLimitBounds.max}
+                step={renderLimitStep}
+                value={draft.renderLimit}
+                onChange={(event) => {
+                  const nextValue = clampRenderLimitDraft(Number(event.target.value));
+                  setDraft((current) => ({ ...current, renderLimit: nextValue }));
+                }}
+                onBlur={() => {
+                  const nextValue = clampRenderLimitDraft(draft.renderLimit);
+                  setFilters({ renderLimit: nextValue });
+                }}
+                className="w-28"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Adjust how many incidents load at once. Higher values may increase load time, especially when showing hundreds of thousands of records.
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Adjust how many incidents load at once. Higher values may increase load time, especially when showing hundreds of thousands of records.
-          </p>
-        </div>
+        )}
 
         <div className="space-y-2">
           <Label>Incident types</Label>
