@@ -237,6 +237,25 @@ const MapInstanceBinder = ({
   return null;
 };
 
+const MapResizeHandler = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [map]);
+
+  return null;
+};
+
 export function MapView({
   incidents,
   fireStations,
@@ -461,6 +480,7 @@ export function MapView({
         <BaseLayerTile layer={baseLayer} />
         <MapViewportController />
         <MapViewportTracker />
+        <MapResizeHandler />
         {showIncidents && (
           <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
         )}
