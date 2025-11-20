@@ -237,6 +237,16 @@ const fetchIncidentsAggregated = async (
       pageSize,
       signal,
     });
+
+    if (!response || !response.data) {
+      logAggregation('phase:error', {
+        phase: isViewport ? 'viewport' : 'global',
+        error: 'Invalid response format: missing data',
+        response,
+      });
+      throw new Error('Invalid response from server');
+    }
+
     logAggregation('phase:response', {
       phase: isViewport ? 'viewport' : 'global',
       page: state.nextPage,
@@ -582,8 +592,14 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   };
 };
 
-const mapListResponseToIncidents = (response: IncidentListResponse): Incident[] =>
-  response.data.map(mapIncidentToUi).filter((incident): incident is Incident => incident !== null);
+const mapListResponseToIncidents = (response: IncidentListResponse): Incident[] => {
+  if (!response || !Array.isArray(response.data)) {
+    return [];
+  }
+  return response.data
+    .map(mapIncidentToUi)
+    .filter((incident): incident is Incident => incident !== null);
+};
 
 const resolvePaginationRemainder = (pagination?: PaginationMeta): number => {
   if (!pagination) {

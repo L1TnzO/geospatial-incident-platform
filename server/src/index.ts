@@ -6,7 +6,7 @@ const app = createApp();
 
 const server = http.createServer(app);
 
-server.listen(env.port, () => {
+server.listen(env.port, '0.0.0.0', () => {
   console.log(
     `[server] Listening on port ${env.port} (${env.nodeEnv}) — service ${env.serviceName} v${env.version}`
   );
