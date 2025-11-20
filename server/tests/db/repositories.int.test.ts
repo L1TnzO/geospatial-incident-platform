@@ -63,7 +63,7 @@ const seedTestData = async (db: Knex): Promise<void> => {
   );
 
   const typeStructure = await getLookupId(db, 'incident_types', 'type_code', 'FIRE_STRUCTURE');
-  const typeMedical = await getLookupId(db, 'incident_types', 'type_code', 'MEDICAL');
+  const typeHazmat = await getLookupId(db, 'incident_types', 'type_code', 'HAZMAT');
   const severityCritical = await getLookupId(
     db,
     'incident_severities',
@@ -115,8 +115,8 @@ const seedTestData = async (db: Knex): Promise<void> => {
   const [inactiveIncident] = await db('incidents')
     .insert({
       incident_number: `${TEST_PREFIX}-INC-B-${suffix}`,
-      title: 'Medical Response - Test',
-      type_id: typeMedical,
+      title: 'Hazmat Response - Test',
+      type_id: typeHazmat,
       severity_id: severityLow,
       status_id: statusResolved,
       source_id: source911,
@@ -187,8 +187,8 @@ const seedTestData = async (db: Knex): Promise<void> => {
     },
     {
       incident_id: inactiveIncident.id,
-      author: 'EMT Johnson',
-      note: 'Patient stabilized and transported.',
+      author: 'Spec Ops Lead',
+      note: 'Hazardous materials contained and transported.',
       created_at: iso('2025-08-20T09:20:00Z'),
     },
   ]);

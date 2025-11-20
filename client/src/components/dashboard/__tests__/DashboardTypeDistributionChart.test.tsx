@@ -27,7 +27,7 @@ const mockTypeData: TypeDistributionResponse = {
       percentage: 45.0,
     },
     {
-      type: { code: 'MEDICAL', name: 'Medical Emergency' },
+      type: { code: 'FIRE_VEHICLE', name: 'Vehicle Fire' },
       count: 35,
       percentage: 35.0,
     },
@@ -118,7 +118,7 @@ describe('DashboardTypeDistributionChart', () => {
     });
 
     expect(screen.getByText('Structure Fire')).toBeInTheDocument();
-    expect(screen.getByText('Medical Emergency')).toBeInTheDocument();
+    expect(screen.getByText('Vehicle Fire')).toBeInTheDocument();
     expect(screen.getByText('Hazardous Materials')).toBeInTheDocument();
     expect(screen.getByText('45')).toBeInTheDocument();
     expect(screen.getByText('35')).toBeInTheDocument();

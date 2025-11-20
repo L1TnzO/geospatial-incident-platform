@@ -23,7 +23,7 @@ describe('Data access integrity', () => {
 
   const severityCodes = ['LOW', 'MODERATE', 'CRITICAL'];
   const statusCodes = ['REPORTED', 'ON_SCENE', 'RESOLVED'];
-  const typeCodes = ['FIRE_STRUCTURE', 'MEDICAL', 'HAZMAT'];
+  const typeCodes = ['FIRE_STRUCTURE', 'FIRE_WILDLAND', 'HAZMAT'];
 
   beforeAll(async () => {
     db = getDb();

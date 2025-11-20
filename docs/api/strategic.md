@@ -195,7 +195,7 @@ Returns GeoJSON coverage polygons buffered around station locations using each s
   "metadata": {
     "generatedAt": "2025-01-15T10:00:00.000Z",
     "stationCount": 6,
-    "filtersSummary": "typeCodes=FIRE_STRUCTURE|MEDICAL; isActive=true",
+    "filtersSummary": "typeCodes=FIRE_STRUCTURE|HAZMAT; isActive=true",
     "radiusOverrideMeters": null,
     "defaultRadiusMeters": 5000
   }

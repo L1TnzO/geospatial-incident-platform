@@ -59,7 +59,7 @@ Returns the last seven days of incident volume grouped by incident type. Percent
       "count": 25,
       "percentage": 59.52
     },
-    { "type": { "code": "MEDICAL", "name": "Medical" }, "count": 17, "percentage": 40.48 }
+    { "type": { "code": "HAZMAT", "name": "Hazardous Materials" }, "count": 17, "percentage": 40.48 }
   ]
 }
 ```
@@ -115,13 +115,13 @@ Returns the most recent incidents (default 10). Use `limit` to request up to 25 
 [
   {
     "incidentNumber": "GIP-INC-001",
-    "title": "Critical Medical Incident",
+    "title": "Critical Hazmat Incident",
     "reportedAt": "2025-10-05T11:45:00.000Z",
     "occurrenceAt": "2025-10-05T11:30:00.000Z",
     "isActive": true,
     "severity": { "code": "CRITICAL", "name": "Critical", "colorHex": "#dc2626", "priority": 4 },
     "status": { "code": "ON_SCENE", "name": "On Scene", "isTerminal": false },
-    "type": { "code": "MEDICAL", "name": "Medical" },
+    "type": { "code": "HAZMAT", "name": "Hazardous Materials" },
     "primaryStation": { "stationCode": "STN-01", "name": "Station 01" },
     "location": {
       "type": "Feature",
@@ -153,10 +153,10 @@ Example (truncated):
 ```
 # Generated At: 2025-10-05T09:30:00.000Z
 # Record Count: 18
-# Filters: severityCodes=CRITICAL|HIGH; isActive=true
+# Filters: severityCodes=CRITICAL|HIGH; typeCodes=HAZMAT; isActive=true
 # Columns: Incident Number,Title,Severity Code,Severity Priority
 Incident Number,Title,Severity Code,Severity Priority
-GIP-INC-0001,Critical Medical Incident,CRITICAL,4
+GIP-INC-0001,Critical Hazmat Incident,CRITICAL,4
 ```
 
 ### Error scenarios

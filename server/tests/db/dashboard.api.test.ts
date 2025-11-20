@@ -112,7 +112,7 @@ describe('Dashboard API', () => {
     baseTime = new Date('2025-09-01T00:00:00Z'),
     intervalMinutes = 60,
     statusCodes = ['REPORTED', 'ON_SCENE', 'RESOLVED'],
-    typeCodes = ['FIRE_STRUCTURE', 'MEDICAL'],
+    typeCodes = ['FIRE_STRUCTURE', 'HAZMAT'],
     severityCodes = ['LOW', 'MODERATE', 'HIGH', 'CRITICAL'],
   }: IncidentBatchOptions): Promise<string[]> => {
     if (!dbReady || count <= 0) {
@@ -334,7 +334,7 @@ describe('Dashboard API', () => {
 
     expect(body.total).toBe(seededIncidents().length);
     const typeCodes = body.buckets.map((bucket) => bucket.type.code);
-    expect(typeCodes).toEqual(expect.arrayContaining(['FIRE_STRUCTURE', 'MEDICAL']));
+    expect(typeCodes).toEqual(expect.arrayContaining(['FIRE_STRUCTURE', 'HAZMAT']));
     const totalPercent = body.buckets.reduce((sum, bucket) => sum + bucket.percentage, 0);
     expect(totalPercent).toBeGreaterThanOrEqual(100);
     expect(totalPercent).toBeLessThanOrEqual(100.01);
@@ -347,13 +347,13 @@ describe('Dashboard API', () => {
 
     console.info('[dashboard-tests] type distribution filtered request');
     const expected = seededIncidents().filter(
-      (incident) => incident.severityCode === 'CRITICAL' && incident.typeCode === 'MEDICAL'
+      (incident) => incident.severityCode === 'CRITICAL' && incident.typeCode === 'HAZMAT'
     ).length;
 
     console.info('[dashboard-tests] type distribution hitting endpoint');
     const response = await request(app)
       .get('/api/dashboard/incidents/by-type')
-      .query({ severityCodes: 'CRITICAL', typeCodes: 'MEDICAL' });
+      .query({ severityCodes: 'CRITICAL', typeCodes: 'HAZMAT' });
 
     expect(response.status).toBe(200);
 
@@ -365,7 +365,7 @@ describe('Dashboard API', () => {
     expect(body.total).toBe(expected);
     if (expected > 0) {
       expect(body.buckets).toHaveLength(1);
-      expect(body.buckets[0]?.type.code).toBe('MEDICAL');
+      expect(body.buckets[0]?.type.code).toBe('HAZMAT');
       expect(body.buckets[0]?.percentage).toBe(100);
     } else {
       expect(body.buckets).toEqual([]);
@@ -497,7 +497,7 @@ describe('Dashboard API', () => {
       intervalMinutes: 1,
       statusCodes: ['REPORTED'],
       severityCodes: ['MODERATE'],
-      typeCodes: ['MEDICAL'],
+      typeCodes: ['HAZMAT'],
     });
 
     console.info('[dashboard-tests] recent incidents cached fetch');
@@ -635,7 +635,7 @@ describe('Dashboard API', () => {
       intervalMinutes: 15,
       statusCodes: ['RESOLVED'],
       severityCodes: ['LOW', 'HIGH'],
-      typeCodes: ['MEDICAL'],
+      typeCodes: ['HAZMAT'],
     });
 
     console.info('[dashboard-tests] export resolved hitting endpoint');

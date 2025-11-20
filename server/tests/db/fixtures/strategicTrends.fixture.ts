@@ -55,7 +55,7 @@ export const seedStrategicTrendsFixture = async (
     })
     .returning<{ id: number }[]>('id');
 
-  const typeCodes = ['FIRE_STRUCTURE', 'MEDICAL'];
+  const typeCodes = ['FIRE_STRUCTURE', 'HAZMAT'];
   const severityCodes = ['LOW', 'MODERATE', 'HIGH', 'CRITICAL'];
   const statusCodes = ['REPORTED', 'ON_SCENE', 'RESOLVED'];
 

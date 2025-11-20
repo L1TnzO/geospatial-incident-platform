@@ -40,7 +40,7 @@ describe('IncidentService', () => {
     it('parses filters without pagination information', () => {
       const { service } = createService();
       const filters = service.buildFilterOptions({
-        typeCodes: 'FIRE_STRUCTURE,MEDICAL',
+        typeCodes: 'FIRE_STRUCTURE,HAZMAT',
         severityCodes: ['CRITICAL', 'HIGH'],
         statusCodes: 'REPORTED',
         startDate: '2025-09-01T00:00:00Z',
@@ -48,7 +48,7 @@ describe('IncidentService', () => {
         isActive: 'false',
       });
 
-      expect(filters.typeCodes).toEqual(['FIRE_STRUCTURE', 'MEDICAL']);
+      expect(filters.typeCodes).toEqual(['FIRE_STRUCTURE', 'HAZMAT']);
       expect(filters.severityCodes).toEqual(['CRITICAL', 'HIGH']);
       expect(filters.statusCodes).toEqual(['REPORTED']);
       expect(filters.startDate).toBe('2025-09-01T00:00:00.000Z');
@@ -116,7 +116,7 @@ describe('IncidentService', () => {
       const options = service.buildListOptions({
         page: '2',
         pageSize: '50',
-        typeCodes: 'FIRE_STRUCTURE,MEDICAL',
+        typeCodes: 'FIRE_STRUCTURE,HAZMAT',
         severityCodes: ['CRITICAL', 'HIGH'],
         isActive: 'true',
         startDate: '2025-09-01T00:00:00Z',
@@ -126,7 +126,7 @@ describe('IncidentService', () => {
 
       expect(options.page).toBe(2);
       expect(options.pageSize).toBe(50);
-      expect(options.typeCodes).toEqual(['FIRE_STRUCTURE', 'MEDICAL']);
+      expect(options.typeCodes).toEqual(['FIRE_STRUCTURE', 'HAZMAT']);
       expect(options.severityCodes).toEqual(['CRITICAL', 'HIGH']);
       expect(options.isActive).toBe(true);
       expect(options.startDate).toBe('2025-09-01T00:00:00.000Z');

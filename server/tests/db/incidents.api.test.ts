@@ -300,7 +300,7 @@ describe('Incidents API', () => {
     const body = response.body as IncidentMetadataResponse;
 
     expect(body.types.map((t) => t.code)).toEqual(
-      expect.arrayContaining(['FIRE_STRUCTURE', 'MEDICAL'])
+      expect.arrayContaining(['FIRE_STRUCTURE', 'HAZMAT'])
     );
     expect(body.severities.map((s) => s.code)).toEqual(expect.arrayContaining(['CRITICAL']));
     expect(body.statuses.map((s) => s.code)).toEqual(

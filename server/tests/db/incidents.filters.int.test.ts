@@ -64,7 +64,7 @@ describe('Incidents API – filters, pagination, and validation', () => {
 
     const filtered = seededIncidents.filter(
       (incident) =>
-        incident.typeCode === 'MEDICAL' &&
+        incident.typeCode === 'HAZMAT' &&
         incident.severityCode === 'CRITICAL' &&
         incident.statusCode === 'ON_SCENE' &&
         incident.isActive
@@ -76,7 +76,7 @@ describe('Incidents API – filters, pagination, and validation', () => {
     const end = new Date(Math.max(...filtered.map((i) => i.occurrenceAt.getTime())));
 
     const response = await request(app).get('/api/incidents').query({
-      typeCodes: 'MEDICAL',
+      typeCodes: 'HAZMAT',
       severityCodes: 'CRITICAL',
       statusCodes: 'ON_SCENE',
       isActive: true,
@@ -109,7 +109,7 @@ describe('Incidents API – filters, pagination, and validation', () => {
 
     expect(data).toHaveLength(expectedPageLength);
     data.forEach((item) => {
-      expect(item.type.code).toBe('MEDICAL');
+      expect(item.type.code).toBe('HAZMAT');
       expect(item.severity.code).toBe('CRITICAL');
       expect(item.status.code).toBe('ON_SCENE');
       expect(item.isActive).toBe(true);

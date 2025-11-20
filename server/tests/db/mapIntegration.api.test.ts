@@ -201,7 +201,7 @@ const seedDataset = async (db: Knex): Promise<SeededDataset> => {
     .returning<{ id: number; station_code: string }[]>(['id', 'station_code']);
 
   const typeStructure = await getLookupId(db, 'incident_types', 'type_code', 'FIRE_STRUCTURE');
-  const typeMedical = await getLookupId(db, 'incident_types', 'type_code', 'MEDICAL');
+  const typeHazmat = await getLookupId(db, 'incident_types', 'type_code', 'HAZMAT');
   const severityCritical = await getLookupId(
     db,
     'incident_severities',
@@ -247,8 +247,8 @@ const seedDataset = async (db: Knex): Promise<SeededDataset> => {
     },
     {
       incident_number: inactiveIncidentNumber,
-      title: `${TEST_PREFIX} Resolved Medical`,
-      type_id: typeMedical,
+      title: `${TEST_PREFIX} Resolved Hazmat`,
+      type_id: typeHazmat,
       severity_id: severityModerate,
       status_id: statusResolved,
       source_id: sourceId,
