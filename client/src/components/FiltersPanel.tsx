@@ -23,6 +23,7 @@ import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 import { useIncidentSearch } from '../hooks/useIncidentSearch';
 import { useIncidentsData } from '../hooks/useIncidentsData';
 import { isMobile } from '../utils/platform';
+import { useMediaQuery } from '../hooks/use-media-query';
 
 interface DraftFilters {
   startDate: string;
@@ -67,13 +68,13 @@ const resolveDraftRenderLimit = (filters: FilterSnapshot): number => {
   return Math.min(Math.max(Math.floor(candidate), MIN_RENDER_LIMIT), upper);
 };
 
-const toDraft = (filters: FilterSnapshot): DraftFilters => ({
+const toDraft = (filters: FilterSnapshot, isMobileLayout: boolean): DraftFilters => ({
   startDate: toDateInputValue(filters.startDate),
   endDate: toDateInputValue(filters.endDate),
   typeCodes: filters.typeCodes ?? [],
   severityCodes: filters.severityCodes ?? [],
   statusCodes: filters.statusCodes ?? [],
-  isActive: isMobile() ? true : (filters.isActive ?? true),
+  isActive: isMobileLayout ? true : (filters.isActive ?? true),
   renderLimit: resolveDraftRenderLimit(filters),
 });
 
@@ -91,6 +92,9 @@ export function FiltersPanel() {
     setFilters,
     reset,
   } = useIncidentFiltersStore();
+
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const isMobileLayout = !isDesktop || isMobile();
 
   const fetchParams = useIncidentFiltersStore(
     useShallow((state) => ({
@@ -119,7 +123,7 @@ export function FiltersPanel() {
       statusCodes,
       isActive,
       renderLimit,
-    }),
+    }, isMobileLayout),
   );
 
   useEffect(() => {
@@ -132,9 +136,16 @@ export function FiltersPanel() {
         statusCodes,
         isActive,
         renderLimit,
-      }),
+      }, isMobileLayout),
     );
-  }, [startDate, endDate, typeCodes, severityCodes, statusCodes, isActive, renderLimit]);
+  }, [startDate, endDate, typeCodes, severityCodes, statusCodes, isActive, renderLimit, isMobileLayout]);
+
+  // Force isActive to true on mobile layout
+  useEffect(() => {
+    if (isMobileLayout && !isActive) {
+      setFilters({ isActive: true });
+    }
+  }, [isMobileLayout, isActive, setFilters]);
 
   const {
     term: searchValue,
@@ -508,7 +519,7 @@ export function FiltersPanel() {
           )}
         </div>
 
-        {!isMobile() && (
+        {!isMobileLayout && (
           <div className="space-y-2">
             <Label className="flex items-center justify-between">
               Active incidents

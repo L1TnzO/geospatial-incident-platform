@@ -17,7 +17,9 @@ import {
   Info,
   Layers,
   Mountain,
+  Plus,
   RefreshCw,
+  Menu,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -37,6 +39,7 @@ import type {
   CoverageBufferFeature,
   PriorityScoreGroup,
 } from '../types/api/strategic';
+import { useMediaQuery } from '../hooks/use-media-query';
 import '../styles/map/map.css';
 
 const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low'];
@@ -313,6 +316,8 @@ export function MapView({
   );
   const [isMapReady, setIsMapReady] = useState(false);
   const handleMapReady = useCallback(() => setIsMapReady(true), []);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const handleZoomIn = () => {
     mapRef.current?.zoomIn();
@@ -406,7 +411,7 @@ export function MapView({
   return (
     <div className="relative w-full h-full overflow-hidden">
       <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
-        <Card className="map-card shadow-md">
+        <Card className="map-card shadow-md hidden md:block">
           <p className="font-medium">Incident coverage</p>
           <p>
             Showing {counts.rendered.toLocaleString()} of {counts.total.toLocaleString()} incidents.
@@ -536,108 +541,243 @@ export function MapView({
         </div>
       )}
 
-      <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 map-controls">
-        <Card className="map-control map-control--wide">
-          <p className="map-control__label">Base layer</p>
-          <div className="map-control__options">
-            {baseLayerOptions.map((option) => {
-              const isActive = baseLayer === option.id;
-              return (
+      <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 map-controls items-end">
+        {/* Mobile Controls Container */}
+        {!isDesktop && (
+          <div className="flex flex-col items-end gap-2">
+            <Card
+              className={`flex flex-col gap-1 p-2 transition-all duration-300 ease-in-out bg-white/85 backdrop-blur-xl border-white/20 shadow-lg ${
+                isMobileExpanded ? 'w-48' : 'w-11 items-center'
+              }`}
+            >
+              {/* Hamburger / Toggle */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 self-end hover:bg-black/5"
+                onClick={() => setIsMobileExpanded(!isMobileExpanded)}
+                aria-label={isMobileExpanded ? 'Collapse menu' : 'Expand menu'}
+              >
+                <Menu className="h-5 w-5 text-zinc-700" />
+              </Button>
+
+              {/* Controls */}
+              <div className={`flex flex-col gap-1 ${isMobileExpanded ? 'w-full' : ''}`}>
+                {/* Zoom In */}
                 <Button
-                  key={option.id}
-                  variant={isActive ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  onClick={() => setBaseLayer(option.id)}
-                  className="map-control__button"
-                  aria-pressed={isActive}
-                  aria-label={`Switch to ${option.label} base layer`}
+                  className={`justify-start h-8 hover:bg-black/5 ${
+                    isMobileExpanded ? 'w-full px-2' : 'w-8 p-0'
+                  }`}
+                  onClick={handleZoomIn}
+                  aria-label="Zoom in"
                 >
-                  {option.id === 'street' && <Layers className="h-4 w-4" aria-hidden="true" />}
-                  {option.id === 'topographic' && (
-                    <Mountain className="h-4 w-4" aria-hidden="true" />
+                  <ZoomIn className="h-5 w-5 shrink-0 text-zinc-700" />
+                  {isMobileExpanded && (
+                    <span className="ml-3 text-sm font-medium text-zinc-700">Zoom In</span>
                   )}
-                  {option.id === 'satellite' && <Globe className="h-4 w-4" aria-hidden="true" />}
-                  <span>{option.label}</span>
                 </Button>
-              );
-            })}
+
+                {/* Zoom Out */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`justify-start h-8 hover:bg-black/5 ${
+                    isMobileExpanded ? 'w-full px-2' : 'w-8 p-0'
+                  }`}
+                  onClick={handleZoomOut}
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="h-5 w-5 shrink-0 text-zinc-700" />
+                  {isMobileExpanded && (
+                    <span className="ml-3 text-sm font-medium text-zinc-700">Zoom Out</span>
+                  )}
+                </Button>
+
+                {/* Reset */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`justify-start h-8 hover:bg-black/5 ${
+                    isMobileExpanded ? 'w-full px-2' : 'w-8 p-0'
+                  }`}
+                  onClick={handleResetView}
+                  aria-label="Reset map view"
+                >
+                  <RefreshCw className="h-5 w-5 shrink-0 text-zinc-700" />
+                  {isMobileExpanded && (
+                    <span className="ml-3 text-sm font-medium text-zinc-700">Reset View</span>
+                  )}
+                </Button>
+
+                {/* Stations */}
+                <Button
+                  variant={showStations ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={`justify-start h-8 hover:bg-black/5 ${
+                    isMobileExpanded ? 'w-full px-2' : 'w-8 p-0'
+                  } ${showStations ? 'bg-black/10' : ''}`}
+                  onClick={toggleStations}
+                  aria-label="Toggle fire stations"
+                >
+                  <Flame className="h-5 w-5 shrink-0 text-zinc-700" />
+                  {isMobileExpanded && (
+                    <span className="ml-3 text-sm font-medium text-zinc-700">Fire Stations</span>
+                  )}
+                </Button>
+
+                {/* Info / Legend Toggle */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`justify-start h-8 hover:bg-black/5 ${
+                    isMobileExpanded ? 'w-full px-2 opacity-100 cursor-default' : 'w-8 p-0'
+                  }`}
+                  onClick={() => !isMobileExpanded && setIsMobileExpanded(true)}
+                  aria-label="Show legend"
+                >
+                  <Info className="h-5 w-5 shrink-0 text-zinc-700" />
+                  {isMobileExpanded && (
+                    <span className="ml-3 text-sm font-medium text-zinc-700">Legend</span>
+                  )}
+                </Button>
+              </div>
+
+              {/* Legend Content (Embedded) */}
+              {isMobileExpanded && (
+                <div className="mt-2 pt-2 border-t border-black/10 animate-in fade-in slide-in-from-top-1">
+                  <div className="grid gap-2 text-xs">
+                    {severityLegend.map(([label, color]) => (
+                      <div key={label} className="flex items-center gap-3 py-0.5">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 shadow-sm ring-1 ring-white/50"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span className="font-medium text-zinc-700">{label}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-3 py-0.5">
+                      <span className="w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 bg-gradient-to-br from-violet-600 to-purple-500 shadow-sm ring-1 ring-white/50" />
+                      <span className="font-medium text-zinc-700">Fire stations</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
-        </Card>
+        )}
 
-        <Card className="map-control">
-          <div className="map-control__stack">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleZoomIn}
-              className="map-control__icon-button"
-              aria-label="Zoom in"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleZoomOut}
-              className="map-control__icon-button"
-              aria-label="Zoom out"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleResetView}
-              className="map-control__icon-button"
-              aria-label="Reset map view"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+        {/* Desktop Controls - Cards */}
+        {isDesktop && (
+          <div className="flex flex-col gap-2 items-end">
+            <Card className="map-control map-control--wide">
+              <p className="map-control__label">Base layer</p>
+              <div className="map-control__options">
+                {baseLayerOptions.map((option) => {
+                  const isActive = baseLayer === option.id;
+                  return (
+                    <Button
+                      key={option.id}
+                      variant={isActive ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setBaseLayer(option.id)}
+                      className="map-control__button"
+                      aria-pressed={isActive}
+                      aria-label={`Switch to ${option.label} base layer`}
+                    >
+                      {option.id === 'street' && <Layers className="h-4 w-4" aria-hidden="true" />}
+                      {option.id === 'topographic' && (
+                        <Mountain className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {option.id === 'satellite' && (
+                        <Globe className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      <span>{option.label}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            </Card>
+
+            <Card className="map-control">
+              <div className="map-control__stack">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomIn}
+                  className="map-control__icon-button"
+                  aria-label="Zoom in"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleZoomOut}
+                  className="map-control__icon-button"
+                  aria-label="Zoom out"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetView}
+                  className="map-control__icon-button"
+                  aria-label="Reset map view"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="map-control">
+              <Button
+                variant={showStations ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={toggleStations}
+                className="map-control__button"
+                aria-pressed={showStations}
+                aria-label="Toggle fire stations overlay"
+              >
+                <Flame className="h-4 w-4" />
+                <span className="hidden md:inline">
+                  {showStations ? 'Stations on' : 'Stations off'}
+                </span>
+              </Button>
+              {stationsLoading && <p className="map-control__helper">Loading stations…</p>}
+            </Card>
+
+            <Card className="map-control">
+              <Button
+                variant={showLegend ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={toggleLegend}
+                className="map-control__button"
+                aria-pressed={showLegend}
+                aria-label="Toggle legend"
+              >
+                <Info className="h-4 w-4" />
+                <span className="hidden md:inline">Legend</span>
+              </Button>
+            </Card>
+
+            <Card className="map-control">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => useIncidentCreateStore.getState().open()}
+                className="map-control__button"
+                aria-label="Create new incident"
+              >
+                New Incident
+              </Button>
+            </Card>
           </div>
-        </Card>
+        )}
 
-        <Card className="map-control">
-          <Button
-            variant={showStations ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={toggleStations}
-            className="map-control__button"
-            aria-pressed={showStations}
-            aria-label="Toggle fire stations overlay"
-          >
-            <Flame className="h-4 w-4" />
-            <span>{showStations ? 'Stations on' : 'Stations off'}</span>
-          </Button>
-          {stationsLoading && <p className="map-control__helper">Loading stations…</p>}
-        </Card>
-
-        <Card className="map-control">
-          <Button
-            variant={showLegend ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={toggleLegend}
-            className="map-control__button"
-            aria-pressed={showLegend}
-            aria-label="Toggle legend"
-          >
-            <Info className="h-4 w-4" />
-            <span>Legend</span>
-          </Button>
-        </Card>
-
-        <Card className="map-control">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => useIncidentCreateStore.getState().open()}
-            className="map-control__button"
-            aria-label="Create new incident"
-          >
-            New Incident
-          </Button>
-        </Card>
-
-        {showLegend && (
+        {showLegend && isDesktop && (
           <Card className="map-legend">
             <h4 className="map-legend__title">Legend</h4>
             <div className="map-legend__items">
@@ -659,6 +799,19 @@ export function MapView({
           </Card>
         )}
       </div>
+
+      {!isDesktop && (
+        <div className="absolute bottom-6 right-4 z-[1000]">
+          <Button
+            size="icon"
+            className="h-14 w-14 rounded-full shadow-lg"
+            onClick={() => useIncidentCreateStore.getState().open()}
+            aria-label="Create new incident"
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

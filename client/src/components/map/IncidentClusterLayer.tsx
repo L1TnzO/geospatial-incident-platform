@@ -163,6 +163,29 @@ const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLay
     return index;
   }, [incidents]);
 
+  const clusters = useMemo(() => {
+    if (!currentBounds) {
+      return [] as ClusterEntry[];
+    }
+
+    // Add padding to bounds to render points outside the viewport
+    // This prevents points from "popping" in/out during drag operations
+    const [west, south, east, north] = currentBounds;
+    const latSpan = Math.abs(north - south);
+    const lngSpan = Math.abs(east - west);
+    const paddingFactor = 1.5; // Increased to 150% padding to prevent pop-in on mobile drag
+
+    const paddedBounds: [number, number, number, number] = [
+      west - lngSpan * paddingFactor,
+      south - latSpan * paddingFactor,
+      east + lngSpan * paddingFactor,
+      north + latSpan * paddingFactor,
+    ];
+
+    return clusterIndex.getClusters(paddedBounds, currentZoom);
+  }, [clusterIndex, currentBounds, currentZoom]);
+
+  // Sync map state to local state for clustering
   useEffect(() => {
     const syncState = () => {
       const bounds = map.getBounds();
@@ -181,13 +204,54 @@ const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLay
     };
   }, [map]);
 
-  const clusters = useMemo(() => {
-    if (!currentBounds) {
-      return [] as ClusterEntry[];
-    }
+  // Debug logging
+  useEffect(() => {
+    const logDebugInfo = () => {
+      const bounds = map.getBounds();
+      const west = bounds.getWest();
+      const south = bounds.getSouth();
+      const east = bounds.getEast();
+      const north = bounds.getNorth();
 
-    return clusterIndex.getClusters(currentBounds, currentZoom);
-  }, [clusterIndex, currentBounds, currentZoom]);
+      const visibleIncidents = incidents.filter((incident) => {
+        const { lat, lng } = incident.location;
+        return lat >= south && lat <= north && lng >= west && lng <= east;
+      });
+
+      const debugData = {
+        timestamp: new Date().toISOString(),
+        viewport: {
+          north,
+          south,
+          east,
+          west,
+          zoom: map.getZoom(),
+        },
+        stats: {
+          totalIncidents: incidents.length,
+          visibleInViewport: visibleIncidents.length,
+          renderedClusters: clusters.length,
+        },
+        visibleIncidentIds: visibleIncidents.map((i) => i.id),
+      };
+
+      console.log('[MapDebug]', JSON.stringify(debugData, null, 2));
+
+      // Expose to window for "file" download simulation if needed
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      if (!window.debugLogs) window.debugLogs = [];
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      window.debugLogs.push(debugData);
+    };
+
+    map.on('moveend', logDebugInfo);
+
+    return () => {
+      map.off('moveend', logDebugInfo);
+    };
+  }, [map, incidents, clusters]);
 
   return clusters.map((feature) => {
     const [lng, lat] = feature.geometry.coordinates as [number, number];

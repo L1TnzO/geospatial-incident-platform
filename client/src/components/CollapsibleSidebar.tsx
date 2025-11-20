@@ -31,9 +31,10 @@ export function CollapsibleSidebar({ defaultOpen = true }: CollapsibleSidebarPro
         variant="outline"
         size="icon"
         className={cn(
-          'absolute top-4 z-50 h-8 w-8 rounded-full shadow-md transition-all duration-300',
+          'absolute top-4 h-8 w-8 rounded-full shadow-md transition-all duration-300 bg-background',
           isOpen ? 'left-[304px]' : 'left-4',
         )}
+        style={{ zIndex: 5000 }}
         onClick={() => setIsOpen(!isOpen)}
         aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
       >

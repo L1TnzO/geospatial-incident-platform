@@ -1,7 +1,6 @@
 import {
   Drawer,
   DrawerContent,
-  DrawerTrigger,
   DrawerClose,
   DrawerHeader,
   DrawerFooter,
@@ -19,13 +18,6 @@ export function IncidentCreateDrawer() {
 
   return (
     <Drawer open={isOpen} onOpenChange={(openState: boolean) => (openState ? open() : close())}>
-      <div className="flex items-center gap-2">
-        <DrawerTrigger asChild>
-          <Button variant="secondary" size="sm">
-            New Incident
-          </Button>
-        </DrawerTrigger>
-      </div>
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Create Incident</DrawerTitle>

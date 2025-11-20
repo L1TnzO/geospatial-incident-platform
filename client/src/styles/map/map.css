@@ -330,3 +330,34 @@
   margin: 0;
   font-size: 0.85rem;
 }
+
+@media (max-width: 1024px) {
+  .map-legend {
+    width: auto;
+    min-width: unset;
+    max-width: 160px;
+    padding: 0.5rem;
+    font-size: 0.7rem;
+    margin-top: 0.5rem;
+  }
+
+  .map-legend__title {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .map-legend__items {
+    gap: 0.25rem;
+    font-size: 0.7rem;
+  }
+
+  .map-legend__item {
+    gap: 0.35rem;
+  }
+
+  .map-legend__swatch {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-width: 1px;
+  }
+}

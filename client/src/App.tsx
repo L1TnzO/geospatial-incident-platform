@@ -17,7 +17,7 @@ import { QueryProvider } from './providers/query-client-provider';
 import { AuthProvider } from './providers/auth-provider';
 // import { useAuth } from './hooks/useAuth';
 import { useIncidentFiltersStore } from './store/incident-filters-store';
-import { useMapStore } from './store/map-store';
+// import { useMapStore } from './store/map-store';
 import { useIncidentsData, useIncidentsTableData } from './hooks/useIncidentsData';
 import { useIncidentDetailStore } from './store/incident-detail-store';
 import { useStationsData } from './hooks/useStationsData';
@@ -69,11 +69,11 @@ function AppRoutes() {
     renderLimit: filters.renderLimit,
   };
 
-  const viewportCenter = useMapStore((state) => state.center);
+  // const viewportCenter = useMapStore((state) => state.center);
 
   const incidentsData = useIncidentsData({
     ...fetchParams,
-    priorityCenter: viewportCenter,
+    // priorityCenter: viewportCenter, // Disabled to prevent points from disappearing on move
   });
   const incidentsTableData = useIncidentsTableData(fetchParams);
 
