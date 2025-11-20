@@ -221,6 +221,7 @@ jobs:
             
             DEPLOY_DIR="/home/$USER/geospatial-incident-platform"
             DB_HOST="${{ secrets.VPS_DB_HOST }}"
+            APP_HOST="${{ secrets.VPS_APP_HOST }}"
             
             mkdir -p $DEPLOY_DIR
             cd $DEPLOY_DIR
@@ -236,22 +237,35 @@ jobs:
               cp infra/docker/.env.frontend.example infra/docker/.env.frontend
             fi
             
-            # Configure Backend to point to DB Host
-            # We update DATABASE_HOST in .env.backend
-            sed -i.bak -E "s|^DATABASE_HOST=.*|DATABASE_HOST=$DB_HOST|g" infra/docker/.env.backend || true
-            if ! grep -q '^DATABASE_HOST=' infra/docker/.env.backend; then
-              echo "DATABASE_HOST=$DB_HOST" >> infra/docker/.env.backend
+            # --- Deployment Mode Detection ---
+            if [ "$DB_HOST" = "$APP_HOST" ]; then
+              echo "✅ Single VPS Deployment detected (DB and App on same host)."
+              TARGET_DB_HOST="db"
+              # In single VPS, we want to ensure DB is running and linked via docker network
+              START_COMMAND="docker compose up -d backend frontend db"
+            else
+              echo "✅ Multi VPS Deployment detected (DB is remote)."
+              TARGET_DB_HOST="$DB_HOST"
+              # In multi VPS, we don't want local DB running
+              START_COMMAND="docker compose up -d --no-deps backend frontend"
+              
+              # Stop local DB if it was accidentally started
+              docker compose stop db || true
+              docker compose rm -f db || true
             fi
             
-            # CRITICAL: Update DATABASE_URL to use the correct host instead of 'db'
-            # This is required because Prisma/TypeORM often prioritize DATABASE_URL over individual vars
-            sed -i.bak -E "s|@db:5432|@$DB_HOST:5432|g" infra/docker/.env.backend || true
+            # Configure Backend to point to DB Host
+            sed -i.bak -E "s|^DATABASE_HOST=.*|DATABASE_HOST=$TARGET_DB_HOST|g" infra/docker/.env.backend || true
+            if ! grep -q '^DATABASE_HOST=' infra/docker/.env.backend; then
+              echo "DATABASE_HOST=$TARGET_DB_HOST" >> infra/docker/.env.backend
+            fi
+            
+            # CRITICAL: Update DATABASE_URL to use the correct host
+            # We replace @anything:5432 with @target:5432 to handle both 'db' and previous IPs
+            sed -i.bak -E "s|@[^:]+:5432|@$TARGET_DB_HOST:5432|g" infra/docker/.env.backend || true
             
             # Configure Frontend
-            # Use the configured secret IP instead of auto-detection to avoid localhost fallback issues
-            API_HOST="${{ secrets.VPS_APP_HOST }}"
-            FRONTEND_API_BASE="http://${API_HOST}:4000/api"
-            
+            FRONTEND_API_BASE="http://${APP_HOST}:4000/api"
             sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_API_BASE}|g" infra/docker/.env.frontend || true
             
             # Start App Services
@@ -261,16 +275,12 @@ jobs:
             export BACKEND_ENV_FILE=infra/docker/.env.backend
             export FRONTEND_ENV_FILE=infra/docker/.env.frontend
             
-            # CRITICAL: Export DATABASE_HOST so docker-compose.yml substitutes ${DATABASE_HOST:-db} 
-            # with the real IP instead of falling back to 'db'
-            export DATABASE_HOST=$DB_HOST
+            # Export DATABASE_HOST for docker-compose substitution
+            export DATABASE_HOST=$TARGET_DB_HOST
             
-            # Stop local DB if it was accidentally started
-            docker compose stop db || true
-            docker compose rm -f db || true
-            
-            # Start backend and frontend without starting their dependencies (local db)
-            docker compose up -d --no-deps backend frontend
+            # Execute Start Command
+            echo "Executing: $START_COMMAND"
+            eval $START_COMMAND
             
             # Force restart to ensure env vars are picked up
             docker compose restart frontend
