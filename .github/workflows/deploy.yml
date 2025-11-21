@@ -265,8 +265,31 @@ jobs:
             sed -i.bak -E "s|@[^:]+:5432|@$TARGET_DB_HOST:5432|g" infra/docker/.env.backend || true
             
             # Configure Frontend
-            FRONTEND_API_BASE="http://${APP_HOST}:4000/api"
-            sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_API_BASE}|g" infra/docker/.env.frontend || true
+            RESOLVED_HOST="$APP_HOST"
+            if [ -z "$RESOLVED_HOST" ] || [ "$RESOLVED_HOST" = "localhost" ] || [ "$RESOLVED_HOST" = "127.0.0.1" ]; then
+              echo "Attempting to detect public IP for frontend base URL..."
+              PUBLIC_IP="$(curl -fsSL https://ifconfig.me 2>/dev/null || true)"
+              if [ -z "$PUBLIC_IP" ]; then
+                PUBLIC_IP="$(curl -fsSL https://api.ipify.org 2>/dev/null || true)"
+              fi
+              if [ -z "$PUBLIC_IP" ]; then
+                PUBLIC_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+              fi
+              RESOLVED_HOST="$PUBLIC_IP"
+            fi
+
+            if [ -z "$RESOLVED_HOST" ]; then
+              echo "❌ Unable to determine the public host for the frontend API. Set VPS_APP_HOST to a reachable address." >&2
+              exit 1
+            fi
+
+            FRONTEND_API_BASE="http://${RESOLVED_HOST}:4000"
+            if grep -q '^VITE_API_BASE_URL=' infra/docker/.env.frontend; then
+              sed -i.bak -E "s|^VITE_API_BASE_URL=.*|VITE_API_BASE_URL=${FRONTEND_API_BASE}|g" infra/docker/.env.frontend
+            else
+              echo "VITE_API_BASE_URL=${FRONTEND_API_BASE}" >> infra/docker/.env.frontend
+            fi
+            echo "Frontend API base URL configured as: ${FRONTEND_API_BASE}"
             
             # Start App Services
             echo "Starting App Services..."
