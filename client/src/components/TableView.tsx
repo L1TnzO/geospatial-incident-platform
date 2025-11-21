@@ -93,14 +93,6 @@ export function TableView({
   onRetry,
   activeIncidentId,
 }: TableViewProps) {
-  const locationCounts = useMemo(() => {
-    return incidents.reduce<Record<string, number>>((acc, incident) => {
-      const key = `${incident.location.lat},${incident.location.lng}`;
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {});
-  }, [incidents]);
-
   const totalPages = pagination?.totalPages ?? Math.max(1, Math.ceil(totalCount / pageSize));
   const pageNumbers = useMemo(() => buildPageRange(page, totalPages), [page, totalPages]);
   const showingStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -229,15 +221,11 @@ export function TableView({
               >
                 Occurrence {renderSortIcon('occurrenceAt')}
               </TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Recurrence</TableHead>
               <TableHead className="w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {incidents.map((incident) => {
-              const key = `${incident.location.lat},${incident.location.lng}`;
-              const recurrence = locationCounts[key] ?? 1;
               const isActiveRow =
                 activeIncidentId && incident.id.toUpperCase() === activeIncidentId.toUpperCase();
 
@@ -260,12 +248,6 @@ export function TableView({
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {formatDateTime(incident.occurrenceAt)}
-                  </TableCell>
-                  <TableCell className="max-w-sm truncate" title={incident.location.address}>
-                    {incident.location.address}
-                  </TableCell>
-                  <TableCell>
-                    {recurrence > 1 && <Badge variant="outline">{recurrence}×</Badge>}
                   </TableCell>
                   <TableCell>
                     <Button size="sm" variant="outline" onClick={() => onIncidentClick(incident)}>
