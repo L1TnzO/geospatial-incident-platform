@@ -11,7 +11,23 @@ echo "=== Setup VPS para Geospatial Incident Platform ==="
 
 # Actualizar sistema
 echo "Actualizando repositorios..."
-sudo apt-get update
+# Retry apt update up to 3 times to handle transient mirror issues
+for i in {1..3}; do
+    if sudo apt-get update --allow-releaseinfo-change; then
+        echo "Apt update successful on attempt $i"
+        break
+    else
+        echo "Apt update failed on attempt $i"
+        if [ $i -eq 3 ]; then
+            echo "Apt update failed after 3 attempts, continuing anyway..."
+        else
+            echo "Cleaning apt cache and retrying..."
+            sudo apt-get clean
+            sudo rm -rf /var/lib/apt/lists/*
+            sleep 5
+        fi
+    fi
+done
 # sudo apt-get upgrade -y  # Comentado para evitar tiempos largos y prompts interactivos en CI/CD, descomentar si se desea
 
 # Instalar utilidades básicas
