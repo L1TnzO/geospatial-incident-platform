@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useIncidentFiltersStore } from '../../store/incident-filters-store';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
@@ -30,12 +31,44 @@ export function StrategicLayout() {
   };
 
   // Only include isActive if it's explicitly true (backend might not support false)
+  const [timeRange, setTimeRange] = useState('30d');
+  const [localDateRange, setLocalDateRange] = useState<{ start?: string; end?: string }>({});
+
+  // Calculate dates based on time range
+  useEffect(() => {
+    const end = new Date();
+    const start = new Date();
+
+    switch (timeRange) {
+      case '7d':
+        start.setDate(end.getDate() - 7);
+        break;
+      case '30d':
+        start.setDate(end.getDate() - 30);
+        break;
+      case '90d':
+        start.setDate(end.getDate() - 90);
+        break;
+      case '1y':
+        start.setFullYear(end.getFullYear() - 1);
+        break;
+      default:
+        start.setDate(end.getDate() - 30);
+    }
+
+    setLocalDateRange({
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    });
+  }, [timeRange]);
+
+  // Only include isActive if it's explicitly true (backend might not support false)
   const filters = {
     typeCodes: filterState.typeCodes,
     severityCodes: filterState.severityCodes,
     statusCodes: filterState.statusCodes,
-    startDate: normalizeDate(filterState.startDate),
-    endDate: normalizeDate(filterState.endDate),
+    startDate: localDateRange.start,
+    endDate: localDateRange.end,
     ...(filterState.isActive === true && { isActive: true }),
     incidentNumber: filterState.incidentNumber,
   };
@@ -159,10 +192,23 @@ export function StrategicLayout() {
               Long-range planning insights and geographic analysis
             </p>
           </div>
-          <Button variant="outline" onClick={handleRefreshAll}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh All
-          </Button>
+          <div className="flex items-center gap-4">
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+                <SelectItem value="90d">Last 90 Days</SelectItem>
+                <SelectItem value="1y">Last Year</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={handleRefreshAll}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh All
+            </Button>
+          </div>
         </div>
 
         {/* Trend Analysis - Full Width */}

@@ -10,6 +10,7 @@ interface DashboardKPIRowProps {
   kpiQuery: UseDashboardLast24HoursKpiResult;
   onExport: () => void;
   isExporting: boolean;
+  timeRangeLabel: string;
 }
 
 const countFormatter = new Intl.NumberFormat(undefined, {
@@ -65,7 +66,12 @@ const formatWindow = (start: string, end: string): string => {
   return `${startDate.toLocaleString()} – ${endDate.toLocaleString()}`;
 };
 
-export function DashboardKPIRow({ kpiQuery, onExport, isExporting }: DashboardKPIRowProps) {
+export function DashboardKPIRow({
+  kpiQuery,
+  onExport,
+  isExporting,
+  timeRangeLabel,
+}: DashboardKPIRowProps) {
   const { data, isLoading, isError, error, refresh } = kpiQuery;
 
   const handleRefresh = async () => {
@@ -128,7 +134,7 @@ export function DashboardKPIRow({ kpiQuery, onExport, isExporting }: DashboardKP
         <div className="space-y-1">
           <h2 className="text-2xl font-bold tracking-tight">Key Performance Indicators</h2>
           <p className="text-sm text-muted-foreground">
-            24-hour incident snapshot with trend comparison
+            {timeRangeLabel} incident snapshot with trend comparison
           </p>
         </div>
         <div className="flex gap-2">
@@ -145,7 +151,7 @@ export function DashboardKPIRow({ kpiQuery, onExport, isExporting }: DashboardKP
 
       <Card>
         <CardHeader>
-          <CardTitle>Incidents (Last 24 Hours)</CardTitle>
+          <CardTitle>Incidents ({timeRangeLabel})</CardTitle>
           <CardDescription>{formatWindow(data.window.start, data.window.end)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

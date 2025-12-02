@@ -8,6 +8,7 @@ import type { UseDashboardDailyTrendResult } from '../../hooks/useDashboardDaily
 
 interface DashboardDailyTrendChartProps {
   trendQuery: UseDashboardDailyTrendResult;
+  timeRangeLabel: string;
 }
 
 const formatDate = (isoDate: string) =>
@@ -23,7 +24,7 @@ const formatLongDate = (isoDate: string) =>
     day: 'numeric',
   });
 
-export function DashboardDailyTrendChart({ trendQuery }: DashboardDailyTrendChartProps) {
+export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel }: DashboardDailyTrendChartProps) {
   const { data, isLoading, isError, error, refresh, lastUpdated } = trendQuery;
 
   const handleRefresh = async () => {
@@ -145,7 +146,7 @@ export function DashboardDailyTrendChart({ trendQuery }: DashboardDailyTrendChar
           <div className="space-y-1">
             <CardTitle>Daily Incident Trend</CardTitle>
             <CardDescription>
-              Last 30 days · {trend.currentTotal.toLocaleString()} incidents (last 7 days)
+              {timeRangeLabel} · {trend.currentTotal.toLocaleString()} incidents (last 7 days)
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={handleRefresh}>

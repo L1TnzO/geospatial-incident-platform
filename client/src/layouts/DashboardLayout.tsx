@@ -13,16 +13,58 @@ import { useIncidentFiltersStore } from '../store/incident-filters-store';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { Download, X } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 export default function DashboardLayout() {
   // Get filter state from the incident filters store - select individual fields to avoid creating new object
   const typeCodes = useIncidentFiltersStore((state) => state.typeCodes);
   const severityCodes = useIncidentFiltersStore((state) => state.severityCodes);
   const statusCodes = useIncidentFiltersStore((state) => state.statusCodes);
-  const startDate = useIncidentFiltersStore((state) => state.startDate);
-  const endDate = useIncidentFiltersStore((state) => state.endDate);
+
   const isActive = useIncidentFiltersStore((state) => state.isActive);
+
+  // Memoize filters object to prevent infinite loops
+  const [timeRange, setTimeRange] = useState('24h');
+  const [localDateRange, setLocalDateRange] = useState<{ start?: string; end?: string }>({});
+
+  // Calculate dates based on time range
+  useEffect(() => {
+    const end = new Date();
+    const start = new Date();
+
+    switch (timeRange) {
+      case '24h':
+        start.setHours(end.getHours() - 24);
+        break;
+      case '7d':
+        start.setDate(end.getDate() - 7);
+        break;
+      case '30d':
+        start.setDate(end.getDate() - 30);
+        break;
+      default:
+        start.setHours(end.getHours() - 24);
+    }
+
+    setLocalDateRange({
+      start: start.toISOString(),
+      end: end.toISOString(),
+    });
+  }, [timeRange]);
+
+  const timeRangeLabel = useMemo(() => {
+    switch (timeRange) {
+      case '24h':
+        return 'Last 24 Hours';
+      case '7d':
+        return 'Last 7 Days';
+      case '30d':
+        return 'Last 30 Days';
+      default:
+        return 'Last 24 Hours';
+    }
+  }, [timeRange]);
 
   // Memoize filters object to prevent infinite loops
   const filters = useMemo(
@@ -30,11 +72,11 @@ export default function DashboardLayout() {
       typeCodes,
       severityCodes,
       statusCodes,
-      startDate,
-      endDate,
+      startDate: localDateRange.start,
+      endDate: localDateRange.end,
       isActive,
     }),
-    [typeCodes, severityCodes, statusCodes, startDate, endDate, isActive],
+    [typeCodes, severityCodes, statusCodes, localDateRange.start, localDateRange.end, isActive],
   );
 
   // Initialize all dashboard hooks with filters
@@ -103,7 +145,25 @@ export default function DashboardLayout() {
 
         {/* KPI Row with Export */}
         <section>
-          <DashboardKPIRow kpiQuery={kpiQuery} onExport={handleExport} isExporting={isExporting} />
+          <div className="flex justify-end mb-4">
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24h">Last 24 Hours</SelectItem>
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DashboardKPIRow
+            kpiQuery={kpiQuery}
+            onExport={handleExport}
+            isExporting={isExporting}
+            timeRangeLabel={timeRangeLabel}
+          />
         </section>
 
         {/* Charts Grid */}
@@ -116,13 +176,16 @@ export default function DashboardLayout() {
           </div>
           <div className="grid gap-6 md:grid-cols-2">
             <DashboardTypeDistributionChart distributionQuery={typeDistributionQuery} />
-            <DashboardSeverityDistributionChart distributionQuery={severityDistributionQuery} />
+            <DashboardSeverityDistributionChart
+              distributionQuery={severityDistributionQuery}
+              timeRangeLabel={timeRangeLabel}
+            />
           </div>
         </section>
 
         {/* Daily Trend (Full Width) */}
         <section>
-          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} />
+          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} timeRangeLabel={timeRangeLabel} />
         </section>
 
         {/* Recent Incidents Panel */}
@@ -135,7 +198,7 @@ export default function DashboardLayout() {
           </div>
           <DashboardRecentIncidents recentQuery={recentIncidentsQuery} />
         </section>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }
