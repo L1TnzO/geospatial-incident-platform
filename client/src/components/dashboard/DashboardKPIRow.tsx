@@ -1,4 +1,3 @@
-import { Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -8,8 +7,6 @@ import type { UseDashboardLast24HoursKpiResult } from '../../hooks/useDashboardL
 
 interface DashboardKPIRowProps {
   kpiQuery: UseDashboardLast24HoursKpiResult;
-  onExport: () => void;
-  isExporting: boolean;
   timeRangeLabel: string;
   comparisonLabel: string;
 }
@@ -69,8 +66,6 @@ const formatWindow = (start: string, end: string): string => {
 
 export function DashboardKPIRow({
   kpiQuery,
-  onExport,
-  isExporting,
   timeRangeLabel,
   comparisonLabel,
 }: DashboardKPIRowProps) {
@@ -138,12 +133,6 @@ export function DashboardKPIRow({
           <p className="text-sm text-muted-foreground">
             {timeRangeLabel} incident snapshot with trend comparison
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="default" size="sm" onClick={onExport} disabled={isExporting}>
-            <Download className="mr-2 h-4 w-4" />
-            {isExporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
         </div>
       </div>
 
