@@ -30,10 +30,20 @@ export function ResponseTimeChart({
   const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom;
   const plotWidth = 800 - chartPadding.left - chartPadding.right;
 
-  const maxSeconds = useMemo(() => {
-    if (!data?.groups || data.groups.length === 0) return 600;
-    return Math.max(...data.groups.map((g) => g.p90Seconds));
-  }, [data]);
+  const { minSeconds, maxSeconds } = useMemo(() => {
+    if (!sortedGroups || sortedGroups.length === 0) return { minSeconds: 0, maxSeconds: 600 };
+
+    const values = sortedGroups.map((g) => g.averageSeconds);
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values); // Use average for max since we focus on average now
+
+    // Dynamic scaling: Start at 90% of min to show differences
+    // But ensure we don't zoom in too much on very small values (keep 0 if min is small)
+    const lowerBound = minVal > 60 ? minVal * 0.9 : 0;
+    const upperBound = maxVal * 1.05; // 5% buffer on top
+
+    return { minSeconds: lowerBound, maxSeconds: upperBound };
+  }, [sortedGroups]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -96,6 +106,7 @@ export function ResponseTimeChart({
 
   const barHeight = Math.max(20, Math.min(30, plotHeight / sortedGroups.length - 4));
   const groupSpacing = plotHeight / sortedGroups.length;
+  const timeRange = maxSeconds - minSeconds;
 
   return (
     <Card>
@@ -103,8 +114,7 @@ export function ResponseTimeChart({
         <div>
           <CardTitle>Response Time Analysis</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Top 15 {data.metadata.groupBy === 'station' ? 'stations' : 'zones'} by response time •
-            Sample threshold: {data.metadata.sampleThreshold}
+            Top 15 {data.metadata.groupBy === 'station' ? 'stations' : 'zones'} by average response time
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={onRefresh}>
@@ -123,7 +133,7 @@ export function ResponseTimeChart({
             {/* X-axis grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
               const x = chartPadding.left + ratio * plotWidth;
-              const timeValue = maxSeconds * ratio;
+              const timeValue = minSeconds + timeRange * ratio;
               return (
                 <g key={ratio}>
                   <line
@@ -150,9 +160,14 @@ export function ResponseTimeChart({
             {/* Bars for each group */}
             {sortedGroups.map((group, index) => {
               const y = chartPadding.top + index * groupSpacing + groupSpacing / 2 - barHeight / 2;
-              const medianX = chartPadding.left + (group.medianSeconds / maxSeconds) * plotWidth;
-              const avgX = chartPadding.left + (group.averageSeconds / maxSeconds) * plotWidth;
-              const p90X = chartPadding.left + (group.p90Seconds / maxSeconds) * plotWidth;
+
+              const getX = (val: number) => {
+                const normalized = (val - minSeconds) / timeRange;
+                return chartPadding.left + Math.max(0, Math.min(1, normalized)) * plotWidth;
+              };
+
+              const avgX = getX(group.averageSeconds);
+              const p90X = getX(group.p90Seconds);
 
               const label =
                 group.groupType === 'station' && group.station
@@ -180,21 +195,19 @@ export function ResponseTimeChart({
                     {isInsufficient && ' *'}
                   </text>
 
-                  {/* Box: median to p90 */}
+                  {/* Average Bar */}
                   <rect
-                    x={medianX}
+                    x={chartPadding.left}
                     y={y}
-                    width={Math.max(1, p90X - medianX)}
+                    width={Math.max(2, avgX - chartPadding.left)}
                     height={barHeight}
                     fill="hsl(var(--primary))"
-                    fillOpacity="0.3"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth="1.5"
-                    className="cursor-pointer hover:fill-opacity-50 transition-all"
+                    fillOpacity="0.8"
+                    rx="2"
+                    className="cursor-pointer hover:fill-opacity-100 transition-all"
                   >
                     <title>
                       {label}
-                      {'\n'}Median: {formatTime(group.medianSeconds)}
                       {'\n'}Average: {formatTime(group.averageSeconds)}
                       {'\n'}90th Percentile: {formatTime(group.p90Seconds)}
                       {'\n'}Sample size: {group.sampleSize}
@@ -202,21 +215,42 @@ export function ResponseTimeChart({
                     </title>
                   </rect>
 
-                  {/* Average line */}
-                  <line
-                    x1={avgX}
-                    y1={y - 2}
-                    x2={avgX}
-                    y2={y + barHeight + 2}
-                    stroke="hsl(var(--destructive))"
-                    strokeWidth="2"
-                  />
+                  {/* P90 Marker (Whisker) */}
+                  {group.p90Seconds >= minSeconds && group.p90Seconds <= maxSeconds && (
+                    <line
+                      x1={p90X}
+                      y1={y + barHeight * 0.2}
+                      x2={p90X}
+                      y2={y + barHeight * 0.8}
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeWidth="2"
+                      strokeDasharray="4 2"
+                    />
+                  )}
 
-                  {/* Median marker */}
-                  <circle cx={medianX} cy={y + barHeight / 2} r="4" fill="hsl(var(--primary))" />
+                  {/* P90 Connector Line */}
+                  {group.p90Seconds >= minSeconds && group.p90Seconds <= maxSeconds && (
+                    <line
+                      x1={avgX}
+                      y1={y + barHeight / 2}
+                      x2={p90X}
+                      y2={y + barHeight / 2}
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeWidth="1"
+                      strokeDasharray="2 2"
+                      opacity="0.5"
+                    />
+                  )}
 
-                  {/* P90 marker */}
-                  <circle cx={p90X} cy={y + barHeight / 2} r="4" fill="hsl(var(--primary))" />
+                  {/* Value Label */}
+                  <text
+                    x={Math.min(avgX + 8, chartPadding.left + plotWidth - 30)}
+                    y={y + barHeight / 2}
+                    alignmentBaseline="middle"
+                    className="text-[10px] font-medium fill-foreground"
+                  >
+                    {formatTime(group.averageSeconds)}
+                  </text>
                 </g>
               );
             })}
