@@ -21,7 +21,7 @@ import type { PriorityScoreGroup } from '../../types/api/strategic';
 import { useDashboard } from '../../providers/dashboard-provider';
 
 export function StrategicLayout() {
-  const { timeRange, setTimeRange, filters } = useDashboard();
+  const { timeRange, setTimeRange, filters, comparisonLabel } = useDashboard();
 
   const {
     showIncidentsStrategic: showIncidents,
@@ -172,6 +172,7 @@ export function StrategicLayout() {
             error={dailyTrendQuery.error}
             onRefresh={() => dailyTrendQuery.refresh(true)}
             onPeriodClick={handlePeriodClick}
+            comparisonLabel={comparisonLabel}
           />
         </div>
 

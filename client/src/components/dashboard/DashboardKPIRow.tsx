@@ -158,9 +158,9 @@ export function DashboardKPIRow({
           <div className="flex items-center gap-2">
             <Badge variant={trendVariant} className="flex items-center gap-1">
               {getTrendIcon(direction)}
-              <span>{deltaText}</span>
+              <span>{percentageText}</span>
             </Badge>
-            <span className="text-sm font-medium">{percentageText}</span>
+            <span className="text-sm font-medium">{deltaText}</span>
             <span className="text-sm text-muted-foreground">{comparisonLabel}</span>
           </div>
 

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { Badge } from '../ui/badge';
 import type { StrategicMonthlyTrendResponse } from '../../types/api/strategic';
 import type { DailyTrendResponse } from '../../types/api/dashboard';
 
@@ -13,6 +14,7 @@ interface StrategicTrendsChartProps {
   error?: Error | null;
   onRefresh: () => void;
   onPeriodClick?: (period: string, startDate: string, endDate: string) => void;
+  comparisonLabel: string;
 }
 
 export function StrategicTrendsChart({
@@ -23,6 +25,7 @@ export function StrategicTrendsChart({
   error,
   onRefresh,
   onPeriodClick,
+  comparisonLabel,
 }: StrategicTrendsChartProps) {
   const normalizedData = useMemo(() => {
     if (!data) return null;
@@ -106,8 +109,42 @@ export function StrategicTrendsChart({
 
   const formatPercentage = (value: number | null | undefined) => {
     if (value == null) return 'N/A';
-    const sign = value >= 0 ? '+' : '';
-    return `${sign}${value.toFixed(1)}%`;
+    // const sign = value >= 0 ? '+' : ''; // Badge usually doesn't need explicit + if we have arrow, but let's keep it consistent with Dashboard which uses signedFormatter
+    return `${Math.abs(value).toFixed(1)}%`; // Dashboard uses absolute in badge? No, it uses signedFormatter. Let's check Dashboard again.
+    // Dashboard uses: data.deltaPercentage === null ? 'N/A' : `${percentageFormatter.format(data.deltaPercentage)}%`;
+    // percentageFormatter has signDisplay: 'always'.
+    // So it shows +5.0% or -5.0%.
+  };
+
+  const getTrendDirection = (value: number | null | undefined) => {
+    if (value == null) return 'flat';
+    if (value > 0) return 'up';
+    if (value < 0) return 'down';
+    return 'flat';
+  };
+
+  const getTrendIcon = (direction: 'up' | 'down' | 'flat') => {
+    const iconClass = 'h-4 w-4';
+    switch (direction) {
+      case 'up':
+        return (
+          <svg className={iconClass} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 14l5-5 5 5z" />
+          </svg>
+        );
+      case 'down':
+        return (
+          <svg className={iconClass} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className={iconClass} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 12h8" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        );
+    }
   };
 
   if (isLoading) {
@@ -173,36 +210,32 @@ export function StrategicTrendsChart({
       </CardHeader>
       <CardContent>
         {/* Summary metrics */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Current Period Total</p>
-            <p className="text-2xl font-semibold">
-              {normalizedData.totals?.current?.toLocaleString() || '0'}
-            </p>
+        {/* Summary metrics */}
+        <div className="mb-6 space-y-4">
+          <div className="text-4xl font-bold">
+            {normalizedData.totals?.current?.toLocaleString() || '0'}
           </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Period-over-Period Change</p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-semibold">
-                {(normalizedData.totals?.change ?? 0) >= 0 ? '+' : ''}
-                {normalizedData.totals?.change?.toLocaleString() || '0'}
-              </p>
-              {(normalizedData.totals?.change ?? 0) >= 0 ? (
-                <TrendingUp className="h-5 w-5 text-green-600" />
-              ) : (
-                <TrendingDown className="h-5 w-5 text-red-600" />
-              )}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Percentage Change</p>
-            <p
-              className={`text-2xl font-semibold ${(normalizedData.totals?.percentage ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}
+
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={getTrendDirection(normalizedData.totals?.change) === 'up' ? 'destructive' : getTrendDirection(normalizedData.totals?.change) === 'down' ? 'default' : 'secondary'}
+              className="flex items-center gap-1"
             >
-              {formatPercentage(normalizedData.totals?.percentage)}
-            </p>
+              {getTrendIcon(getTrendDirection(normalizedData.totals?.change))}
+              <span>
+                {formatPercentage(normalizedData.totals?.percentage)}
+              </span>
+            </Badge>
+            <span className="text-sm font-medium">
+              {(normalizedData.totals?.change ?? 0) > 0 ? '+' : ''}
+              {normalizedData.totals?.change?.toLocaleString() || '0'}
+            </span>
+            <span className="text-sm text-muted-foreground">{comparisonLabel}</span>
           </div>
+
+          <p className="text-sm text-muted-foreground">
+            Previous period: {((normalizedData.totals?.current || 0) - (normalizedData.totals?.change || 0)).toLocaleString()} incidents
+          </p>
         </div>
 
         {/* Chart */}

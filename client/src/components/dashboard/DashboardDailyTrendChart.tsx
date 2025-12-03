@@ -9,6 +9,7 @@ import type { UseDashboardDailyTrendResult } from '../../hooks/useDashboardDaily
 interface DashboardDailyTrendChartProps {
   trendQuery: UseDashboardDailyTrendResult;
   timeRangeLabel: string;
+  comparisonLabel: string;
 }
 
 const formatDate = (isoDate: string) =>
@@ -24,7 +25,7 @@ const formatLongDate = (isoDate: string) =>
     day: 'numeric',
   });
 
-export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel }: DashboardDailyTrendChartProps) {
+export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel }: DashboardDailyTrendChartProps) {
   const { data, isLoading, isError, error, refresh, lastUpdated } = trendQuery;
 
   const handleRefresh = async () => {
@@ -238,32 +239,36 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel }: Dashboa
         </div>
 
         {/* Trend Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">7-day Change</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {trend.change >= 0 ? '+' : ''}
-                {trend.change.toLocaleString()}
-              </span>
-              <Badge variant={trendVariant}>{percentageDisplay}</Badge>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Current 7-day Total</p>
-            <p className="text-2xl font-bold">{trend.currentTotal.toLocaleString()}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Previous 7-day Total</p>
-            <p className="text-2xl font-bold">{trend.previousTotal.toLocaleString()}</p>
-          </div>
-        </div>
+        <div className="space-y-4">
+          <div className="text-4xl font-bold">{trend.currentTotal.toLocaleString()}</div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Trend Direction:</span>
-          <Badge variant={trendVariant} className="capitalize">
-            {trend.direction === 'up' ? 'Upward' : trend.direction === 'down' ? 'Downward' : 'Flat'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={trendVariant} className="flex items-center gap-1">
+              {trend.direction === 'up' ? (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 14l5-5 5 5z" />
+                </svg>
+              ) : trend.direction === 'down' ? (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 10l5 5 5-5z" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 12h8" stroke="currentColor" strokeWidth="2" />
+                </svg>
+              )}
+              <span>{percentageDisplay}</span>
+            </Badge>
+            <span className="text-sm font-medium">
+              {trend.change >= 0 ? '+' : ''}
+              {trend.change.toLocaleString()}
+            </span>
+            <span className="text-sm text-muted-foreground">{timeRangeLabel === 'Last 24 Hours' ? 'vs previous 24h' : comparisonLabel}</span>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            Previous period: {trend.previousTotal.toLocaleString()} incidents
+          </p>
         </div>
       </CardContent>
       <CardFooter className="text-xs text-muted-foreground justify-end">

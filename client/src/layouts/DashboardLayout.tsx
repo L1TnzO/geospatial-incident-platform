@@ -138,7 +138,7 @@ function DashboardContent() {
 
         {/* Daily Trend (Full Width) */}
         <section>
-          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} timeRangeLabel={timeRangeLabel} />
+          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} timeRangeLabel={timeRangeLabel} comparisonLabel={comparisonLabel} />
         </section>
 
         {/* Recent Incidents Panel */}
