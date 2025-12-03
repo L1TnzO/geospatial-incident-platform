@@ -7,14 +7,8 @@ import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
 import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
-import { useIncidentsData } from '../../hooks/useIncidentsData';
+import { useIncidentsContext } from '../../providers/incidents-provider';
 import { useStationsData } from '../../hooks/useStationsData';
-import {
-  ACTIVE_RENDER_LIMIT_MAX,
-  HISTORICAL_RENDER_LIMIT_MAX,
-  useIncidentFiltersStore,
-} from '../../store/incident-filters-store';
-import { useShallow } from 'zustand/react/shallow';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
@@ -56,22 +50,7 @@ export function StrategicLayout() {
 
   // Map data
   // Use global filters for the map to show "truth" (same as main map)
-  const globalFilters = useIncidentFiltersStore(
-    useShallow((state) => ({
-      typeCodes: state.typeCodes,
-      severityCodes: state.severityCodes,
-      statusCodes: state.statusCodes,
-      startDate: state.startDate,
-      endDate: state.endDate,
-      incidentNumber: state.incidentNumber,
-      isActive: state.isActive,
-    })),
-  );
-
-  const incidentsData = useIncidentsData({
-    ...globalFilters,
-    renderLimit: globalFilters.isActive ? ACTIVE_RENDER_LIMIT_MAX : HISTORICAL_RENDER_LIMIT_MAX,
-  });
+  const incidentsData = useIncidentsContext();
   const stationsQuery = useStationsData({ isActive: true });
 
   const incidents = incidentsData.incidents;
