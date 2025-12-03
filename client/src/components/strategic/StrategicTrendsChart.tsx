@@ -15,6 +15,7 @@ interface StrategicTrendsChartProps {
   onRefresh: () => void;
   onPeriodClick?: (period: string, startDate: string, endDate: string) => void;
   comparisonLabel: string;
+  timeRange: '24h' | '7d' | '30d';
 }
 
 export function StrategicTrendsChart({
@@ -26,7 +27,48 @@ export function StrategicTrendsChart({
   onRefresh,
   onPeriodClick,
   comparisonLabel,
+  timeRange,
 }: StrategicTrendsChartProps) {
+  const formatWindow = (start: Date, end: Date): string => {
+    return `${start.toLocaleString()} – ${end.toLocaleString()}`;
+  };
+
+  const calculateWindows = () => {
+    const end = new Date();
+    const start = new Date();
+    const previousEnd = new Date();
+    const previousStart = new Date();
+
+    switch (timeRange) {
+      case '24h':
+        start.setHours(end.getHours() - 24);
+        previousEnd.setHours(end.getHours() - 24);
+        previousStart.setHours(end.getHours() - 48);
+        break;
+      case '7d':
+        start.setDate(end.getDate() - 7);
+        previousEnd.setDate(end.getDate() - 7);
+        previousStart.setDate(end.getDate() - 14);
+        break;
+      case '30d':
+        start.setDate(end.getDate() - 30);
+        previousEnd.setDate(end.getDate() - 30);
+        previousStart.setDate(end.getDate() - 60);
+        break;
+      default:
+        start.setHours(end.getHours() - 24);
+        previousEnd.setHours(end.getHours() - 24);
+        previousStart.setHours(end.getHours() - 48);
+    }
+
+    return {
+      currentWindow: { start, end },
+      previousWindow: { start: previousStart, end: previousEnd },
+    };
+  };
+
+  const { currentWindow, previousWindow } = calculateWindows();
+
   const normalizedData = useMemo(() => {
     if (!data) return null;
 
@@ -215,6 +257,9 @@ export function StrategicTrendsChart({
           <div className="text-4xl font-bold">
             {normalizedData.totals?.current?.toLocaleString() || '0'}
           </div>
+          <p className="text-xs text-muted-foreground">
+            {formatWindow(currentWindow.start, currentWindow.end)}
+          </p>
 
           <div className="flex items-center gap-2">
             <Badge
@@ -233,9 +278,16 @@ export function StrategicTrendsChart({
             <span className="text-sm text-muted-foreground">{comparisonLabel}</span>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Previous period: {((normalizedData.totals?.current || 0) - (normalizedData.totals?.change || 0)).toLocaleString()} incidents
-          </p>
+
+
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Previous period: {((normalizedData.totals?.current || 0) - (normalizedData.totals?.change || 0)).toLocaleString()} incidents
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatWindow(previousWindow.start, previousWindow.end)}
+            </p>
+          </div>
         </div>
 
         {/* Chart */}
@@ -343,6 +395,6 @@ export function StrategicTrendsChart({
           </p>
         </div>
       </CardContent>
-    </Card>
+    </Card >
   );
 }

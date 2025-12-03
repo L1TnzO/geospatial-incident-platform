@@ -173,6 +173,7 @@ export function StrategicLayout() {
             onRefresh={() => dailyTrendQuery.refresh(true)}
             onPeriodClick={handlePeriodClick}
             comparisonLabel={comparisonLabel}
+            timeRange={timeRange}
           />
         </div>
 

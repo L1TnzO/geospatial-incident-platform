@@ -41,7 +41,7 @@ function DashboardHeader() {
 }
 
 function DashboardContent() {
-  const { filters, timeRangeLabel, comparisonLabel } = useDashboard();
+  const { filters, timeRangeLabel, comparisonLabel, timeRange } = useDashboard();
 
   // Initialize all dashboard hooks with filters from context
   const kpiQuery = useDashboardLast24HoursKpi(filters);
@@ -138,7 +138,7 @@ function DashboardContent() {
 
         {/* Daily Trend (Full Width) */}
         <section>
-          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} timeRangeLabel={timeRangeLabel} comparisonLabel={comparisonLabel} />
+          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} timeRangeLabel={timeRangeLabel} comparisonLabel={comparisonLabel} timeRange={timeRange} />
         </section>
 
         {/* Recent Incidents Panel */}

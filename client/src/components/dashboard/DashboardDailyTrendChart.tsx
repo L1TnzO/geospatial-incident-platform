@@ -10,6 +10,7 @@ interface DashboardDailyTrendChartProps {
   trendQuery: UseDashboardDailyTrendResult;
   timeRangeLabel: string;
   comparisonLabel: string;
+  timeRange: '24h' | '7d' | '30d';
 }
 
 const formatDate = (isoDate: string) =>
@@ -25,8 +26,48 @@ const formatLongDate = (isoDate: string) =>
     day: 'numeric',
   });
 
-export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel }: DashboardDailyTrendChartProps) {
+export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel, timeRange }: DashboardDailyTrendChartProps) {
   const { data, isLoading, isError, error, refresh, lastUpdated } = trendQuery;
+
+  const formatWindow = (start: Date, end: Date): string => {
+    return `${start.toLocaleString()} – ${end.toLocaleString()}`;
+  };
+
+  const calculateWindows = () => {
+    const end = new Date();
+    const start = new Date();
+    const previousEnd = new Date();
+    const previousStart = new Date();
+
+    switch (timeRange) {
+      case '24h':
+        start.setHours(end.getHours() - 24);
+        previousEnd.setHours(end.getHours() - 24);
+        previousStart.setHours(end.getHours() - 48);
+        break;
+      case '7d':
+        start.setDate(end.getDate() - 7);
+        previousEnd.setDate(end.getDate() - 7);
+        previousStart.setDate(end.getDate() - 14);
+        break;
+      case '30d':
+        start.setDate(end.getDate() - 30);
+        previousEnd.setDate(end.getDate() - 30);
+        previousStart.setDate(end.getDate() - 60);
+        break;
+      default:
+        start.setHours(end.getHours() - 24);
+        previousEnd.setHours(end.getHours() - 24);
+        previousStart.setHours(end.getHours() - 48);
+    }
+
+    return {
+      currentWindow: { start, end },
+      previousWindow: { start: previousStart, end: previousEnd },
+    };
+  };
+
+  const { currentWindow, previousWindow } = calculateWindows();
 
   const handleRefresh = async () => {
     await refresh(true);
@@ -143,6 +184,9 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
             <CardDescription>
               {timeRangeLabel} · {trend.currentTotal.toLocaleString()} incidents
             </CardDescription>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatWindow(currentWindow.start, currentWindow.end)}
+            </p>
           </div>
         </div>
       </CardHeader>
@@ -266,9 +310,14 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
             <span className="text-sm text-muted-foreground">{timeRangeLabel === 'Last 24 Hours' ? 'vs previous 24h' : comparisonLabel}</span>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Previous period: {trend.previousTotal.toLocaleString()} incidents
-          </p>
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Previous period: {trend.previousTotal.toLocaleString()} incidents
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatWindow(previousWindow.start, previousWindow.end)}
+            </p>
+          </div>
         </div>
       </CardContent>
       <CardFooter className="text-xs text-muted-foreground justify-end">

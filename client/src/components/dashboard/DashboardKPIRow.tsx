@@ -165,7 +165,7 @@ export function DashboardKPIRow({
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Previous window: {countFormatter.format(data.previousCount)} incidents
+            Previous period: {countFormatter.format(data.previousCount)} incidents
             <br />
             {formatWindow(data.previousWindow.start, data.previousWindow.end)}
           </p>
