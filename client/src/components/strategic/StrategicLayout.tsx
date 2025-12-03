@@ -7,9 +7,14 @@ import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
 import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
-import { useIncidentsQuery } from '../../hooks/useIncidentsQuery';
+import { useIncidentsData } from '../../hooks/useIncidentsData';
 import { useStationsData } from '../../hooks/useStationsData';
-import { mapIncidentToUi } from '../../services/incidents';
+import {
+  ACTIVE_RENDER_LIMIT_MAX,
+  HISTORICAL_RENDER_LIMIT_MAX,
+  useIncidentFiltersStore,
+} from '../../store/incident-filters-store';
+import { useShallow } from 'zustand/react/shallow';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
@@ -50,30 +55,41 @@ export function StrategicLayout() {
   });
 
   // Map data
-  const incidentsQuery = useIncidentsQuery({
-    page: 1,
-    pageSize: 100, // Backend max is 100
-    ...filters,
+  // Use global filters for the map to show "truth" (same as main map)
+  const globalFilters = useIncidentFiltersStore(
+    useShallow((state) => ({
+      typeCodes: state.typeCodes,
+      severityCodes: state.severityCodes,
+      statusCodes: state.statusCodes,
+      startDate: state.startDate,
+      endDate: state.endDate,
+      incidentNumber: state.incidentNumber,
+      isActive: state.isActive,
+    })),
+  );
+
+  const incidentsData = useIncidentsData({
+    ...globalFilters,
+    renderLimit: globalFilters.isActive ? ACTIVE_RENDER_LIMIT_MAX : HISTORICAL_RENDER_LIMIT_MAX,
   });
   const stationsQuery = useStationsData({ isActive: true });
 
-  const incidents: Incident[] = useMemo(() => {
-    if (!incidentsQuery.data?.data) return [];
-    return incidentsQuery.data.data
-      .map(mapIncidentToUi)
-      .filter((incident): incident is Incident => incident !== null);
-  }, [incidentsQuery.data]);
-
+  const incidents = incidentsData.incidents;
   const fireStations = stationsQuery.stations || [];
 
   const mapCounts = useMemo(
     () => ({
-      rendered: incidents.length,
-      total: incidentsQuery.data?.pagination.total || 0,
-      remainder: Math.max(0, (incidentsQuery.data?.pagination.total || 0) - incidents.length),
-      limit: incidents.length,
+      rendered: incidentsData.renderedCount,
+      total: incidentsData.totalCount,
+      remainder: incidentsData.remainder,
+      limit: incidentsData.targetLimit,
     }),
-    [incidents.length, incidentsQuery.data?.pagination.total],
+    [
+      incidentsData.renderedCount,
+      incidentsData.totalCount,
+      incidentsData.remainder,
+      incidentsData.targetLimit,
+    ],
   );
 
   // Handle trend period click - update date filters
@@ -202,11 +218,11 @@ export function StrategicLayout() {
             incidents={incidents}
             fireStations={fireStations}
             onIncidentClick={handleIncidentClick}
-            isLoading={incidentsQuery.isLoading}
-            isFetching={incidentsQuery.isFetching}
-            isError={incidentsQuery.isError}
-            error={incidentsQuery.error?.message}
-            onRetry={incidentsQuery.refetch}
+            isLoading={incidentsData.isLoading}
+            isFetching={incidentsData.isFetching}
+            isError={incidentsData.isError}
+            error={incidentsData.error}
+            onRetry={incidentsData.refresh}
             counts={mapCounts}
             stationsLoading={stationsQuery.isLoading}
             stationsError={stationsQuery.error}
