@@ -28,7 +28,7 @@ import { isMobile } from './utils/platform';
 function AppRoutes() {
   // TEMPORARILY BYPASS LOGIN FOR DEBUGGING
   const user = { username: 'admin', role: 'admin' as const };
-  const logout = () => {};
+  const logout = () => { };
 
   const mobile = isMobile();
 
@@ -204,7 +204,7 @@ function AppRoutes() {
               !mobile ? (
                 <div className="flex-1 flex overflow-hidden relative">
                   <CollapsibleSidebar />
-                  <main className="flex-1 relative z-0">
+                  <main className="flex-1 flex flex-col relative z-0 overflow-hidden">
                     <DashboardPage />
                   </main>
                 </div>

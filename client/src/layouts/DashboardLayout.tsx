@@ -9,77 +9,41 @@ import { useDashboardSeverityDistribution } from '../hooks/useDashboardSeverityD
 import { useDashboardDailyTrend } from '../hooks/useDashboardDailyTrend';
 import { useDashboardRecentIncidents } from '../hooks/useDashboardRecentIncidents';
 import { useDashboardExport } from '../hooks/useDashboardExport';
-import { useIncidentFiltersStore } from '../store/incident-filters-store';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { Download, X } from 'lucide-react';
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Switch } from '../components/ui/switch';
+import { Label } from '../components/ui/label';
+import { DashboardProvider, useDashboard } from '../providers/dashboard-provider';
 
-export default function DashboardLayout() {
-  // Get filter state from the incident filters store - select individual fields to avoid creating new object
-  const typeCodes = useIncidentFiltersStore((state) => state.typeCodes);
-  const severityCodes = useIncidentFiltersStore((state) => state.severityCodes);
-  const statusCodes = useIncidentFiltersStore((state) => state.statusCodes);
+function DashboardHeader() {
+  const {
+    timeRange,
+    setTimeRange,
+  } = useDashboard();
 
-  const isActive = useIncidentFiltersStore((state) => state.isActive);
-
-  // Memoize filters object to prevent infinite loops
-  const [timeRange, setTimeRange] = useState('24h');
-  const [localDateRange, setLocalDateRange] = useState<{ start?: string; end?: string }>({});
-
-  // Calculate dates based on time range
-  useEffect(() => {
-    const end = new Date();
-    const start = new Date();
-
-    switch (timeRange) {
-      case '24h':
-        start.setHours(end.getHours() - 24);
-        break;
-      case '7d':
-        start.setDate(end.getDate() - 7);
-        break;
-      case '30d':
-        start.setDate(end.getDate() - 30);
-        break;
-      default:
-        start.setHours(end.getHours() - 24);
-    }
-
-    setLocalDateRange({
-      start: start.toISOString(),
-      end: end.toISOString(),
-    });
-  }, [timeRange]);
-
-  const timeRangeLabel = useMemo(() => {
-    switch (timeRange) {
-      case '24h':
-        return 'Last 24 Hours';
-      case '7d':
-        return 'Last 7 Days';
-      case '30d':
-        return 'Last 30 Days';
-      default:
-        return 'Last 24 Hours';
-    }
-  }, [timeRange]);
-
-  // Memoize filters object to prevent infinite loops
-  const filters = useMemo(
-    () => ({
-      typeCodes,
-      severityCodes,
-      statusCodes,
-      startDate: localDateRange.start,
-      endDate: localDateRange.end,
-      isActive,
-    }),
-    [typeCodes, severityCodes, statusCodes, localDateRange.start, localDateRange.end, isActive],
+  return (
+    <div className="flex justify-end mb-4 items-center gap-4">
+      <Select value={timeRange} onValueChange={(val: any) => setTimeRange(val)}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Select time range" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="24h">Last 24 Hours</SelectItem>
+          <SelectItem value="7d">Last 7 Days</SelectItem>
+          <SelectItem value="30d">Last 30 Days</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
+}
 
-  // Initialize all dashboard hooks with filters
+function DashboardContent() {
+  const { filters, timeRangeLabel, comparisonLabel } = useDashboard();
+
+  // Initialize all dashboard hooks with filters from context
   const kpiQuery = useDashboardLast24HoursKpi(filters);
   const typeDistributionQuery = useDashboardTypeDistribution(filters);
   const severityDistributionQuery = useDashboardSeverityDistribution(filters);
@@ -111,7 +75,6 @@ export default function DashboardLayout() {
         URL.revokeObjectURL(result.blobUrl);
       }, 100);
     } catch (error) {
-      // Error is handled by the export hook
       console.error('Export failed:', error);
     }
   }, [triggerExport, filters]);
@@ -145,24 +108,14 @@ export default function DashboardLayout() {
 
         {/* KPI Row with Export */}
         <section>
-          <div className="flex justify-end mb-4">
-            <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select time range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">Last 24 Hours</SelectItem>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <DashboardHeader />
 
           <DashboardKPIRow
             kpiQuery={kpiQuery}
             onExport={handleExport}
             isExporting={isExporting}
             timeRangeLabel={timeRangeLabel}
+            comparisonLabel={comparisonLabel}
           />
         </section>
 
@@ -198,7 +151,15 @@ export default function DashboardLayout() {
           </div>
           <DashboardRecentIncidents recentQuery={recentIncidentsQuery} />
         </section>
-      </div >
-    </div >
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardLayout() {
+  return (
+    <DashboardProvider>
+      <DashboardContent />
+    </DashboardProvider>
   );
 }

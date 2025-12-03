@@ -316,13 +316,7 @@ const buildCacheKey = (
     isActive: filters.isActive ?? null,
   };
 
-  return `${prefix}:${JSON.stringify(
-    { filters: normalizedFilters, extra },
-    Object.keys({
-      filters: normalizedFilters,
-      extra,
-    }).sort()
-  )}`;
+  return `${prefix}:${JSON.stringify({ filters: normalizedFilters, extra })}`;
 };
 
 const formatDateOnly = (input: Date): string => {

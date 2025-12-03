@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -83,12 +83,6 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel }: Dashboa
             <AlertDescription>Trend data will appear once incidents stream in.</AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </CardFooter>
       </Card>
     );
   }
@@ -149,9 +143,6 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel }: Dashboa
               {timeRangeLabel} · {trend.currentTotal.toLocaleString()} incidents
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

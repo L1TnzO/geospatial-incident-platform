@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -78,12 +78,6 @@ export function DashboardSeverityDistributionChart({
             </AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </CardFooter>
       </Card>
     );
   }
@@ -109,9 +103,6 @@ export function DashboardSeverityDistributionChart({
             <CardTitle>Severity Distribution</CardTitle>
             <CardDescription>{timeRangeLabel} · {total.toLocaleString()} incidents</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col items-center space-y-6">

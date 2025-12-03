@@ -1,4 +1,4 @@
-import { RefreshCw, Download } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -140,10 +140,6 @@ export function DashboardKPIRow({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
           <Button variant="default" size="sm" onClick={onExport} disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
             {isExporting ? 'Exporting...' : 'Export CSV'}
