@@ -146,7 +146,7 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel }: Dashboa
           <div className="space-y-1">
             <CardTitle>Daily Incident Trend</CardTitle>
             <CardDescription>
-              {timeRangeLabel} · {trend.currentTotal.toLocaleString()} incidents (last 7 days)
+              {timeRangeLabel} · {trend.currentTotal.toLocaleString()} incidents
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={handleRefresh}>

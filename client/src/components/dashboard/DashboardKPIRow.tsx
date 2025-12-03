@@ -11,6 +11,7 @@ interface DashboardKPIRowProps {
   onExport: () => void;
   isExporting: boolean;
   timeRangeLabel: string;
+  comparisonLabel: string;
 }
 
 const countFormatter = new Intl.NumberFormat(undefined, {
@@ -71,6 +72,7 @@ export function DashboardKPIRow({
   onExport,
   isExporting,
   timeRangeLabel,
+  comparisonLabel,
 }: DashboardKPIRowProps) {
   const { data, isLoading, isError, error, refresh } = kpiQuery;
 
@@ -163,7 +165,7 @@ export function DashboardKPIRow({
               <span>{deltaText}</span>
             </Badge>
             <span className="text-sm font-medium">{percentageText}</span>
-            <span className="text-sm text-muted-foreground">vs previous 24h</span>
+            <span className="text-sm text-muted-foreground">{comparisonLabel}</span>
           </div>
 
           <p className="text-sm text-muted-foreground">

@@ -683,12 +683,29 @@ export class DashboardService {
         });
       }
 
-      // Trend calculation logic (last 7 days vs previous 7 days relative to the END of the range)
-      // If the range is short, this might need adjustment, but keeping it simple for now
-      const recentSeven = points.slice(-7);
-      const previousSeven = points.slice(-14, -7);
-      const currentTotal = recentSeven.reduce((sum, point) => sum + point.count, 0);
-      const previousTotal = previousSeven.reduce((sum, point) => sum + point.count, 0);
+      // Trend calculation logic (current range vs previous range of same duration)
+      const currentTotal = points.reduce((sum, point) => sum + point.count, 0);
+
+      // We need to fetch the previous window's data to calculate the trend correctly
+      // Since we don't have the previous points here, we'll need to query for them
+      // OR, simpler: we can just use the previous total if we want to be accurate, 
+      // but getDailyTrend is currently designed to return points for the chart.
+
+      // Actually, to be consistent with KPI, we should probably fetch the previous window count.
+      // But for now, let's stick to the points we have if possible, OR make a second query.
+      // Making a second query is safer for accuracy.
+
+      const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
+      const previousRange = {
+        start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
+        end: range.start,
+      };
+
+      const { startDate: _sd2, endDate: _ed2, ...baseFilters2 } = filters;
+      // We need the total count for the previous range. 
+      // We can use countIncidentsByReportedRange which is efficient.
+      const previousTotal = await this.repository.countIncidentsByReportedRange(baseFilters2, previousRange);
+
       const change = currentTotal - previousTotal;
       const percentageChange =
         previousTotal === 0 ? null : clampPercentage((change / previousTotal) * 100);

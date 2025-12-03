@@ -33,6 +33,23 @@ export function DashboardLayout() {
   const dailyTrendQuery = useDashboardDailyTrend(filters);
   const recentIncidentsQuery = useDashboardRecentIncidents({ ...filters, limit: 10 });
 
+  // Helper to determine labels
+  const getTimeLabels = () => {
+    if (!filters.startDate || !filters.endDate) return { label: 'Last 24 Hours', comparison: 'vs previous 24h' };
+
+    const start = new Date(filters.startDate);
+    const end = new Date(filters.endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 1) return { label: 'Last 24 Hours', comparison: 'vs previous 24h' };
+    if (diffDays <= 7) return { label: 'Last 7 Days', comparison: 'vs previous 7 days' };
+    if (diffDays <= 30) return { label: 'Last 30 Days', comparison: 'vs previous 30 days' };
+    return { label: `Last ${diffDays} Days`, comparison: `vs previous ${diffDays} days` };
+  };
+
+  const { label: timeRangeLabel, comparison: comparisonLabel } = getTimeLabels();
+
   // Export hook
   const {
     export: triggerExport,
@@ -92,7 +109,13 @@ export function DashboardLayout() {
 
         {/* KPI Row with Export */}
         <section>
-          <DashboardKPIRow kpiQuery={kpiQuery} onExport={handleExport} isExporting={isExporting} />
+          <DashboardKPIRow
+            kpiQuery={kpiQuery}
+            onExport={handleExport}
+            isExporting={isExporting}
+            timeRangeLabel={timeRangeLabel}
+            comparisonLabel={comparisonLabel}
+          />
         </section>
 
         {/* Charts Grid */}
@@ -111,7 +134,10 @@ export function DashboardLayout() {
 
         {/* Daily Trend (Full Width) */}
         <section>
-          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} />
+          <DashboardDailyTrendChart
+            trendQuery={dailyTrendQuery}
+            timeRangeLabel={timeRangeLabel}
+          />
         </section>
 
         {/* Recent Incidents Panel */}
