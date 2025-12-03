@@ -26,10 +26,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
+
+# Python
+__pycache__/
+*.pyc
 
 # Synthetic datasets
 data/generated/
 data/bulk_load_batch_chile_20y/
+data/bulk_load_batch/
 
 # Editor/OS metadata
 .DS_Store
