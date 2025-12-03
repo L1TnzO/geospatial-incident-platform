@@ -273,6 +273,28 @@ export const apiClient = {
         >,
       });
     },
+    dailyTrend: (
+      params: DashboardFilterParams = {},
+      options?: ApiClientOptions,
+    ): Promise<DailyTrendResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<DailyTrendResponse>('/strategic/trends/daily', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<DailyTrendResponse>;
+      }
+      return http.get<DailyTrendResponse>('/strategic/trends/daily', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
     quarterlyTrends: (
       params: QuarterlyTrendsParams = {},
       options?: ApiClientOptions,

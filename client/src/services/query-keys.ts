@@ -27,6 +27,8 @@ export const queryKeys = {
     all: ['strategic'] as const,
     monthlyTrends: (params?: Record<string, unknown>) =>
       ['strategic', 'monthly-trends', params ? JSON.stringify(params) : 'default'] as const,
+    dailyTrend: (params?: Record<string, unknown>) =>
+      ['strategic', 'daily-trend', params ? JSON.stringify(params) : 'default'] as const,
     quarterlyTrends: (params?: Record<string, unknown>) =>
       ['strategic', 'quarterly-trends', params ? JSON.stringify(params) : 'default'] as const,
     typeTimelines: (params?: Record<string, unknown>) =>

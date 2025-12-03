@@ -3,28 +3,74 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { RefreshCw, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import type { StrategicMonthlyTrendResponse } from '../../types/api/strategic';
+import type { DailyTrendResponse } from '../../types/api/dashboard';
 
 interface StrategicTrendsChartProps {
-  data: StrategicMonthlyTrendResponse | null;
+  data: StrategicMonthlyTrendResponse | DailyTrendResponse | null;
+  trendType?: 'monthly' | 'daily';
   isLoading: boolean;
   isError: boolean;
   error?: Error | null;
   onRefresh: () => void;
-  onPeriodClick?: (month: string, startDate: string, endDate: string) => void;
+  onPeriodClick?: (period: string, startDate: string, endDate: string) => void;
 }
 
 export function StrategicTrendsChart({
   data,
+  trendType = 'monthly',
   isLoading,
   isError,
   error,
   onRefresh,
   onPeriodClick,
 }: StrategicTrendsChartProps) {
+  const normalizedData = useMemo(() => {
+    if (!data) return null;
+
+    if (trendType === 'daily' && 'points' in data) {
+      const dailyData = data as DailyTrendResponse;
+      return {
+        series: dailyData.points.map((p) => ({
+          label: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          count: p.count,
+          start: p.date,
+          end: p.date, // Daily points are single day
+          period: p.date,
+          change: null, // Daily points don't have individual change metrics in this response
+          percentage: null,
+        })),
+        totals: {
+          current: dailyData.trend.currentTotal,
+          change: dailyData.trend.change,
+          percentage: dailyData.trend.percentageChange,
+        },
+      };
+    } else if ('series' in data) {
+      const monthlyData = data as StrategicMonthlyTrendResponse;
+      return {
+        series: monthlyData.series.map((p) => ({
+          label: p.label,
+          count: p.count,
+          start: p.start,
+          end: p.end,
+          period: p.month,
+          change: p.monthOverMonthDelta,
+          percentage: p.monthOverMonthPercentage,
+        })),
+        totals: {
+          current: monthlyData.totals.currentPeriodTotal,
+          change: monthlyData.totals.periodDelta,
+          percentage: monthlyData.totals.periodPercentage,
+        },
+      };
+    }
+    return null;
+  }, [data, trendType]);
+
   const maxCount = useMemo(() => {
-    if (!data?.series) return 0;
-    return Math.max(...data.series.map((point) => point.count));
-  }, [data]);
+    if (!normalizedData?.series) return 0;
+    return Math.max(...normalizedData.series.map((point) => point.count));
+  }, [normalizedData]);
 
   const chartHeight = 280;
   const chartPadding = useMemo(() => ({ top: 20, right: 20, bottom: 40, left: 50 }), []);
@@ -32,15 +78,15 @@ export function StrategicTrendsChart({
   const plotWidth = 800 - chartPadding.left - chartPadding.right;
 
   const points = useMemo(() => {
-    if (!data?.series || data.series.length === 0) return [];
+    if (!normalizedData?.series || normalizedData.series.length === 0) return [];
 
-    const stepX = plotWidth / (data.series.length - 1 || 1);
-    return data.series.map((point, index) => {
+    const stepX = plotWidth / (normalizedData.series.length - 1 || 1);
+    return normalizedData.series.map((point, index) => {
       const x = chartPadding.left + index * stepX;
-      const y = chartPadding.top + plotHeight - (point.count / maxCount) * plotHeight;
+      const y = chartPadding.top + plotHeight - (point.count / (maxCount || 1)) * plotHeight;
       return { x, y, data: point };
     });
-  }, [data, maxCount, plotWidth, plotHeight, chartPadding]);
+  }, [normalizedData, maxCount, plotWidth, plotHeight, chartPadding]);
 
   const pathD = useMemo(() => {
     if (points.length === 0) return '';
@@ -54,7 +100,7 @@ export function StrategicTrendsChart({
 
   const handlePointClick = (point: (typeof points)[0]) => {
     if (onPeriodClick) {
-      onPeriodClick(point.data.month, point.data.start, point.data.end);
+      onPeriodClick(point.data.period, point.data.start, point.data.end);
     }
   };
 
@@ -68,7 +114,7 @@ export function StrategicTrendsChart({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Multi-Month Trend Analysis</CardTitle>
+          <CardTitle>Trend Analysis</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -84,7 +130,7 @@ export function StrategicTrendsChart({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Multi-Month Trend Analysis</CardTitle>
+          <CardTitle>Trend Analysis</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center h-64">
@@ -101,11 +147,11 @@ export function StrategicTrendsChart({
     );
   }
 
-  if (!data || data.series.length === 0) {
+  if (!normalizedData || normalizedData.series.length === 0) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Multi-Month Trend Analysis</CardTitle>
+          <CardTitle>Trend Analysis</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
@@ -120,7 +166,7 @@ export function StrategicTrendsChart({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Multi-Month Trend Analysis</CardTitle>
+        <CardTitle>Trend Analysis</CardTitle>
         <Button variant="ghost" size="sm" onClick={onRefresh}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -131,17 +177,17 @@ export function StrategicTrendsChart({
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Current Period Total</p>
             <p className="text-2xl font-semibold">
-              {data.totals?.currentPeriodTotal?.toLocaleString() || '0'}
+              {normalizedData.totals?.current?.toLocaleString() || '0'}
             </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Period-over-Period Change</p>
             <div className="flex items-center gap-2">
               <p className="text-2xl font-semibold">
-                {(data.totals?.periodDelta ?? 0) >= 0 ? '+' : ''}
-                {data.totals?.periodDelta?.toLocaleString() || '0'}
+                {(normalizedData.totals?.change ?? 0) >= 0 ? '+' : ''}
+                {normalizedData.totals?.change?.toLocaleString() || '0'}
               </p>
-              {(data.totals?.periodDelta ?? 0) >= 0 ? (
+              {(normalizedData.totals?.change ?? 0) >= 0 ? (
                 <TrendingUp className="h-5 w-5 text-green-600" />
               ) : (
                 <TrendingDown className="h-5 w-5 text-red-600" />
@@ -151,11 +197,10 @@ export function StrategicTrendsChart({
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">Percentage Change</p>
             <p
-              className={`text-2xl font-semibold ${
-                (data.totals?.periodPercentage ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
+              className={`text-2xl font-semibold ${(normalizedData.totals?.percentage ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}
             >
-              {formatPercentage(data.totals?.periodPercentage)}
+              {formatPercentage(normalizedData.totals?.percentage)}
             </p>
           </div>
         </div>
@@ -227,12 +272,11 @@ export function StrategicTrendsChart({
                 >
                   <title>
                     {point.data.label}: {point.data.count} incidents
-                    {'\n'}MoM: {formatPercentage(point.data.monthOverMonthPercentage)}
-                    {'\n'}YoY: {formatPercentage(point.data.yearOverYearPercentage)}
+                    {point.data.percentage != null && `\nChange: ${formatPercentage(point.data.percentage)}`}
                   </title>
                 </circle>
                 {/* X-axis labels */}
-                {index % Math.ceil(data.series.length / 12) === 0 && (
+                {index % Math.ceil(normalizedData.series.length / 12) === 0 && (
                   <text
                     x={point.x}
                     y={chartPadding.top + plotHeight + 20}
@@ -262,7 +306,7 @@ export function StrategicTrendsChart({
         <div className="mt-4 text-xs text-muted-foreground">
           <p>
             Click any data point to filter dashboard and map to that period. Hover for
-            month-over-month and year-over-year comparisons.
+            comparisons.
           </p>
         </div>
       </CardContent>

@@ -1,13 +1,12 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { useIncidentFiltersStore } from '../../store/incident-filters-store';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
-import { useStrategicTrends } from '../../hooks/useStrategicTrends';
 import { useStrategicHotspots } from '../../hooks/useStrategicHotspots';
 import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
+import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
 import { useIncidentsQuery } from '../../hooks/useIncidentsQuery';
 import { useStationsData } from '../../hooks/useStationsData';
 import { mapIncidentToUi } from '../../services/incidents';
@@ -19,60 +18,11 @@ import { Button } from '../ui/button';
 import { RefreshCw } from 'lucide-react';
 import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
+import { useDashboard } from '../../providers/dashboard-provider';
 
 export function StrategicLayout() {
-  const filterState = useIncidentFiltersStore();
+  const { timeRange, setTimeRange, filters } = useDashboard();
 
-  // Normalize dates to YYYY-MM-DD format (strip time if present)
-  const normalizeDate = (date: string | undefined): string | undefined => {
-    if (!date) return undefined;
-    // If the date contains 'T', split it and take only the date part
-    return date.includes('T') ? date.split('T')[0] : date;
-  };
-
-  // Only include isActive if it's explicitly true (backend might not support false)
-  const [timeRange, setTimeRange] = useState('30d');
-  const [localDateRange, setLocalDateRange] = useState<{ start?: string; end?: string }>({});
-
-  // Calculate dates based on time range
-  useEffect(() => {
-    const end = new Date();
-    const start = new Date();
-
-    switch (timeRange) {
-      case '7d':
-        start.setDate(end.getDate() - 7);
-        break;
-      case '30d':
-        start.setDate(end.getDate() - 30);
-        break;
-      case '90d':
-        start.setDate(end.getDate() - 90);
-        break;
-      case '1y':
-        start.setFullYear(end.getFullYear() - 1);
-        break;
-      default:
-        start.setDate(end.getDate() - 30);
-    }
-
-    setLocalDateRange({
-      start: start.toISOString().split('T')[0],
-      end: end.toISOString().split('T')[0],
-    });
-  }, [timeRange]);
-
-  // Only include isActive if it's explicitly true (backend might not support false)
-  const filters = {
-    typeCodes: filterState.typeCodes,
-    severityCodes: filterState.severityCodes,
-    statusCodes: filterState.statusCodes,
-    startDate: localDateRange.start,
-    endDate: localDateRange.end,
-    ...(filterState.isActive === true && { isActive: true }),
-    incidentNumber: filterState.incidentNumber,
-  };
-  const setFilters = filterState.setFilters;
   const {
     showIncidentsStrategic: showIncidents,
     showHotspotsStrategic: showHotspots,
@@ -87,7 +37,9 @@ export function StrategicLayout() {
   const [highlightedZone, setHighlightedZone] = useState<PriorityScoreGroup | null>(null);
 
   // Strategic data hooks
-  const trendsQuery = useStrategicTrends({ months: 12, ...filters });
+  // Use daily trend for all dashboard time ranges (24h, 7d, 30d)
+  const dailyTrendQuery = useStrategicDailyTrend(filters);
+
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
   const responseTimesQuery = useStrategicResponseTimes({ groupBy: 'station', ...filters });
@@ -125,14 +77,14 @@ export function StrategicLayout() {
   );
 
   // Handle trend period click - update date filters
+  // Note: DashboardProvider currently controls date ranges based on timeRange.
+  // Manual date selection would require extending DashboardProvider to support 'custom' range.
   const handlePeriodClick = useCallback(
-    (_month: string, startDate: string, endDate: string) => {
-      setFilters({
-        startDate: startDate.split('T')[0],
-        endDate: endDate.split('T')[0],
-      });
+    (_period: string, _startDate: string, _endDate: string) => {
+      console.log('Period clicked:', _period);
+      // setFilters({ startDate, endDate }); // Not supported by DashboardProvider yet
     },
-    [setFilters],
+    [],
   );
 
   // Handle "View on Map" from priority zones
@@ -174,12 +126,12 @@ export function StrategicLayout() {
 
   // Refresh all strategic data
   const handleRefreshAll = useCallback(() => {
-    trendsQuery.refresh(true);
+    dailyTrendQuery.refresh(true);
     hotspotsQuery.refresh(true);
     coverageQuery.refresh(true);
     responseTimesQuery.refresh(true);
     priorityZonesQuery.refresh(true);
-  }, [trendsQuery, hotspotsQuery, coverageQuery, responseTimesQuery, priorityZonesQuery]);
+  }, [dailyTrendQuery, hotspotsQuery, coverageQuery, responseTimesQuery, priorityZonesQuery]);
 
   return (
     <div className="p-6">
@@ -193,15 +145,14 @@ export function StrategicLayout() {
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <Select value={timeRange} onValueChange={setTimeRange}>
+            <Select value={timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select time range" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="24h">Last 24 Hours</SelectItem>
                 <SelectItem value="7d">Last 7 Days</SelectItem>
                 <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="90d">Last 90 Days</SelectItem>
-                <SelectItem value="1y">Last Year</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={handleRefreshAll}>
@@ -214,11 +165,12 @@ export function StrategicLayout() {
         {/* Trend Analysis - Full Width */}
         <div>
           <StrategicTrendsChart
-            data={trendsQuery.data || null}
-            isLoading={trendsQuery.isLoading}
-            isError={trendsQuery.isError}
-            error={trendsQuery.error}
-            onRefresh={() => trendsQuery.refresh(true)}
+            data={dailyTrendQuery.data || null}
+            trendType="daily"
+            isLoading={dailyTrendQuery.isLoading}
+            isError={dailyTrendQuery.isError}
+            error={dailyTrendQuery.error}
+            onRefresh={() => dailyTrendQuery.refresh(true)}
             onPeriodClick={handlePeriodClick}
           />
         </div>
