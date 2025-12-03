@@ -535,12 +535,13 @@ export class DashboardService {
       // The filters object might have startDate/endDate set, which is good for the current window count
       // But for the previous window count, we need to override those filters
 
-      const currentFilters = { ...filters, startDate: currentWindow.start, endDate: currentWindow.end };
-      const previousFilters = { ...filters, startDate: previousWindow.start, endDate: previousWindow.end };
+      // Remove startDate/endDate from filters to avoid filtering by occurrence_at via applyFilters
+      // We only want to filter by reported_at using the range argument
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
 
       const [currentCount, previousCount] = await Promise.all([
-        this.repository.countIncidentsByReportedRange(currentFilters, currentWindow),
-        this.repository.countIncidentsByReportedRange(previousFilters, previousWindow),
+        this.repository.countIncidentsByReportedRange(baseFilters, currentWindow),
+        this.repository.countIncidentsByReportedRange(baseFilters, previousWindow),
       ]);
 
       const delta = currentCount - previousCount;
@@ -584,9 +585,10 @@ export class DashboardService {
 
     return this.withCache(cacheKey, refresh, async () => {
       // Ensure filters match the range if they weren't provided
-      const queryFilters = { ...filters, startDate: range.start, endDate: range.end };
+      // But remove startDate/endDate to avoid occurrence_at filtering
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
 
-      const buckets = await this.repository.getIncidentCountsByType(queryFilters, range);
+      const buckets = await this.repository.getIncidentCountsByType(baseFilters, range);
       const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
 
       const normalizedBuckets: TypeDistributionBucket[] = buckets.map((bucket) => ({
@@ -614,6 +616,7 @@ export class DashboardService {
 
     if (filters.startDate && filters.endDate) {
       startDate = new Date(filters.startDate);
+      startDate.setUTCHours(0, 0, 0, 0); // Align to UTC midnight to match DB bucketing
       endDate = new Date(filters.endDate);
       range = {
         start: filters.startDate,
@@ -645,9 +648,9 @@ export class DashboardService {
     const cacheKey = buildCacheKey('incidents:dailyTrend', filters, range);
 
     return this.withCache(cacheKey, refresh, async () => {
-      const queryFilters = { ...filters, startDate: range.start, endDate: range.end };
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
 
-      const buckets = await this.repository.getIncidentCountsByReportedDay(queryFilters, range);
+      const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
       const countsByDate = new Map<string, number>();
       for (const bucket of buckets) {
         const dateOnly = formatDateOnly(new Date(bucket.date));

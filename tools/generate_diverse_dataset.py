@@ -12,9 +12,9 @@ def main():
     """Generate synthetic data with temporal diversity and bulk load it."""
     
     # Configuration for diverse temporal data
-    incident_count = 5000  # Increase to 5000 for better distribution
+    incident_count = 100000  # Updated to 100,000 as requested
     station_count = 50
-    window_days = 90  # This is now less relevant due to temporal diversity changes
+    window_days = 1460  # 4 years
     
     print("=" * 80)
     print("Generating Temporally Diverse Synthetic Dataset")
@@ -22,9 +22,8 @@ def main():
     print(f"Incidents: {incident_count}")
     print(f"Stations: {station_count}")
     print("Temporal Distribution:")
-    print("  - 60% Recent (last 90 days)")
-    print("  - 25% Medium term (90-365 days ago)")
-    print("  - 15% Historical (1-3 years ago)")
+    print("  - 4 Years Span (approx 1460 days)")
+    print("  - Weighted towards recent data")
     print("=" * 80)
     
     # Step 1: Generate the data
@@ -34,6 +33,7 @@ def main():
         "--incident-count", str(incident_count),
         "--station-count", str(station_count),
         "--window-days", str(window_days),
+        "--span-years", "4",
         "--output-dir", "data/bulk_load_batch",
         "--output-format", "csv",
         "--seed", "42",
