@@ -48,7 +48,7 @@ function DashboardContent() {
   const typeDistributionQuery = useDashboardTypeDistribution(filters);
   const severityDistributionQuery = useDashboardSeverityDistribution(filters);
   const dailyTrendQuery = useDashboardDailyTrend(filters);
-  const recentIncidentsQuery = useDashboardRecentIncidents({ ...filters, limit: 10 });
+  const recentIncidentsQuery = useDashboardRecentIncidents({ ...filters, limit: 20 });
 
   // Export hook
   const {

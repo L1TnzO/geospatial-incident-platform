@@ -133,82 +133,84 @@ export function DashboardRecentIncidents({ recentQuery }: DashboardRecentInciden
   }
 
   return (
-    <div className="grid gap-3">
-      {data.map((incident) => {
-        const reportedDate = new Date(incident.reportedAt);
-        const reportedLabel = Number.isNaN(reportedDate.getTime())
-          ? 'Unknown'
-          : DEFAULT_DATE_FORMAT.format(reportedDate);
+    <div className="overflow-y-auto pr-4 border rounded-md" style={{ height: '400px' }}>
+      <div className="grid gap-3 p-1">
+        {data.map((incident) => {
+          const reportedDate = new Date(incident.reportedAt);
+          const reportedLabel = Number.isNaN(reportedDate.getTime())
+            ? 'Unknown'
+            : DEFAULT_DATE_FORMAT.format(reportedDate);
 
-        const coordinates = incident.location?.geometry?.coordinates;
-        const hasCoordinates = Array.isArray(coordinates) && coordinates.length >= 2;
+          const coordinates = incident.location?.geometry?.coordinates;
+          const hasCoordinates = Array.isArray(coordinates) && coordinates.length >= 2;
 
-        const stationLabel = incident.primaryStation
-          ? `${incident.primaryStation.name} (${incident.primaryStation.stationCode})`
-          : 'No station assigned';
+          const stationLabel = incident.primaryStation
+            ? `${incident.primaryStation.name} (${incident.primaryStation.stationCode})`
+            : 'No station assigned';
 
-        return (
-          <Card key={incident.incidentNumber} className="hover:bg-accent/50 transition-colors">
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge
-                      style={{
-                        backgroundColor: incident.severity.colorHex,
-                        color: '#ffffff',
-                      }}
+          return (
+            <Card key={incident.incidentNumber} className="hover:bg-accent/50 transition-colors">
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge
+                        style={{
+                          backgroundColor: incident.severity.colorHex,
+                          color: '#ffffff',
+                        }}
+                      >
+                        {incident.severity.name}
+                      </Badge>
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {incident.incidentNumber}
+                      </span>
+                    </div>
+                    <Badge variant="outline">{incident.status.name}</Badge>
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="font-semibold text-base leading-snug">{incident.title}</h3>
+
+                  {/* Metadata */}
+                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{incident.type.name}</span>
+                      <span>•</span>
+                      <span>{stationLabel}</span>
+                    </div>
+                    <time dateTime={incident.reportedAt}>Reported {reportedLabel}</time>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewOnMap(incident)}
+                      disabled={!hasCoordinates}
+                      className="flex-1"
                     >
-                      {incident.severity.name}
-                    </Badge>
-                    <span className="text-sm font-mono text-muted-foreground">
-                      {incident.incidentNumber}
-                    </span>
+                      <MapPin className="mr-2 h-4 w-4" />
+                      View on Map
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleOpenDetails(incident)}
+                      className="flex-1"
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Details
+                    </Button>
                   </div>
-                  <Badge variant="outline">{incident.status.name}</Badge>
                 </div>
-
-                {/* Title */}
-                <h3 className="font-semibold text-base leading-snug">{incident.title}</h3>
-
-                {/* Metadata */}
-                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{incident.type.name}</span>
-                    <span>•</span>
-                    <span>{stationLabel}</span>
-                  </div>
-                  <time dateTime={incident.reportedAt}>Reported {reportedLabel}</time>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleViewOnMap(incident)}
-                    disabled={!hasCoordinates}
-                    className="flex-1"
-                  >
-                    <MapPin className="mr-2 h-4 w-4" />
-                    View on Map
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => handleOpenDetails(incident)}
-                    className="flex-1"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Details
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
