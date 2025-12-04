@@ -1,4 +1,6 @@
-import { createContext, useContext, ReactNode, useMemo } from 'react';
+import { createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
+import type { Incident } from '../types';
+import type { WorkerResponse } from '../workers/incident-worker';
 import { useShallow } from 'zustand/react/shallow';
 import { useIncidentFiltersStore } from '../store/incident-filters-store';
 import { useIncidentsData, IncidentsDataResult } from '../hooks/useIncidentsData';
@@ -41,46 +43,86 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
         ...fetchParams,
     });
 
-    // Client-side filtering
-    const filteredIncidents = useMemo(() => {
-        let result = incidentsData.incidents;
+    const [filteredIncidents, setFilteredIncidents] = useState<Incident[]>([]);
+    const [isFiltering, setIsFiltering] = useState(false);
+    const workerRef = useRef<Worker | null>(null);
 
-        if (filters.typeCodes && filters.typeCodes.length > 0) {
-            const typeSet = new Set(filters.typeCodes);
-            result = result.filter((i) => i.typeCode && typeSet.has(i.typeCode));
+    // Initialize worker
+    useEffect(() => {
+        workerRef.current = new Worker(new URL('../workers/incident-worker.ts', import.meta.url), {
+            type: 'module',
+        });
+
+        workerRef.current.onmessage = (event: MessageEvent<WorkerResponse>) => {
+            const { type, payload } = event.data;
+            if (type === 'DATA_UPDATED' || type === 'FILTER_COMPLETE') {
+                setFilteredIncidents(payload.incidents);
+                setIsFiltering(false);
+            }
+        };
+
+        return () => {
+            workerRef.current?.terminate();
+        };
+    }, []);
+
+    // Send data to worker when it changes
+    useEffect(() => {
+        if (workerRef.current && incidentsData.incidents.length > 0) {
+            setIsFiltering(true);
+            workerRef.current.postMessage({
+                type: 'SET_DATA',
+                payload: {
+                    incidents: incidentsData.incidents,
+                    filters: {
+                        typeCodes: filters.typeCodes,
+                        severityCodes: filters.severityCodes,
+                        statusCodes: filters.statusCodes,
+                        incidentNumber: filters.incidentNumber,
+                    },
+                },
+            });
+        } else if (incidentsData.incidents.length === 0) {
+            setFilteredIncidents([]);
         }
+    }, [incidentsData.incidents]);
 
-        if (filters.severityCodes && filters.severityCodes.length > 0) {
-            const severitySet = new Set(filters.severityCodes);
-            result = result.filter((i) => i.severityCode && severitySet.has(i.severityCode));
+    // Send filters to worker when they change
+    useEffect(() => {
+        if (workerRef.current && incidentsData.incidents.length > 0) {
+            // Avoid double-triggering if data just updated (handled by SET_DATA)
+            // But SET_DATA dependency array ensures it runs on data change.
+            // This effect runs on filter change.
+            // We might have a race condition or double update if both change, but React batches updates.
+            // A simple optimization is to check if filters actually changed, but useShallow handles that.
+
+            setIsFiltering(true);
+            workerRef.current.postMessage({
+                type: 'FILTER_DATA',
+                payload: {
+                    filters: {
+                        typeCodes: filters.typeCodes,
+                        severityCodes: filters.severityCodes,
+                        statusCodes: filters.statusCodes,
+                        incidentNumber: filters.incidentNumber,
+                    },
+                },
+            });
         }
-
-        if (filters.statusCodes && filters.statusCodes.length > 0) {
-            const statusSet = new Set(filters.statusCodes);
-            result = result.filter((i) => i.statusCode && statusSet.has(i.statusCode));
-        }
-
-        if (filters.incidentNumber) {
-            const search = filters.incidentNumber.toUpperCase();
-            // Assuming 'id' or another field holds the incident number if 'incidentNumber' doesn't exist
-            // Checking 'id' as a fallback or primary field
-            result = result.filter((i) => i.id.toUpperCase().includes(search));
-        }
-
-        return result;
     }, [
-        incidentsData.incidents,
         filters.typeCodes,
         filters.severityCodes,
         filters.statusCodes,
-        filters.incidentNumber
+        filters.incidentNumber,
     ]);
 
     const value = useMemo(() => ({
         ...incidentsData,
         incidents: filteredIncidents,
-        totalCount: filteredIncidents.length, // Update counts to reflect filtered view
+        totalCount: filteredIncidents.length,
         renderedCount: filteredIncidents.length,
+        // If filtering, we might want to show a loading state or stale data
+        // For now, we just show stale data until update comes
     }), [incidentsData, filteredIncidents]);
 
     return (
