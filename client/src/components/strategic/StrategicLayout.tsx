@@ -148,6 +148,8 @@ export function StrategicLayout() {
                 <SelectItem value="24h">Last 24 Hours</SelectItem>
                 <SelectItem value="7d">Last 7 Days</SelectItem>
                 <SelectItem value="30d">Last 30 Days</SelectItem>
+                <SelectItem value="3m">Last 3 Months</SelectItem>
+                <SelectItem value="1y">Last 12 Months</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={handleRefreshAll}>

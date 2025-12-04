@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useIncidentFiltersStore } from '../store/incident-filters-store';
 import type { DashboardFilterParams } from '../types/api/dashboard';
+import { subMonths, subYears } from 'date-fns';
 
-type TimeRange = '24h' | '7d' | '30d';
+type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
 
 interface DashboardContextType {
     timeRange: TimeRange;
@@ -57,6 +58,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             case '30d':
                 startDate.setDate(endDate.getDate() - 30);
                 break;
+            case '3m':
+                return {
+                    start: subMonths(endDate, 3).toISOString(),
+                    end: endDate.toISOString(),
+                };
+            case '1y':
+                return {
+                    start: subYears(endDate, 1).toISOString(),
+                    end: endDate.toISOString(),
+                };
             default:
                 startDate.setHours(endDate.getHours() - 24);
         }
@@ -76,6 +87,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 return 'Last 7 Days';
             case '30d':
                 return 'Last 30 Days';
+            case '3m':
+                return 'Last 3 Months';
+            case '1y':
+                return 'Last 12 Months';
             default:
                 return 'Last 24 Hours';
         }
@@ -89,6 +104,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 return 'vs previous 7 days';
             case '30d':
                 return 'vs previous 30 days';
+            case '3m':
+                return 'vs previous 3 months';
+            case '1y':
+                return 'vs previous year';
             default:
                 return 'vs previous 24h';
         }
