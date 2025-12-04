@@ -21,7 +21,7 @@ infra/docker/.env
 infra/docker/.env.*
 !infra/docker/.env.*.example
 
-# Logs
+# LogsS
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -44,3 +44,10 @@ Thumbs.db
 .specify/
 .github/agents/
 .github/prompts/
+
+
+# Carga de datos Fedora
+api_response.json
+check_status.sh
+curl_log.txt
+db_count.txt
