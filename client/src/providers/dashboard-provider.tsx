@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useIncidentFiltersStore } from '../store/incident-filters-store';
 import type { DashboardFilterParams } from '../types/api/dashboard';
 
@@ -17,11 +17,25 @@ interface DashboardContextType {
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
-    const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+    const [timeRange, setTimeRange] = useState<TimeRange>(() => {
+        const stored = localStorage.getItem('dashboard_timeRange');
+        return (stored as TimeRange) || '24h';
+    });
 
     // Local state for dashboard view, decoupled from global map filters
     // Default to showing ALL incidents (isActive = false) so historical data is visible by default
-    const [isActive, setIsActive] = useState(false);
+    const [isActive, setIsActive] = useState(() => {
+        const stored = localStorage.getItem('dashboard_isActive');
+        return stored !== null ? stored === 'true' : false;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('dashboard_timeRange', timeRange);
+    }, [timeRange]);
+
+    useEffect(() => {
+        localStorage.setItem('dashboard_isActive', String(isActive));
+    }, [isActive]);
 
     // Derived State: Date Range
     const { start, end } = useMemo(() => {

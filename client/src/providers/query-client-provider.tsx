@@ -1,6 +1,6 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { type ReactNode, useState } from 'react';
-import { createQueryClient } from '../lib/query-client';
+import { createIDBPersister, createQueryClient } from '../lib/query-client';
 
 interface QueryProviderProps {
   children: ReactNode;
@@ -8,5 +8,11 @@ interface QueryProviderProps {
 
 export const QueryProvider = ({ children }: QueryProviderProps) => {
   const [client] = useState(() => createQueryClient());
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const [persister] = useState(() => createIDBPersister());
+
+  return (
+    <PersistQueryClientProvider client={client} persistOptions={{ persister }}>
+      {children}
+    </PersistQueryClientProvider>
+  );
 };
