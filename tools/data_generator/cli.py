@@ -125,6 +125,12 @@ def build_parser() -> ArgumentParser:
     default=True,
     help="Display generation progress via tqdm.",
   )
+  parser.add_argument(
+    "--min-stations-per-city",
+    type=int,
+    default=1,
+    help="Minimum number of stations to allocate per city.",
+  )
 
   return parser
 
@@ -188,6 +194,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     region_lookup_file=args.region_lookup_file,
     urban_focus_bias=args.urban_focus_bias,
     seasonal_bias_strength=args.seasonal_bias_strength,
+    min_stations_per_city=args.min_stations_per_city,
   )
 
   dataset = generate_dataset(config)

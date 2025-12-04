@@ -523,6 +523,19 @@ def _generate_fire_narrative(incident_type: str, source: str, severity: str, rng
   return narrative
 
 
+def _haversine_distance(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+  """Calculate Haversine distance in kilometers between two points."""
+  R = 6371.0  # Earth radius in km
+  dlat = math.radians(lat2 - lat1)
+  dlng = math.radians(lng2 - lng1)
+  a = (
+    math.sin(dlat / 2) ** 2
+    + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+  )
+  c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+  return R * c
+
+
 def _generate_station_rows(
   config: SyntheticDataConfig,
   rng: random.Random,
@@ -530,45 +543,28 @@ def _generate_station_rows(
 ) -> pd.DataFrame:
   rows: list[dict] = []
   use_communes = len(communes) > 0
-  commune_weights = [max(commune.weight, 0.05) for commune in communes]
-
-  current_year = config.start_datetime.year
-
-  for idx in range(1, config.station_count + 1):
-    commune = rng.choices(communes, weights=commune_weights, k=1)[0] if use_communes else None
-
-    if commune is not None:
-      jitter_km = 6.0 if commune.is_urban else 18.0
-      lat, lng = _random_geo_point(commune.lat, commune.lng, max_km=jitter_km, rng=rng)
-      city = commune.name
-      region = commune.region_name
-      incident_weight = commune.weight
-      coverage_min, coverage_max = ((3500, 8500) if commune.is_urban else (9000, 20000))
-      anchor_lat = commune.lat
-      anchor_lng = commune.lng
-    else:
-      # Fallback to legacy random US-based data if no communes provided
+  
+  if not use_communes:
+    # Legacy fallback logic for when no communes are provided
+    current_year = config.start_datetime.year
+    for idx in range(1, config.station_count + 1):
       anchor_lat, anchor_lng = 47.6062, -122.3321
       lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=20, rng=rng)
       city = faker.city()
-      # region = faker.state_abbr() # Not available in es_CL
       region = faker.region()
-      incident_weight = 1.0
-      coverage_min, coverage_max = (4000, 12000)
+      
+      commissioned_year = rng.randint(1975, 2020)
+      commissioned_on = datetime(commissioned_year, rng.randint(1, 12), rng.randint(1, 28)).date()
+      decommissioned_on = None
+      if rng.random() > 0.9:
+        year_min = commissioned_year + 5
+        year_max = max(year_min, min(current_year, datetime.now(UTC).year))
+        if year_max >= year_min:
+          year = rng.randint(year_min, year_max)
+          decommissioned_on = datetime(year, rng.randint(1, 12), rng.randint(1, 28)).date()
 
-    commissioned_year = rng.randint(1975, 2020)
-    commissioned_on = datetime(commissioned_year, rng.randint(1, 12), rng.randint(1, 28)).date()
-    decommissioned_on = None
-    if rng.random() > 0.9:
-      year_min = commissioned_year + 5
-      year_max = max(year_min, min(current_year, datetime.now(UTC).year))
-      if year_max >= year_min:
-        year = rng.randint(year_min, year_max)
-        decommissioned_on = datetime(year, rng.randint(1, 12), rng.randint(1, 28)).date()
-
-    station_code = f"STA-{idx:04d}" if config.station_count >= 1000 else f"STA-{idx:03d}"
-    rows.append(
-      {
+      station_code = f"STA-{idx:04d}" if config.station_count >= 1000 else f"STA-{idx:03d}"
+      rows.append({
         "station_code": station_code,
         "name": f"Compania {city} {idx:03d}",
         "battalion": f"Batallon {rng.randint(1, 12)}",
@@ -585,16 +581,116 @@ def _generate_station_rows(
         "location_lat": lat,
         "location_lng": lng,
         "location_wkt": _render_wkt(lat, lng),
+        "coverage_radius_meters": rng.randint(4000, 12000),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "incident_weight": 1.0,
+        "is_urban": False,
+        "anchor_lat": anchor_lat,
+        "anchor_lng": anchor_lng,
+      })
+    return pd.DataFrame(rows)
+
+  # New logic with distribution control
+  current_year = config.start_datetime.year
+  
+  # 1. Allocation Phase
+  min_per_city = config.min_stations_per_city
+  total_needed = config.station_count
+  
+  # Pre-allocate minimum stations
+  allocations: dict[int, int] = {c.commune_id: min_per_city for c in communes}
+  allocated_count = len(communes) * min_per_city
+  
+  remaining = total_needed - allocated_count
+  if remaining > 0:
+    # Distribute remaining based on weights
+    commune_weights = [max(c.weight, 0.05) for c in communes]
+    extras = rng.choices(communes, weights=commune_weights, k=remaining)
+    for c in extras:
+      allocations[c.commune_id] += 1
+  
+  # 2. Placement Phase
+  station_idx = 1
+  # Track placed stations per city to check overlap: city_id -> list of (lat, lng)
+  placed_locations: dict[int, list[tuple[float, float]]] = {}
+  
+  for commune in communes:
+    count = allocations[commune.commune_id]
+    if count <= 0:
+      continue
+      
+    placed_locations[commune.commune_id] = []
+    
+    for _ in range(count):
+      # Attempt to place station with minimum distance check
+      best_lat, best_lng = commune.lat, commune.lng
+      min_dist_threshold = 2.0 if commune.is_urban else 5.0 # km
+      
+      # Try up to 10 times to find a non-overlapping spot
+      for attempt in range(10):
+        jitter_km = 6.0 if commune.is_urban else 18.0
+        # Reduce jitter if we have many stations to fit in a small area
+        if count > 5: 
+            jitter_km *= 1.5
+            
+        lat, lng = _random_geo_point(commune.lat, commune.lng, max_km=jitter_km, rng=rng)
+        
+        # Check overlap
+        overlap = False
+        for plat, plng in placed_locations[commune.commune_id]:
+          if _haversine_distance(lat, lng, plat, plng) < min_dist_threshold:
+            overlap = True
+            break
+        
+        if not overlap:
+          best_lat, best_lng = lat, lng
+          break
+      
+      # Accept best candidate (even if it overlapped after retries, to ensure we place it)
+      placed_locations[commune.commune_id].append((best_lat, best_lng))
+      
+      # Generate station metadata
+      commissioned_year = rng.randint(1975, 2020)
+      commissioned_on = datetime(commissioned_year, rng.randint(1, 12), rng.randint(1, 28)).date()
+      decommissioned_on = None
+      if rng.random() > 0.9:
+        year_min = commissioned_year + 5
+        year_max = max(year_min, min(current_year, datetime.now(UTC).year))
+        if year_max >= year_min:
+          year = rng.randint(year_min, year_max)
+          decommissioned_on = datetime(year, rng.randint(1, 12), rng.randint(1, 28)).date()
+
+      station_code = f"STA-{station_idx:04d}" if config.station_count >= 1000 else f"STA-{station_idx:03d}"
+      station_idx += 1
+      
+      coverage_min, coverage_max = ((3500, 8500) if commune.is_urban else (9000, 20000))
+      
+      rows.append({
+        "station_code": station_code,
+        "name": f"Compania {commune.name} {len(placed_locations[commune.commune_id]):02d}",
+        "battalion": f"Batallon {rng.randint(1, 12)}",
+        "address_line_1": faker.street_address(),
+        "address_line_2": None,
+        "city": commune.name,
+        "region": commune.region_name,
+        "postal_code": faker.postcode(),
+        "phone": faker.phone_number(),
+        "is_active": decommissioned_on is None,
+        "commissioned_on": commissioned_on.isoformat(),
+        "decommissioned_on": decommissioned_on.isoformat() if decommissioned_on else None,
+        "response_zone_code": None,
+        "location_lat": best_lat,
+        "location_lng": best_lng,
+        "location_wkt": _render_wkt(best_lat, best_lng),
         "coverage_radius_meters": rng.randint(coverage_min, coverage_max),
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        # Internal-use metadata retained until persistence
-        "incident_weight": incident_weight,
-        "is_urban": bool(commune.is_urban) if commune is not None else False,
-        "anchor_lat": anchor_lat,
-        "anchor_lng": anchor_lng,
-      }
-    )
+        "incident_weight": commune.weight,
+        "is_urban": commune.is_urban,
+        "anchor_lat": commune.lat,
+        "anchor_lng": commune.lng,
+      })
 
   return pd.DataFrame(rows)
 
@@ -750,9 +846,24 @@ def _generate_incident_rows(
 
     if config.include_units:
       unit_total = rng.randint(config.units_per_incident_min, config.units_per_incident_max)
+      # Prioritize stations in the same city, then region
+      incident_city = base_station.get("city")
+      incident_region = base_station.get("region")
+      
+      city_stations = [s["station_code"] for s in station_records if s.get("city") == incident_city]
+      region_stations = [s["station_code"] for s in station_records if s.get("region") == incident_region]
+      
+      candidates = city_stations
+      if len(candidates) < unit_total:
+        candidates = region_stations
+      
+      # Fallback to all stations if still not enough (unlikely but safe)
+      if len(candidates) < unit_total:
+        candidates = [s["station_code"] for s in station_records]
+
       assigned_station_codes = rng.sample(
-        [record["station_code"] for record in station_records],
-        k=min(unit_total, len(station_records)),
+        candidates,
+        k=min(unit_total, len(candidates)),
       )
       for station_code in assigned_station_codes:
         unit_dispatched_at = (dispatch_at or reported_at) + timedelta(minutes=rng.randint(0, 4))
