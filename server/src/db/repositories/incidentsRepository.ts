@@ -380,13 +380,13 @@ const mapWeather = (row: IncidentRowBase): IncidentWeather | null => {
 const hasIncidentFilters = (filters: IncidentListFilters): boolean =>
   Boolean(
     filters.typeCodes?.length ||
-      filters.severityCodes?.length ||
-      filters.statusCodes?.length ||
-      typeof filters.isActive === 'boolean' ||
-      filters.startDate ||
-      filters.endDate ||
-      filters.incidentNumber ||
-      filters.bounds
+    filters.severityCodes?.length ||
+    filters.statusCodes?.length ||
+    typeof filters.isActive === 'boolean' ||
+    filters.startDate ||
+    filters.endDate ||
+    filters.incidentNumber ||
+    filters.bounds
   );
 
 const applyFilterJoins = (query: Knex.QueryBuilder, filters: IncidentListFilters): void => {
@@ -478,9 +478,9 @@ const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
     weather,
     primaryStation: row.primaryStationCode
       ? {
-          stationCode: row.primaryStationCode,
-          name: row.primaryStationName ?? row.primaryStationCode,
-        }
+        stationCode: row.primaryStationCode,
+        name: row.primaryStationName ?? row.primaryStationCode,
+      }
       : null,
   };
 };
@@ -514,9 +514,9 @@ const mapIncidentRowForMap = (row: IncidentMapRow): IncidentMapListItem => {
     },
     primaryStation: row.primaryStationCode
       ? {
-          stationCode: row.primaryStationCode,
-          name: row.primaryStationName ?? row.primaryStationCode,
-        }
+        stationCode: row.primaryStationCode,
+        name: row.primaryStationName ?? row.primaryStationCode,
+      }
       : null,
   };
 };
@@ -533,7 +533,7 @@ const coerceCount = (value: string | number | null | undefined): number => {
 };
 
 export class IncidentRepository {
-  constructor(private readonly db: Knex = getDb()) {}
+  constructor(private readonly db: Knex = getDb()) { }
 
   private async findLookupId(
     executor: Knex,
@@ -792,28 +792,28 @@ export class IncidentRepository {
       .orderBy('i.id', sortDirection)
       .limit(pageSize)
       .offset((page - 1) * pageSize)) as IncidentMapRow[];
-    repoLog('listIncidentsForMap:rows', {
-      fetched: rows.length,
-      firstIncident: rows[0]?.incidentNumber ?? null,
-      lastIncident: rows[rows.length - 1]?.incidentNumber ?? null,
-    });
-
-    const data = rows.map((row) => mapIncidentRowForMap(row));
-
-    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-    const hasNext = totalPages > 0 && page < totalPages;
-    const hasPrevious = page > 1;
-
     return {
-      data,
+      data: rows.map(mapIncidentRowForMap),
       page,
       pageSize,
       total,
-      totalPages,
-      hasNext,
-      hasPrevious,
+      totalPages: Math.ceil(total / pageSize),
+      hasNext: page < Math.ceil(total / pageSize),
+      hasPrevious: page > 1,
       sortBy,
       sortDirection,
+    };
+  }
+
+  public async getSyncStatus(): Promise<{ lastModified: string; count: number }> {
+    const result = await this.db('incidents')
+      .select(this.db.raw('MAX(updated_at) as "lastModified"'))
+      .count<{ count: string; lastModified: string }>('id as count')
+      .first();
+
+    return {
+      lastModified: result?.lastModified ? new Date(result.lastModified).toISOString() : new Date(0).toISOString(),
+      count: Number(result?.count ?? 0),
     };
   }
 
@@ -909,7 +909,7 @@ export class IncidentRepository {
     const rawStream = query.stream();
     const mapper = new Transform({
       objectMode: true,
-  transform(chunk: IncidentRowBase, _encoding: unknown, callback: TransformCallback) {
+      transform(chunk: IncidentRowBase, _encoding: unknown, callback: TransformCallback) {
         try {
           const item = mapIncidentRow(chunk);
           callback(null, item);
@@ -962,7 +962,7 @@ export class IncidentRepository {
           location_geohash: null,
           metadata: trx.raw('?::jsonb', [JSON.stringify(input.metadata ?? {})]),
         })
-  .returning<{ incident_number: string }[]>('incident_number');
+        .returning<{ incident_number: string }[]>('incident_number');
 
       return row.incident_number;
     });
@@ -1620,9 +1620,9 @@ export class IncidentRepository {
     const weightColumn =
       options.decayHalfLifeDays && options.decayHalfLifeDays > 0
         ? this.db.raw(
-            'POWER(0.5, GREATEST(0, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - i.occurrence_at)) / (? * 86400))) as "weightFactor"',
-            [options.decayHalfLifeDays]
-          )
+          'POWER(0.5, GREATEST(0, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - i.occurrence_at)) / (? * 86400))) as "weightFactor"',
+          [options.decayHalfLifeDays]
+        )
         : this.db.raw('1.0 as "weightFactor"');
 
     const baseQuery = this.db('incidents as i')
@@ -1782,9 +1782,9 @@ export class IncidentRepository {
         type,
         primaryStation: row.primaryStationCode
           ? {
-              stationCode: row.primaryStationCode,
-              name: row.primaryStationName ?? row.primaryStationCode,
-            }
+            stationCode: row.primaryStationCode,
+            name: row.primaryStationName ?? row.primaryStationCode,
+          }
           : null,
       } satisfies RecentIncidentSummary;
     });

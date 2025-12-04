@@ -7,6 +7,7 @@ import type {
   IncidentMapListResponse,
   IncidentMetadata,
   IncidentSearchResult,
+  IncidentSyncStatus,
 } from '../types/api/incidents';
 import type { StationListResponse } from '../types/api/stations';
 import type {
@@ -119,6 +120,8 @@ export const apiClient = {
       payload: IncidentCreateRequest,
       options?: Omit<RequestOptions, 'method' | 'body' | 'query'>,
     ) => http.post<IncidentDetail>('/incidents', payload, options),
+    syncStatus: (options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
+      http.get<IncidentSyncStatus>('/incidents/sync-status', options),
   },
   stations: {
     list: ({ signal, isActive }: FetchStationsParams = {}) =>

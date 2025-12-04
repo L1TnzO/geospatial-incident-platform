@@ -171,3 +171,8 @@ export interface IncidentMetadata {
     maxTotalResults: number;
   };
 }
+
+export interface IncidentSyncStatus {
+  lastModified: string;
+  count: number;
+}

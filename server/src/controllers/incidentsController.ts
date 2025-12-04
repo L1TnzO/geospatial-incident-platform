@@ -13,7 +13,7 @@ export const listIncidents = async (req: Request, res: Response): Promise<void> 
   const afterSend = performance.now();
   console.log(
     `[incidentsController] listIncidents page=${options.page} size=${options.pageSize} ` +
-      `query=${(afterQuery - started).toFixed(2)}ms send=${(afterSend - afterQuery).toFixed(2)}ms total=${(afterSend - started).toFixed(2)}ms`
+    `query=${(afterQuery - started).toFixed(2)}ms send=${(afterSend - afterQuery).toFixed(2)}ms total=${(afterSend - started).toFixed(2)}ms`
   );
 };
 
@@ -28,7 +28,7 @@ export const listMapIncidents = async (req: Request, res: Response): Promise<voi
   const afterSend = performance.now();
   console.log(
     `[incidentsController] listMapIncidents page=${options.page} size=${options.pageSize} ` +
-      `query=${(afterQuery - started).toFixed(2)}ms send=${(afterSend - afterQuery).toFixed(2)}ms total=${(afterSend - started).toFixed(2)}ms`
+    `query=${(afterQuery - started).toFixed(2)}ms send=${(afterSend - afterQuery).toFixed(2)}ms total=${(afterSend - started).toFixed(2)}ms`
   );
 };
 
@@ -57,4 +57,9 @@ export const createIncident = async (req: Request, res: Response): Promise<void>
   const payload = req.body as CreateIncidentRequest;
   const detail = await incidentService.createIncident(payload);
   res.status(201).location(`/api/incidents/${detail.incidentNumber}`).json(detail);
+};
+
+export const getSyncStatus = async (req: Request, res: Response): Promise<void> => {
+  const status = await incidentService.getSyncStatus();
+  res.json(status);
 };

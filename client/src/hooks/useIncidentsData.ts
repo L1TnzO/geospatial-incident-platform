@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { get, set } from 'idb-keyval';
+import { clear, get, set } from 'idb-keyval';
 import { mapIncidentToUi } from '../services/incidents';
 import { apiClient, type FetchIncidentsParams } from '../services/api-client';
 import {
@@ -11,7 +11,7 @@ import {
   MIN_RENDER_LIMIT,
 } from '../store/incident-filters-store';
 import type { LiteIncident } from '../types';
-import type { IncidentListResponse, PaginationMeta } from '../types/api/incidents';
+import type { IncidentListResponse, IncidentSyncStatus, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
 const INCIDENT_FETCH_PAGE_SIZE = 1_000;
@@ -476,6 +476,42 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   >({
     queryKey,
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      let serverStatus: IncidentSyncStatus | undefined;
+
+      // Check sync status before loading cache
+      try {
+        serverStatus = await apiClient.incidents.syncStatus({
+          signal,
+          headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-store' }
+        });
+
+        if (serverStatus) {
+          const localStatus = await get<{ lastModified: string; count: number }>('incidents-sync-status');
+
+          console.log('[SyncCheck] Status:', { local: localStatus, server: serverStatus });
+
+          if (
+            !localStatus ||
+            localStatus.lastModified !== serverStatus.lastModified ||
+            localStatus.count !== serverStatus.count
+          ) {
+            logAggregation('queryFn:cacheInvalidation', {
+              reason: 'sync_mismatch',
+              local: localStatus,
+              server: serverStatus,
+            });
+            console.log('[SyncCheck] Mismatch detected. Clearing IDB...');
+            await clear();
+            await set('incidents-sync-status', serverStatus);
+            console.log('[SyncCheck] IDB Cleared and new status set.');
+          } else {
+            console.log('[SyncCheck] Status match. Using cache.');
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to check sync status', err);
+      }
+
       const restored = persistedResultsRef.current.get(filterSignature);
       const existing =
         queryClient.getQueryData<AggregatedIncidentResult>(queryKey) ??
@@ -493,19 +529,50 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         try {
           const idbData = await get<AggregatedIncidentResult>(`incidents-cache-${filterSignature}`);
           if (idbData) {
-            // Basic validity check - could be improved with versioning/timestamps
+            // Basic validity check
             if (Array.isArray(idbData.incidents)) {
               initialData = idbData;
               logAggregation('queryFn:loadedFromIDB', {
                 signature: filterSignature,
                 incidents: idbData.incidents.length
               });
-              // Seed the cache immediately
-              queryClient.setQueryData(queryKey, idbData);
             }
           }
         } catch (err) {
           console.warn('Failed to load from IDB', err);
+        }
+      }
+
+      // Robustness check: If we are requesting "All Data" (unfiltered), ensure cache matches server total
+      if (initialData && serverStatus && normalizedParams.isActive === false) {
+        const hasFilters =
+          normalizedParams.typeCodes?.length ||
+          normalizedParams.severityCodes?.length ||
+          normalizedParams.statusCodes?.length ||
+          normalizedParams.startDate ||
+          normalizedParams.endDate ||
+          normalizedParams.incidentNumber;
+
+        if (!hasFilters) {
+          const cacheCount = initialData.incidents.length;
+          const serverCount = serverStatus.count;
+          const isComplete = !initialData.global.hasMore;
+
+          if (cacheCount !== serverCount && isComplete) {
+            console.warn('[SyncCheck] Cache inconsistency detected for unfiltered view.', {
+              cache: cacheCount,
+              server: serverCount,
+              isComplete
+            });
+            logAggregation('queryFn:cacheInconsistency', { cacheCount, serverCount });
+            initialData = undefined; // Force re-fetch
+          } else if (initialData.totalCount !== serverCount) {
+            console.warn('[SyncCheck] Total count mismatch.', {
+              localTotal: initialData.totalCount,
+              serverTotal: serverCount
+            });
+            initialData = undefined; // Force re-fetch to get correct total
+          }
         }
       }
 
