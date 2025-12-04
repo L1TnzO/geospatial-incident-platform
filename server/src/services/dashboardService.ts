@@ -316,13 +316,7 @@ const buildCacheKey = (
     isActive: filters.isActive ?? null,
   };
 
-  return `${prefix}:${JSON.stringify(
-    { filters: normalizedFilters, extra },
-    Object.keys({
-      filters: normalizedFilters,
-      extra,
-    }).sort()
-  )}`;
+  return `${prefix}:${JSON.stringify({ filters: normalizedFilters, extra })}`;
 };
 
 const formatDateOnly = (input: Date): string => {
@@ -444,7 +438,7 @@ export class DashboardService {
   constructor(
     private readonly repository = incidentRepository,
     private readonly incidentSvc = incidentService
-  ) {}
+  ) { }
 
   public clearCaches(): void {
     this.cache.clear();
@@ -496,17 +490,33 @@ export class DashboardService {
     now: Date = new Date()
   ): Promise<Last24HoursKpi> {
     const filters = this.getFilters(query);
-    const end = now.toISOString();
-    const currentStartDate = new Date(now.getTime() - DAY_MS);
-    const previousStartDate = new Date(currentStartDate.getTime() - DAY_MS);
+
+    // Determine current window
+    let currentStart: Date;
+    let currentEnd: Date;
+
+    if (filters.startDate && filters.endDate) {
+      currentStart = new Date(filters.startDate);
+      currentEnd = new Date(filters.endDate);
+    } else {
+      // Default to last 24 hours
+      currentEnd = now;
+      currentStart = new Date(now.getTime() - DAY_MS);
+    }
 
     const currentWindow = {
-      start: currentStartDate.toISOString(),
-      end,
+      start: currentStart.toISOString(),
+      end: currentEnd.toISOString(),
     };
+
+    // Determine previous window (same duration as current window)
+    const durationMs = currentEnd.getTime() - currentStart.getTime();
+    const previousStart = new Date(currentStart.getTime() - durationMs);
+    const previousEnd = currentStart;
+
     const previousWindow = {
-      start: previousStartDate.toISOString(),
-      end: currentStartDate.toISOString(),
+      start: previousStart.toISOString(),
+      end: previousEnd.toISOString(),
     };
 
     const cacheKey = buildCacheKey('kpi:last24h', filters, {
@@ -515,9 +525,17 @@ export class DashboardService {
     });
 
     return this.withCache(cacheKey, refresh, async () => {
+      // We need to ensure the repository query uses the specific window for the count
+      // The filters object might have startDate/endDate set, which is good for the current window count
+      // But for the previous window count, we need to override those filters
+
+      // Remove startDate/endDate from filters to avoid filtering by occurrence_at via applyFilters
+      // We only want to filter by reported_at using the range argument
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
+
       const [currentCount, previousCount] = await Promise.all([
-        this.repository.countIncidentsByReportedRange(filters, currentWindow),
-        this.repository.countIncidentsByReportedRange(filters, previousWindow),
+        this.repository.countIncidentsByReportedRange(baseFilters, currentWindow),
+        this.repository.countIncidentsByReportedRange(baseFilters, previousWindow),
       ]);
 
       const delta = currentCount - previousCount;
@@ -541,14 +559,30 @@ export class DashboardService {
     now: Date = new Date()
   ): Promise<TypeDistribution> {
     const filters = this.getFilters(query);
-    const range = {
-      start: new Date(now.getTime() - 7 * DAY_MS).toISOString(),
-      end: now.toISOString(),
-    };
+
+    let range: { start: string; end: string };
+
+    if (filters.startDate && filters.endDate) {
+      range = {
+        start: filters.startDate,
+        end: filters.endDate,
+      };
+    } else {
+      // Default to last 7 days
+      range = {
+        start: new Date(now.getTime() - 7 * DAY_MS).toISOString(),
+        end: now.toISOString(),
+      };
+    }
+
     const cacheKey = buildCacheKey('incidents:byType', filters, range);
 
     return this.withCache(cacheKey, refresh, async () => {
-      const buckets = await this.repository.getIncidentCountsByType(filters, range);
+      // Ensure filters match the range if they weren't provided
+      // But remove startDate/endDate to avoid occurrence_at filtering
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
+
+      const buckets = await this.repository.getIncidentCountsByType(baseFilters, range);
       const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
 
       const normalizedBuckets: TypeDistributionBucket[] = buckets.map((bucket) => ({
@@ -569,30 +603,48 @@ export class DashboardService {
     now: Date = new Date()
   ): Promise<DailyTrend> {
     const filters = this.getFilters(query);
-    const endDate = new Date(now);
-    const normalizedEnd = new Date(
-      Date.UTC(
-        endDate.getUTCFullYear(),
-        endDate.getUTCMonth(),
-        endDate.getUTCDate(),
-        23,
-        59,
-        59,
-        999
-      )
-    );
-    const startDate = new Date(normalizedEnd.getTime() - 29 * DAY_MS);
-    startDate.setUTCHours(0, 0, 0, 0);
 
-    const range = {
-      start: startDate.toISOString(),
-      end: normalizedEnd.toISOString(),
-    };
+    let range: { start: string; end: string };
+    let startDate: Date;
+    let endDate: Date;
+
+    if (filters.startDate && filters.endDate) {
+      startDate = new Date(filters.startDate);
+      startDate.setUTCHours(0, 0, 0, 0); // Align to UTC midnight to match DB bucketing
+      endDate = new Date(filters.endDate);
+      range = {
+        start: filters.startDate,
+        end: filters.endDate,
+      };
+    } else {
+      // Default to last 30 days
+      endDate = new Date(now);
+      const normalizedEnd = new Date(
+        Date.UTC(
+          endDate.getUTCFullYear(),
+          endDate.getUTCMonth(),
+          endDate.getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+      startDate = new Date(normalizedEnd.getTime() - 29 * DAY_MS);
+      startDate.setUTCHours(0, 0, 0, 0);
+
+      range = {
+        start: startDate.toISOString(),
+        end: normalizedEnd.toISOString(),
+      };
+    }
 
     const cacheKey = buildCacheKey('incidents:dailyTrend', filters, range);
 
     return this.withCache(cacheKey, refresh, async () => {
-      const buckets = await this.repository.getIncidentCountsByReportedDay(filters, range);
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
+
+      const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
       const countsByDate = new Map<string, number>();
       for (const bucket of buckets) {
         const dateOnly = formatDateOnly(new Date(bucket.date));
@@ -600,8 +652,14 @@ export class DashboardService {
       }
 
       const points: IncidentDailyCount[] = [];
-      for (let i = 0; i < 30; i += 1) {
+      const dayCount = Math.ceil((new Date(range.end).getTime() - new Date(range.start).getTime()) / DAY_MS);
+      // Limit points to prevent excessive loops if range is huge, though DB query handles filtering
+      const safeDayCount = Math.min(dayCount, 365);
+
+      for (let i = 0; i <= safeDayCount; i += 1) {
         const current = new Date(startDate.getTime() + i * DAY_MS);
+        if (current > new Date(range.end)) break;
+
         const dateKey = formatDateOnly(current);
         points.push({
           date: new Date(
@@ -619,10 +677,29 @@ export class DashboardService {
         });
       }
 
-      const recentSeven = points.slice(-7);
-      const previousSeven = points.slice(-14, -7);
-      const currentTotal = recentSeven.reduce((sum, point) => sum + point.count, 0);
-      const previousTotal = previousSeven.reduce((sum, point) => sum + point.count, 0);
+      // Trend calculation logic (current range vs previous range of same duration)
+      const currentTotal = points.reduce((sum, point) => sum + point.count, 0);
+
+      // We need to fetch the previous window's data to calculate the trend correctly
+      // Since we don't have the previous points here, we'll need to query for them
+      // OR, simpler: we can just use the previous total if we want to be accurate, 
+      // but getDailyTrend is currently designed to return points for the chart.
+
+      // Actually, to be consistent with KPI, we should probably fetch the previous window count.
+      // But for now, let's stick to the points we have if possible, OR make a second query.
+      // Making a second query is safer for accuracy.
+
+      const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
+      const previousRange = {
+        start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
+        end: range.start,
+      };
+
+      const { startDate: _sd2, endDate: _ed2, ...baseFilters2 } = filters;
+      // We need the total count for the previous range. 
+      // We can use countIncidentsByReportedRange which is efficient.
+      const previousTotal = await this.repository.countIncidentsByReportedRange(baseFilters2, previousRange);
+
       const change = currentTotal - previousTotal;
       const percentageChange =
         previousTotal === 0 ? null : clampPercentage((change / previousTotal) * 100);

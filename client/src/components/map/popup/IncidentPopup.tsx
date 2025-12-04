@@ -1,11 +1,11 @@
-import type { Incident } from '../../../types';
+import type { LiteIncident } from '../../../types';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { resolveSeverityColor } from '../utils';
 
 interface IncidentPopupProps {
-  incident: Incident;
-  onViewDetails: (incident: Incident) => void;
+  incident: LiteIncident;
+  onViewDetails: (incident: LiteIncident) => void;
 }
 
 const formatDateTime = (value?: string) => {

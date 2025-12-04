@@ -94,6 +94,7 @@ export interface IncidentListItem {
     stationCode: string;
     name: string;
   } | null;
+  deletedAt?: string | null;
 }
 
 export interface IncidentMapListItem {

@@ -1,15 +1,14 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useIncidentFiltersStore } from '../../store/incident-filters-store';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
-import { useStrategicTrends } from '../../hooks/useStrategicTrends';
 import { useStrategicHotspots } from '../../hooks/useStrategicHotspots';
 import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
-import { useIncidentsQuery } from '../../hooks/useIncidentsQuery';
+import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
+import { useIncidentsContext } from '../../providers/incidents-provider';
 import { useStationsData } from '../../hooks/useStationsData';
-import { mapIncidentToUi } from '../../services/incidents';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
@@ -18,28 +17,11 @@ import { Button } from '../ui/button';
 import { RefreshCw } from 'lucide-react';
 import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
+import { useDashboard } from '../../providers/dashboard-provider';
 
 export function StrategicLayout() {
-  const filterState = useIncidentFiltersStore();
+  const { timeRange, setTimeRange, filters, comparisonLabel } = useDashboard();
 
-  // Normalize dates to YYYY-MM-DD format (strip time if present)
-  const normalizeDate = (date: string | undefined): string | undefined => {
-    if (!date) return undefined;
-    // If the date contains 'T', split it and take only the date part
-    return date.includes('T') ? date.split('T')[0] : date;
-  };
-
-  // Only include isActive if it's explicitly true (backend might not support false)
-  const filters = {
-    typeCodes: filterState.typeCodes,
-    severityCodes: filterState.severityCodes,
-    statusCodes: filterState.statusCodes,
-    startDate: normalizeDate(filterState.startDate),
-    endDate: normalizeDate(filterState.endDate),
-    ...(filterState.isActive === true && { isActive: true }),
-    incidentNumber: filterState.incidentNumber,
-  };
-  const setFilters = filterState.setFilters;
   const {
     showIncidentsStrategic: showIncidents,
     showHotspotsStrategic: showHotspots,
@@ -54,7 +36,9 @@ export function StrategicLayout() {
   const [highlightedZone, setHighlightedZone] = useState<PriorityScoreGroup | null>(null);
 
   // Strategic data hooks
-  const trendsQuery = useStrategicTrends({ months: 12, ...filters });
+  // Use daily trend for all dashboard time ranges (24h, 7d, 30d)
+  const dailyTrendQuery = useStrategicDailyTrend(filters);
+
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
   const responseTimesQuery = useStrategicResponseTimes({ groupBy: 'station', ...filters });
@@ -65,41 +49,37 @@ export function StrategicLayout() {
   });
 
   // Map data
-  const incidentsQuery = useIncidentsQuery({
-    page: 1,
-    pageSize: 100, // Backend max is 100
-    ...filters,
-  });
+  // Use global filters for the map to show "truth" (same as main map)
+  const incidentsData = useIncidentsContext();
   const stationsQuery = useStationsData({ isActive: true });
 
-  const incidents: Incident[] = useMemo(() => {
-    if (!incidentsQuery.data?.data) return [];
-    return incidentsQuery.data.data
-      .map(mapIncidentToUi)
-      .filter((incident): incident is Incident => incident !== null);
-  }, [incidentsQuery.data]);
-
+  const incidents = incidentsData.incidents;
   const fireStations = stationsQuery.stations || [];
 
   const mapCounts = useMemo(
     () => ({
-      rendered: incidents.length,
-      total: incidentsQuery.data?.pagination.total || 0,
-      remainder: Math.max(0, (incidentsQuery.data?.pagination.total || 0) - incidents.length),
-      limit: incidents.length,
+      rendered: incidentsData.renderedCount,
+      total: incidentsData.totalCount,
+      remainder: incidentsData.remainder,
+      limit: incidentsData.targetLimit,
     }),
-    [incidents.length, incidentsQuery.data?.pagination.total],
+    [
+      incidentsData.renderedCount,
+      incidentsData.totalCount,
+      incidentsData.remainder,
+      incidentsData.targetLimit,
+    ],
   );
 
   // Handle trend period click - update date filters
+  // Note: DashboardProvider currently controls date ranges based on timeRange.
+  // Manual date selection would require extending DashboardProvider to support 'custom' range.
   const handlePeriodClick = useCallback(
-    (_month: string, startDate: string, endDate: string) => {
-      setFilters({
-        startDate: startDate.split('T')[0],
-        endDate: endDate.split('T')[0],
-      });
+    (_period: string, _startDate: string, _endDate: string) => {
+      console.log('Period clicked:', _period);
+      // setFilters({ startDate, endDate }); // Not supported by DashboardProvider yet
     },
-    [setFilters],
+    [],
   );
 
   // Handle "View on Map" from priority zones
@@ -141,12 +121,12 @@ export function StrategicLayout() {
 
   // Refresh all strategic data
   const handleRefreshAll = useCallback(() => {
-    trendsQuery.refresh(true);
+    dailyTrendQuery.refresh(true);
     hotspotsQuery.refresh(true);
     coverageQuery.refresh(true);
     responseTimesQuery.refresh(true);
     priorityZonesQuery.refresh(true);
-  }, [trendsQuery, hotspotsQuery, coverageQuery, responseTimesQuery, priorityZonesQuery]);
+  }, [dailyTrendQuery, hotspotsQuery, coverageQuery, responseTimesQuery, priorityZonesQuery]);
 
   return (
     <div className="p-6">
@@ -159,21 +139,36 @@ export function StrategicLayout() {
               Long-range planning insights and geographic analysis
             </p>
           </div>
-          <Button variant="outline" onClick={handleRefreshAll}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh All
-          </Button>
+          <div className="flex items-center gap-4">
+            <Select value={timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select time range" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24h">Last 24 Hours</SelectItem>
+                <SelectItem value="7d">Last 7 Days</SelectItem>
+                <SelectItem value="30d">Last 30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={handleRefreshAll}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh All
+            </Button>
+          </div>
         </div>
 
         {/* Trend Analysis - Full Width */}
         <div>
           <StrategicTrendsChart
-            data={trendsQuery.data || null}
-            isLoading={trendsQuery.isLoading}
-            isError={trendsQuery.isError}
-            error={trendsQuery.error}
-            onRefresh={() => trendsQuery.refresh(true)}
+            data={dailyTrendQuery.data || null}
+            trendType="daily"
+            isLoading={dailyTrendQuery.isLoading}
+            isError={dailyTrendQuery.isError}
+            error={dailyTrendQuery.error}
+            onRefresh={() => dailyTrendQuery.refresh(true)}
             onPeriodClick={handlePeriodClick}
+            comparisonLabel={comparisonLabel}
+            timeRange={timeRange}
           />
         </div>
 
@@ -202,11 +197,11 @@ export function StrategicLayout() {
             incidents={incidents}
             fireStations={fireStations}
             onIncidentClick={handleIncidentClick}
-            isLoading={incidentsQuery.isLoading}
-            isFetching={incidentsQuery.isFetching}
-            isError={incidentsQuery.isError}
-            error={incidentsQuery.error?.message}
-            onRetry={incidentsQuery.refetch}
+            isLoading={incidentsData.isLoading}
+            isFetching={incidentsData.isFetching}
+            isError={incidentsData.isError}
+            error={incidentsData.error}
+            onRetry={incidentsData.refresh}
             counts={mapCounts}
             stationsLoading={stationsQuery.isLoading}
             stationsError={stationsQuery.error}

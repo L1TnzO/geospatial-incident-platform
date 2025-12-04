@@ -138,7 +138,8 @@ WITH parsed_incidents AS (
     responder_injuries,
     estimated_damage_amount,
     is_active,
-    metadata
+    metadata,
+    deleted_at
   )
   SELECT
     pi.incident_number,
@@ -167,7 +168,8 @@ WITH parsed_incidents AS (
     COALESCE(pi.responder_injuries, 0) AS responder_injuries,
     pi.estimated_damage_amount,
     pi.is_active,
-    COALESCE(pi.metadata, '{}'::JSONB)
+    COALESCE(pi.metadata, '{}'::JSONB),
+    NULL
   FROM parsed_incidents pi
   LEFT JOIN incident_types it ON it.type_code = pi.type_code
   LEFT JOIN incident_severities sev ON sev.severity_code = pi.severity_code

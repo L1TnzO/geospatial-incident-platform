@@ -1,4 +1,3 @@
-import { RefreshCw, Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -8,8 +7,8 @@ import type { UseDashboardLast24HoursKpiResult } from '../../hooks/useDashboardL
 
 interface DashboardKPIRowProps {
   kpiQuery: UseDashboardLast24HoursKpiResult;
-  onExport: () => void;
-  isExporting: boolean;
+  timeRangeLabel: string;
+  comparisonLabel: string;
 }
 
 const countFormatter = new Intl.NumberFormat(undefined, {
@@ -65,7 +64,11 @@ const formatWindow = (start: string, end: string): string => {
   return `${startDate.toLocaleString()} – ${endDate.toLocaleString()}`;
 };
 
-export function DashboardKPIRow({ kpiQuery, onExport, isExporting }: DashboardKPIRowProps) {
+export function DashboardKPIRow({
+  kpiQuery,
+  timeRangeLabel,
+  comparisonLabel,
+}: DashboardKPIRowProps) {
   const { data, isLoading, isError, error, refresh } = kpiQuery;
 
   const handleRefresh = async () => {
@@ -128,24 +131,14 @@ export function DashboardKPIRow({ kpiQuery, onExport, isExporting }: DashboardKP
         <div className="space-y-1">
           <h2 className="text-2xl font-bold tracking-tight">Key Performance Indicators</h2>
           <p className="text-sm text-muted-foreground">
-            24-hour incident snapshot with trend comparison
+            {timeRangeLabel} incident snapshot with trend comparison
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button variant="default" size="sm" onClick={onExport} disabled={isExporting}>
-            <Download className="mr-2 h-4 w-4" />
-            {isExporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Incidents (Last 24 Hours)</CardTitle>
+          <CardTitle>Incidents ({timeRangeLabel})</CardTitle>
           <CardDescription>{formatWindow(data.window.start, data.window.end)}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -154,14 +147,14 @@ export function DashboardKPIRow({ kpiQuery, onExport, isExporting }: DashboardKP
           <div className="flex items-center gap-2">
             <Badge variant={trendVariant} className="flex items-center gap-1">
               {getTrendIcon(direction)}
-              <span>{deltaText}</span>
+              <span>{percentageText}</span>
             </Badge>
-            <span className="text-sm font-medium">{percentageText}</span>
-            <span className="text-sm text-muted-foreground">vs previous 24h</span>
+            <span className="text-sm font-medium">{deltaText}</span>
+            <span className="text-sm text-muted-foreground">{comparisonLabel}</span>
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Previous window: {countFormatter.format(data.previousCount)} incidents
+            Previous period: {countFormatter.format(data.previousCount)} incidents
             <br />
             {formatWindow(data.previousWindow.start, data.previousWindow.end)}
           </p>

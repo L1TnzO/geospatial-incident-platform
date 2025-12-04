@@ -3,6 +3,7 @@ import {
   type GeoJsonPolygon,
   type IncidentLookupValue,
   type StationCoverageBuffer,
+  type IncidentDailyCount,
 } from '../db';
 import type { Feature, Polygon } from 'geojson';
 import { incidentService, type IncidentFilterOptions } from './incidentsService';
@@ -13,6 +14,7 @@ const DEFAULT_MONTH_WINDOW = 12;
 const MAX_MONTH_WINDOW = 36;
 const DEFAULT_QUARTER_WINDOW = 8;
 const MAX_QUARTER_WINDOW = 12;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const HOTSPOT_DEFAULT_RESOLUTION = 4;
 const HOTSPOT_MIN_RESOLUTION = 1;
 const HOTSPOT_MAX_RESOLUTION = 8;
@@ -99,6 +101,17 @@ export interface QuarterlyTrendPoint {
   previousYearCount: number | null;
   yearOverYearDelta: number | null;
   yearOverYearPercentage: number | null;
+}
+
+export interface DailyTrend {
+  points: IncidentDailyCount[];
+  trend: {
+    currentTotal: number;
+    previousTotal: number;
+    change: number;
+    percentageChange: number | null;
+    direction: 'up' | 'down' | 'flat';
+  };
 }
 
 export interface QuarterlyTrendResponse {
@@ -420,6 +433,13 @@ const parseWindowParam = (
   return Math.trunc(parsed);
 };
 
+const formatDateOnly = (input: Date): string => {
+  const year = input.getUTCFullYear();
+  const month = String(input.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(input.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const parseResolutionParam = (value: QueryValue): number => {
   if (value === undefined) {
     return HOTSPOT_DEFAULT_RESOLUTION;
@@ -619,7 +639,7 @@ export class StrategicAnalyticsService {
   constructor(
     private readonly repository = incidentRepository,
     private readonly incidentSvc = incidentService
-  ) {}
+  ) { }
 
   public clearCaches(): void {
     this.cache.clear();
@@ -784,6 +804,112 @@ export class StrategicAnalyticsService {
     });
   }
 
+  public async getDailyTrend(
+    query: Record<string, QueryValue>,
+    now: Date = new Date()
+  ): Promise<DailyTrend> {
+    const filters = this.getFilters(query);
+
+    let range: { start: string; end: string };
+    let startDate: Date;
+    let endDate: Date;
+
+    if (filters.startDate && filters.endDate) {
+      startDate = new Date(filters.startDate);
+      startDate.setUTCHours(0, 0, 0, 0); // Align to UTC midnight to match DB bucketing
+      endDate = new Date(filters.endDate);
+      range = {
+        start: filters.startDate,
+        end: filters.endDate,
+      };
+    } else {
+      // Default to last 30 days
+      endDate = new Date(now);
+      const normalizedEnd = new Date(
+        Date.UTC(
+          endDate.getUTCFullYear(),
+          endDate.getUTCMonth(),
+          endDate.getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+      startDate = new Date(normalizedEnd.getTime() - 29 * DAY_MS);
+      startDate.setUTCHours(0, 0, 0, 0);
+
+      range = {
+        start: startDate.toISOString(),
+        end: normalizedEnd.toISOString(),
+      };
+    }
+
+    const cacheKey = buildCacheKey('strategic:dailyTrend', filters, range);
+
+    return this.withCache(cacheKey, async () => {
+      const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
+
+      const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
+      const countsByDate = new Map<string, number>();
+      for (const bucket of buckets) {
+        const dateOnly = formatDateOnly(new Date(bucket.date));
+        countsByDate.set(dateOnly, bucket.count);
+      }
+
+      const points: IncidentDailyCount[] = [];
+      const dayCount = Math.ceil((new Date(range.end).getTime() - new Date(range.start).getTime()) / DAY_MS);
+      const safeDayCount = Math.min(dayCount, 365);
+
+      for (let i = 0; i <= safeDayCount; i += 1) {
+        const current = new Date(startDate.getTime() + i * DAY_MS);
+        if (current > new Date(range.end)) break;
+
+        const dateKey = formatDateOnly(current);
+        points.push({
+          date: new Date(
+            Date.UTC(
+              current.getUTCFullYear(),
+              current.getUTCMonth(),
+              current.getUTCDate(),
+              0,
+              0,
+              0,
+              0
+            )
+          ).toISOString(),
+          count: countsByDate.get(dateKey) ?? 0,
+        });
+      }
+
+      const currentTotal = points.reduce((sum, point) => sum + point.count, 0);
+      const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
+      const previousRange = {
+        start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
+        end: range.start,
+      };
+
+      const { startDate: _sd2, endDate: _ed2, ...baseFilters2 } = filters;
+      const previousTotal = await this.repository.countIncidentsByReportedRange(baseFilters2, previousRange);
+
+      const change = currentTotal - previousTotal;
+      const percentageChange =
+        previousTotal === 0 ? null : clampPercentage((change / previousTotal) * 100);
+      const direction: 'up' | 'down' | 'flat' = change === 0 ? 'flat' : change > 0 ? 'up' : 'down';
+
+      return {
+        points,
+        trend: {
+          currentTotal,
+          previousTotal,
+          change,
+          percentageChange,
+          direction,
+        },
+      } satisfies DailyTrend;
+    });
+  }
+
   public async getQuarterlyTrends(
     query: Record<string, QueryValue>,
     now: Date = new Date()
@@ -901,8 +1027,8 @@ export class StrategicAnalyticsService {
       const yearOverYearPercentage =
         current && yearOverYearReference && yearOverYearReference.count !== 0
           ? clampPercentage(
-              ((current.count - yearOverYearReference.count) / yearOverYearReference.count) * 100
-            )
+            ((current.count - yearOverYearReference.count) / yearOverYearReference.count) * 100
+          )
           : null;
 
       return {

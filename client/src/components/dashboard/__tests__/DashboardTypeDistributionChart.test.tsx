@@ -150,24 +150,5 @@ describe('DashboardTypeDistributionChart', () => {
     expect(screen.getByText('35.0%')).toBeInTheDocument();
   });
 
-  it('calls refresh when refresh button clicked', async () => {
-    const user = userEvent.setup();
-    const mockQuery: UseDashboardTypeDistributionResult = {
-      data: mockTypeData,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refresh: mockRefresh,
-      lastUpdated: Date.now(),
-    } as unknown as UseDashboardTypeDistributionResult;
 
-    render(<DashboardTypeDistributionChart distributionQuery={mockQuery} />, {
-      wrapper: createWrapper(),
-    });
-
-    const refreshButton = screen.getByRole('button', { name: /refresh/i });
-    await user.click(refreshButton);
-
-    expect(mockRefresh).toHaveBeenCalledWith(true);
-  });
 });

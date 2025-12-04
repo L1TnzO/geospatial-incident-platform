@@ -4,7 +4,7 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Loader2, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, ExternalLink, X } from 'lucide-react';
 import { useIncidentDetailStore } from '../store/incident-detail-store';
 import { useIncidentDetail } from '../hooks/useIncidentDetail';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
@@ -117,48 +117,65 @@ export function IncidentDetailModal() {
         }
       }}
     >
-      <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-3">
-            <DialogTitle className="flex flex-col gap-1">
-              <span className="text-2xl font-bold">{incident?.id ?? incidentId ?? 'Incident'}</span>
-              <span className="text-sm font-normal text-muted-foreground">
-                {incident?.type || 'Incident Details'}
-              </span>
-            </DialogTitle>
-            {(isInitialLoading || isRefetching) && (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            )}
-          </div>
-        </DialogHeader>
-
-        {isInitialLoading && (
-          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <p>Loading incident detail…</p>
-          </div>
-        )}
-
-        {!isInitialLoading && detailError && !incident?.metadata && (
-          <div className="flex flex-col items-center gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-6 text-center">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
-            <div>
-              <p className="font-medium text-destructive">Failed to load incident detail</p>
-              <p className="text-sm text-muted-foreground">{detailError}</p>
+      <DialogContent
+        className="flex flex-col p-0 gap-0 rounded-xl [&>[data-slot=dialog-close]]:hidden overflow-hidden"
+        style={{
+          width: '85vw',
+          maxWidth: '600px',
+          maxHeight: '70vh',
+          zIndex: 100000,
+        }}
+      >
+        <div className="p-6 pb-2 shrink-0">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle className="flex flex-col gap-1 text-left">
+                <span className="text-xl md:text-2xl font-bold break-words">{incident?.id ?? incidentId ?? 'Incident'}</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {incident?.type || 'Incident Details'}
+                </span>
+              </DialogTitle>
+              <div className="flex items-center gap-2 shrink-0">
+                {(isInitialLoading || isRefetching) && (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                )}
+                <Button variant="ghost" size="icon" onClick={closeIncident} className="-mr-2">
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </Button>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => detailQuery.refetch()}
-            >
-              <RefreshCw className="h-4 w-4" /> Retry
-            </Button>
-          </div>
-        )}
+          </DialogHeader>
+        </div>
 
-        {incident && !isInitialLoading && (
-          <div className="space-y-6">
+        <div className="overflow-y-auto p-6 pt-2 flex-1 w-full">
+          {isInitialLoading && (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <p>Loading incident detail…</p>
+            </div>
+          )}
+
+          {!isInitialLoading && detailError && !incident?.metadata && (
+            <div className="flex flex-col items-center gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-6 text-center">
+              <AlertTriangle className="h-6 w-6 text-destructive" />
+              <div>
+                <p className="font-medium text-destructive">Failed to load incident detail</p>
+                <p className="text-sm text-muted-foreground">{detailError}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => detailQuery.refetch()}
+              >
+                <RefreshCw className="h-4 w-4" /> Retry
+              </Button>
+            </div>
+          )}
+
+          {incident && !isInitialLoading && (
+            <div className="space-y-6">
             {/* Status and Severity - Prominent at top */}
             <div className="flex items-center gap-4">
               <Badge variant="outline" className="text-base py-1 px-3">
@@ -272,14 +289,21 @@ export function IncidentDetailModal() {
             )}
           </div>
         )}
+        </div>
+        
+        <div className="p-6 pt-4 border-t shrink-0">
+          <Button className="w-full md:w-auto md:ml-auto" onClick={closeIncident}>
+            Close
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
 const IncidentUnitsTable = ({ units }: { units: IncidentUnitSummary[] }) => (
-  <div className="rounded-lg border overflow-hidden">
-    <div className="overflow-x-auto">
+  <div className="rounded-lg border overflow-hidden max-w-full">
+    <div className="overflow-x-auto w-full">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
@@ -314,8 +338,8 @@ const IncidentUnitsTable = ({ units }: { units: IncidentUnitSummary[] }) => (
 );
 
 const IncidentAssetsTable = ({ assets }: { assets: IncidentAssetSummary[] }) => (
-  <div className="rounded-lg border overflow-hidden">
-    <div className="overflow-x-auto">
+  <div className="rounded-lg border overflow-hidden max-w-full">
+    <div className="overflow-x-auto w-full">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">

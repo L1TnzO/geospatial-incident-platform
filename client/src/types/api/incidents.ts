@@ -57,6 +57,7 @@ export interface IncidentListItem {
     stationCode: string;
     name: string;
   } | null;
+  deletedAt?: string | null;
 }
 
 export interface IncidentListResponse {
@@ -170,4 +171,9 @@ export interface IncidentMetadata {
     maxPageSize: number;
     maxTotalResults: number;
   };
+}
+
+export interface IncidentSyncStatus {
+  lastModified: string;
+  count: number;
 }

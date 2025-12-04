@@ -16,6 +16,21 @@ export const getMonthlyTrend = async (
   }
 };
 
+export const getDailyTrend = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await strategicService.getDailyTrend(
+      req.query as Record<string, string | string[] | undefined>
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getQuarterlyTrends = async (
   req: Request,
   res: Response,

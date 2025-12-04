@@ -1,6 +1,7 @@
 export interface Incident {
   id: string;
   type: string;
+  typeCode?: string;
   severity: string;
   severityCode?: string;
   severityColor?: string;
@@ -16,6 +17,7 @@ export interface Incident {
   description: string;
   responseTime?: number; // in minutes
   status: string;
+  statusCode?: string;
   zoneId?: string;
   isActive: boolean;
   narrative?: string | null;
@@ -23,6 +25,29 @@ export interface Incident {
   units?: IncidentUnitSummary[];
   assets?: IncidentAssetSummary[];
   notes?: IncidentNoteSummary[];
+}
+
+export interface LiteIncident {
+  id: string;
+  type: string;
+  typeCode?: string;
+  severity: string;
+  severityCode?: string;
+  severityColor?: string;
+  date: string;
+  timestamp: string;
+  reportedAt?: string;
+  occurrenceAt?: string;
+  location: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  status: string;
+  statusCode?: string;
+  isActive: boolean;
+  description: string;
+  // Excluded: narrative, metadata, units, assets, notes, history
 }
 
 export interface FireStation {

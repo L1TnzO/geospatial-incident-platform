@@ -517,7 +517,7 @@ const buildPaginationMeta = <T>(
   const hasPrevious = result.page > 1;
 
   return {
-  data: result.data,
+    data: result.data,
     pagination: {
       page: result.page,
       pageSize: result.pageSize,
@@ -538,12 +538,14 @@ interface IncidentRepositoryLike {
   getIncidentMetadata(): Promise<Omit<IncidentMetadata, 'limits'>>;
   findIncidentSummary(incidentNumber: string): Promise<IncidentSearchResult | null>;
   createIncident(input: CreateIncidentInput): Promise<IncidentDetail>;
+  getSyncStatus(): Promise<{ lastModified: string; count: number }>;
+  getChangesSince(since: string): Promise<IncidentListItem[]>;
 }
 
 export class IncidentService {
   private metadataCache: { expiresAt: number; value: IncidentMetadata } | null = null;
 
-  constructor(private readonly repository: IncidentRepositoryLike = incidentRepository) {}
+  constructor(private readonly repository: IncidentRepositoryLike = incidentRepository) { }
 
   public clearCaches(): void {
     this.metadataCache = null;
@@ -604,7 +606,7 @@ export class IncidentService {
 
     const resolvedPage = baseFilters.incidentNumber ? DEFAULT_PAGE : page;
 
-  const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
+    const maxPage = Math.ceil(MAX_TOTAL_RESULTS / pageSize);
     if (resolvedPage > maxPage) {
       throw HttpError.badRequest(
         `The combination of page=${resolvedPage} and pageSize=${pageSize} exceeds the maximum supported range of ${MAX_TOTAL_RESULTS} records.`
@@ -700,7 +702,7 @@ export class IncidentService {
     const metadata: IncidentMetadata = {
       ...base,
       limits: {
-  maxPageSize: INCIDENT_MAX_PAGE_SIZE,
+        maxPageSize: INCIDENT_MAX_PAGE_SIZE,
         maxTotalResults: MAX_TOTAL_RESULTS,
       },
     };
@@ -711,6 +713,14 @@ export class IncidentService {
     };
 
     return metadata;
+  }
+
+  public async getSyncStatus(): Promise<{ lastModified: string; count: number }> {
+    return this.repository.getSyncStatus();
+  }
+
+  public async getDelta(since: string): Promise<IncidentListItem[]> {
+    return this.repository.getChangesSince(since);
   }
 
   public async createIncident(payload: CreateIncidentRequest = {}): Promise<IncidentDetail> {

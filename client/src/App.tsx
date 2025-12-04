@@ -18,9 +18,10 @@ import { AuthProvider } from './providers/auth-provider';
 // import { useAuth } from './hooks/useAuth';
 import { useIncidentFiltersStore } from './store/incident-filters-store';
 // import { useMapStore } from './store/map-store';
-import { useIncidentsData, useIncidentsTableData } from './hooks/useIncidentsData';
+import { useIncidentsTableData } from './hooks/useIncidentsData';
 import { useIncidentDetailStore } from './store/incident-detail-store';
 import { useStationsData } from './hooks/useStationsData';
+import { IncidentsProvider, useIncidentsContext } from './providers/incidents-provider';
 import type { Incident } from './types';
 import type { IncidentSortField } from './types/api/incidents';
 import { isMobile } from './utils/platform';
@@ -28,7 +29,7 @@ import { isMobile } from './utils/platform';
 function AppRoutes() {
   // TEMPORARILY BYPASS LOGIN FOR DEBUGGING
   const user = { username: 'admin', role: 'admin' as const };
-  const logout = () => {};
+  const logout = () => { };
 
   const mobile = isMobile();
 
@@ -71,10 +72,7 @@ function AppRoutes() {
 
   // const viewportCenter = useMapStore((state) => state.center);
 
-  const incidentsData = useIncidentsData({
-    ...fetchParams,
-    // priorityCenter: viewportCenter, // Disabled to prevent points from disappearing on move
-  });
+  const incidentsData = useIncidentsContext();
   const incidentsTableData = useIncidentsTableData(fetchParams);
 
   const stationsData = useStationsData({ isActive: filters.isActive ?? true });
@@ -204,7 +202,7 @@ function AppRoutes() {
               !mobile ? (
                 <div className="flex-1 flex overflow-hidden relative">
                   <CollapsibleSidebar />
-                  <main className="flex-1 relative z-0">
+                  <main className="flex-1 flex flex-col relative z-0 overflow-hidden">
                     <DashboardPage />
                   </main>
                 </div>
@@ -257,7 +255,9 @@ export default function App() {
   return (
     <QueryProvider>
       <AuthProvider>
-        <AppRoutes />
+        <IncidentsProvider>
+          <AppRoutes />
+        </IncidentsProvider>
       </AuthProvider>
     </QueryProvider>
   );

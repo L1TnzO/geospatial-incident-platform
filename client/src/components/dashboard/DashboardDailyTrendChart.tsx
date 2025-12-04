@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -8,6 +8,9 @@ import type { UseDashboardDailyTrendResult } from '../../hooks/useDashboardDaily
 
 interface DashboardDailyTrendChartProps {
   trendQuery: UseDashboardDailyTrendResult;
+  timeRangeLabel: string;
+  comparisonLabel: string;
+  timeRange: '24h' | '7d' | '30d';
 }
 
 const formatDate = (isoDate: string) =>
@@ -23,8 +26,48 @@ const formatLongDate = (isoDate: string) =>
     day: 'numeric',
   });
 
-export function DashboardDailyTrendChart({ trendQuery }: DashboardDailyTrendChartProps) {
+export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel, timeRange }: DashboardDailyTrendChartProps) {
   const { data, isLoading, isError, error, refresh, lastUpdated } = trendQuery;
+
+  const formatWindow = (start: Date, end: Date): string => {
+    return `${start.toLocaleString()} – ${end.toLocaleString()}`;
+  };
+
+  const calculateWindows = () => {
+    const end = new Date();
+    const start = new Date();
+    const previousEnd = new Date();
+    const previousStart = new Date();
+
+    switch (timeRange) {
+      case '24h':
+        start.setHours(end.getHours() - 24);
+        previousEnd.setHours(end.getHours() - 24);
+        previousStart.setHours(end.getHours() - 48);
+        break;
+      case '7d':
+        start.setDate(end.getDate() - 7);
+        previousEnd.setDate(end.getDate() - 7);
+        previousStart.setDate(end.getDate() - 14);
+        break;
+      case '30d':
+        start.setDate(end.getDate() - 30);
+        previousEnd.setDate(end.getDate() - 30);
+        previousStart.setDate(end.getDate() - 60);
+        break;
+      default:
+        start.setHours(end.getHours() - 24);
+        previousEnd.setHours(end.getHours() - 24);
+        previousStart.setHours(end.getHours() - 48);
+    }
+
+    return {
+      currentWindow: { start, end },
+      previousWindow: { start: previousStart, end: previousEnd },
+    };
+  };
+
+  const { currentWindow, previousWindow } = calculateWindows();
 
   const handleRefresh = async () => {
     await refresh(true);
@@ -82,12 +125,6 @@ export function DashboardDailyTrendChart({ trendQuery }: DashboardDailyTrendChar
             <AlertDescription>Trend data will appear once incidents stream in.</AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </CardFooter>
       </Card>
     );
   }
@@ -145,12 +182,12 @@ export function DashboardDailyTrendChart({ trendQuery }: DashboardDailyTrendChar
           <div className="space-y-1">
             <CardTitle>Daily Incident Trend</CardTitle>
             <CardDescription>
-              Last 30 days · {trend.currentTotal.toLocaleString()} incidents (last 7 days)
+              {timeRangeLabel} · {trend.currentTotal.toLocaleString()} incidents
             </CardDescription>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatWindow(currentWindow.start, currentWindow.end)}
+            </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -246,32 +283,41 @@ export function DashboardDailyTrendChart({ trendQuery }: DashboardDailyTrendChar
         </div>
 
         {/* Trend Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">7-day Change</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold">
-                {trend.change >= 0 ? '+' : ''}
-                {trend.change.toLocaleString()}
-              </span>
-              <Badge variant={trendVariant}>{percentageDisplay}</Badge>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Current 7-day Total</p>
-            <p className="text-2xl font-bold">{trend.currentTotal.toLocaleString()}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Previous 7-day Total</p>
-            <p className="text-2xl font-bold">{trend.previousTotal.toLocaleString()}</p>
-          </div>
-        </div>
+        <div className="space-y-4">
+          <div className="text-4xl font-bold">{trend.currentTotal.toLocaleString()}</div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Trend Direction:</span>
-          <Badge variant={trendVariant} className="capitalize">
-            {trend.direction === 'up' ? 'Upward' : trend.direction === 'down' ? 'Downward' : 'Flat'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={trendVariant} className="flex items-center gap-1">
+              {trend.direction === 'up' ? (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 14l5-5 5 5z" />
+                </svg>
+              ) : trend.direction === 'down' ? (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7 10l5 5 5-5z" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 12h8" stroke="currentColor" strokeWidth="2" />
+                </svg>
+              )}
+              <span>{percentageDisplay}</span>
+            </Badge>
+            <span className="text-sm font-medium">
+              {trend.change >= 0 ? '+' : ''}
+              {trend.change.toLocaleString()}
+            </span>
+            <span className="text-sm text-muted-foreground">{timeRangeLabel === 'Last 24 Hours' ? 'vs previous 24h' : comparisonLabel}</span>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Previous period: {trend.previousTotal.toLocaleString()} incidents
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatWindow(previousWindow.start, previousWindow.end)}
+            </p>
+          </div>
         </div>
       </CardContent>
       <CardFooter className="text-xs text-muted-foreground justify-end">

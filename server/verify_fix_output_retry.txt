@@ -1,0 +1,34 @@
+--- Manual Verification Script ---
+Date: Tue Dec  2 10:13:36 PM -03 2025
+Using DB User: gis_dev
+Using DB Name: gis
+Latest Incident in DB: 2025-12-02 23:50:36+00
+Reference Now: 2025-12-03T01:13:36.000Z
+
+[1] Verifying Last 24 Hours KPI
+Range: 2025-12-02T01:13:36.000Z to 2025-12-03T01:13:36.000Z
+Querying DB...
+DB Count: 223
+Querying API...
+API Count: 223
+Match: ✅
+
+[2] Verifying Last 7 Days (Type Distribution Total)
+Range: 2025-11-26T01:13:36.000Z to 2025-12-03T01:13:36.000Z
+DB Count: 1385
+API Count: 1385
+Match: ✅
+
+[3] Verifying Last 30 Days (Daily Trend Total)
+Range: 2025-11-03T01:13:36.000Z to 2025-12-03T01:13:36.000Z
+DB Count: 5734
+API Count: 5734
+Match: ✅
+
+[4] Verifying Strategic (Monthly Trend)
+Range: 2025-11-03T01:13:36.000Z to 2025-12-03T01:13:36.000Z
+API Strategic Count (Monthly Trend): 5733
+DB Count (30D): 5734
+Match: ❌ (Note: Strategic aggregation might differ slightly due to timezone/bucketing, but should be close)
+
+--- Verification End ---

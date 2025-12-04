@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -78,12 +78,6 @@ export function DashboardTypeDistributionChart({
             <AlertDescription>No type data available. Adjust filters if needed.</AlertDescription>
           </Alert>
         </CardContent>
-        <CardFooter>
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-        </CardFooter>
       </Card>
     );
   }
@@ -142,10 +136,6 @@ export function DashboardTypeDistributionChart({
         })}
       </CardContent>
       <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
-        <Button variant="ghost" size="sm" onClick={handleRefresh}>
-          <RefreshCw className="mr-2 h-3 w-3" />
-          Refresh
-        </Button>
         {lastUpdated && <span>Updated {new Date(lastUpdated).toLocaleTimeString()}</span>}
       </CardFooter>
     </Card>

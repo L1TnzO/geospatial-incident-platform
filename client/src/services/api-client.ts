@@ -3,10 +3,12 @@ import type { MapBounds, MapCenter } from '../store/map-store';
 import type {
   IncidentCreateRequest,
   IncidentDetail,
+  IncidentListItem,
   IncidentListResponse,
   IncidentMapListResponse,
   IncidentMetadata,
   IncidentSearchResult,
+  IncidentSyncStatus,
 } from '../types/api/incidents';
 import type { StationListResponse } from '../types/api/stations';
 import type {
@@ -119,6 +121,13 @@ export const apiClient = {
       payload: IncidentCreateRequest,
       options?: Omit<RequestOptions, 'method' | 'body' | 'query'>,
     ) => http.post<IncidentDetail>('/incidents', payload, options),
+    syncStatus: (options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
+      http.get<IncidentSyncStatus>('/incidents/sync-status', options),
+    getDelta: (since: string, options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
+      http.get<IncidentListItem[]>('/incidents/delta', {
+        ...options,
+        query: { since },
+      }),
   },
   stations: {
     list: ({ signal, isActive }: FetchStationsParams = {}) =>
@@ -266,6 +275,28 @@ export const apiClient = {
         }) as Promise<StrategicMonthlyTrendResponse>;
       }
       return http.get<StrategicMonthlyTrendResponse>('/strategic/trends/monthly', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    dailyTrend: (
+      params: DashboardFilterParams = {},
+      options?: ApiClientOptions,
+    ): Promise<DailyTrendResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<DailyTrendResponse>('/strategic/trends/daily', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<DailyTrendResponse>;
+      }
+      return http.get<DailyTrendResponse>('/strategic/trends/daily', {
         ...requestOptions,
         query: params as Record<
           string,

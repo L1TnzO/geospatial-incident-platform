@@ -6,7 +6,7 @@ INCIDENT_COUNT ?= 10000
 STATION_COUNT ?= 25
 SEED ?=
 FORMAT ?= csv
-OUTPUT_DIR ?= data/generated
+OUTPUT_DIR ?= data/bulk_load_batch
 WINDOW_DAYS ?= 90
 START_DATETIME ?=
 UNITS_MIN ?= 1
@@ -23,8 +23,10 @@ DATABASE_URL ?= postgres://gis_dev:gis_dev_password@localhost:5432/gis
 SKIP_VALIDATION ?= false
 BENCHMARK_SCRIPT ?= tools/performance/benchmark.sql
 INCIDENT_NUMBER ?=
+CITY_COORDS ?= tools/data_generator/cities_coords/comunas.csv
+REGION_LOOKUP ?= tools/data_generator/cities_coords/regiones.csv
 
-.PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
+.PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate data-generate-local logs-tail
 .PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-shell-fixed db-verify-data backend-install
 .PHONY: frontend-check-config frontend-fix-vps
 
@@ -59,7 +61,7 @@ db-seed:
 db-reset:
 	$(COMPOSE) run --rm backend npm run db:reset
 
-data-generate:
+data-generate-local:
 	$(DATA_GENERATOR) \
 		--output-dir $(OUTPUT_DIR) \
 		--incident-count $(INCIDENT_COUNT) \
@@ -71,12 +73,40 @@ data-generate:
 		--assets-probability $(ASSETS_PROBABILITY) \
 		--notes-probability $(NOTES_PROBABILITY) \
 		--geohash-precision $(GEOHASH_PRECISION) \
+		--city-coords-file $(CITY_COORDS) \
+		--region-lookup-file $(REGION_LOOKUP) \
 		$(if $(SEED),--seed $(SEED),) \
 		$(if $(START_DATETIME),--start-datetime $(START_DATETIME),) \
 		$(if $(filter $(INCLUDE_UNITS),false),--no-include-units,) \
 		$(if $(filter $(INCLUDE_ASSETS),false),--no-include-assets,) \
 		$(if $(filter $(INCLUDE_NOTES),false),--no-include-notes,) \
 		$(if $(filter $(VERBOSE),false),--no-verbose,)
+
+data-generate:
+	docker run --rm \
+		-v "$$(pwd):/app" \
+		-w /app \
+		python:3.11-slim \
+		bash -c "pip install --no-cache-dir -r tools/data_generator/requirements.txt && \
+		python -m tools.data_generator.cli \
+			--output-dir $(OUTPUT_DIR) \
+			--incident-count $(INCIDENT_COUNT) \
+			--station-count $(STATION_COUNT) \
+			--output-format $(FORMAT) \
+			--window-days $(WINDOW_DAYS) \
+			--units-min $(UNITS_MIN) \
+			--units-max $(UNITS_MAX) \
+			--assets-probability $(ASSETS_PROBABILITY) \
+			--notes-probability $(NOTES_PROBABILITY) \
+			--geohash-precision $(GEOHASH_PRECISION) \
+			--city-coords-file $(CITY_COORDS) \
+			--region-lookup-file $(REGION_LOOKUP) \
+			$(if $(SEED),--seed $(SEED),) \
+			$(if $(START_DATETIME),--start-datetime $(START_DATETIME),) \
+			$(if $(filter $(INCLUDE_UNITS),false),--no-include-units,) \
+			$(if $(filter $(INCLUDE_ASSETS),false),--no-include-assets,) \
+			$(if $(filter $(INCLUDE_NOTES),false),--no-include-notes,) \
+			$(if $(filter $(VERBOSE),false),--no-verbose,)"
 
 logs-tail:
 	$(COMPOSE) logs --tail=50
@@ -111,6 +141,31 @@ db-init: backend-install
 
 db-setup-full: db-init db-load-data
 	@echo "=== Full database setup complete ==="
+
+db-restore:
+	@echo "Restoring 100k records..."
+	$(MAKE) data-generate INCIDENT_COUNT=100000
+	$(MAKE) db-load-data
+
+db-add-incident:
+	@echo "Adding 1 incident via API..."
+	@timestamp=$$(date +%s); \
+	occurrence=$$(date -u -d "yesterday" +"%Y-%m-%dT12:00:00Z"); \
+	reported=$$(date -u -d "yesterday" +"%Y-%m-%dT12:05:00Z"); \
+	curl -s -X POST http://localhost:4000/api/incidents \
+		-H "Content-Type: application/json" \
+		-d "{ \
+			\"incidentNumber\": \"ADD-$$timestamp\", \
+			\"title\": \"Manual Incident $$timestamp\", \
+			\"typeCode\": \"FIRE_STRUCTURE\", \
+			\"severityCode\": \"HIGH\", \
+			\"statusCode\": \"REPORTED\", \
+			\"isActive\": true, \
+			\"occurrenceAt\": \"$$occurrence\", \
+			\"reportedAt\": \"$$reported\", \
+			\"location\": { \"latitude\": -33.45, \"longitude\": -70.66 } \
+		}"
+	@echo "\nIncident added."
 
 db-verify:
 	@echo "📊 Verifying database data..."

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { clear, get, set } from 'idb-keyval';
 import { mapIncidentToUi } from '../services/incidents';
 import { apiClient, type FetchIncidentsParams } from '../services/api-client';
 import {
@@ -9,8 +10,8 @@ import {
   HISTORICAL_RENDER_LIMIT_MAX,
   MIN_RENDER_LIMIT,
 } from '../store/incident-filters-store';
-import type { Incident } from '../types';
-import type { IncidentListResponse, PaginationMeta } from '../types/api/incidents';
+import type { LiteIncident } from '../types';
+import type { IncidentListItem, IncidentListResponse, IncidentSyncStatus, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
 const INCIDENT_FETCH_PAGE_SIZE = 1_000;
@@ -19,7 +20,7 @@ const AGGREGATION_LOG_SCOPE = '[IncidentsAggregator]';
 const logAggregation = (...args: unknown[]) => console.log(AGGREGATION_LOG_SCOPE, ...args);
 
 export interface IncidentsDataResult {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   isLoading: boolean;
   isFetching: boolean;
   isError: boolean;
@@ -33,7 +34,7 @@ export interface IncidentsDataResult {
 }
 
 export interface IncidentsTableDataResult {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   pagination?: PaginationMeta;
   totalCount: number;
   remainder: number;
@@ -58,7 +59,7 @@ interface PhaseState {
 }
 
 interface AggregatedIncidentResult {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   totalCount: number;
   pageSize: number;
   viewport: PhaseState | null;
@@ -121,7 +122,7 @@ const fetchIncidentsAggregated = async (
   const backlog = existing ? [...existing.incidents] : [];
   const aggregatedOrder = backlog.map((incident) => incident.id);
   const aggregatedOrderSet = new Set<string>(aggregatedOrder);
-  const aggregatedById = new Map<string, Incident>(
+  const aggregatedById = new Map<string, LiteIncident>(
     backlog.map((incident) => [incident.id, incident] as const),
   );
   const viewportPriority = new Set<string>();
@@ -140,7 +141,7 @@ const fetchIncidentsAggregated = async (
     : null;
   const globalState = clonePhaseState(existing?.global, params.page ?? 1);
 
-  const buildSnapshotIncidents = (): Incident[] => {
+  const buildSnapshotIncidents = (): LiteIncident[] => {
     const prioritizeViewport = viewportPriority.size > 0;
     const prioritized: string[] = [];
     const fallback: string[] = [];
@@ -198,7 +199,7 @@ const fetchIncidentsAggregated = async (
     onPartialUpdate(snapshot);
   };
 
-  const registerIncident = (incident: Incident, prioritize: boolean) => {
+  const registerIncident = (incident: LiteIncident, prioritize: boolean) => {
     aggregatedById.set(incident.id, incident);
     ensureOrder(incident.id);
     if (prioritize) {
@@ -256,9 +257,15 @@ const fetchIncidentsAggregated = async (
 
     state.hasFetched = true;
 
-    const mapped = response.data
-      .map(mapIncidentToUi)
-      .filter((incident): incident is Incident => incident !== null);
+    const mapped: LiteIncident[] = [];
+    for (const item of response.data) {
+      const incident = mapIncidentToUi(item);
+      if (incident) {
+        mapped.push(incident);
+      } else {
+        console.warn('[useIncidentsData] Dropped incident during mapping:', item.incidentNumber);
+      }
+    }
 
     for (const incident of mapped) {
       registerIncident(incident, isViewport);
@@ -393,9 +400,9 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
 
   const viewportQuery = viewportBounds
     ? {
-        ...normalizedParams,
-        viewportBounds,
-      }
+      ...normalizedParams,
+      viewportBounds,
+    }
     : undefined;
 
   const queryKey = buildAggregatedQueryKey({
@@ -475,6 +482,135 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   >({
     queryKey,
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
+      let serverStatus: IncidentSyncStatus | undefined;
+
+      // Check sync status before loading cache
+      // Check sync status before loading cache
+      try {
+        serverStatus = await apiClient.incidents.syncStatus({
+          signal,
+          headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-store' }
+        });
+
+        if (serverStatus) {
+          const localStatus = await get<{ lastModified: string; count: number }>('incidents-sync-status');
+          const isUnfiltered =
+            !normalizedParams.typeCodes?.length &&
+            !normalizedParams.severityCodes?.length &&
+            !normalizedParams.statusCodes?.length &&
+            !normalizedParams.startDate &&
+            !normalizedParams.endDate &&
+            !normalizedParams.incidentNumber;
+
+          console.log('[SyncCheck] Status Comparison:', {
+            local: localStatus,
+            server: serverStatus,
+            isUnfiltered,
+            isActive: normalizedParams.isActive,
+            match: localStatus && localStatus.lastModified === serverStatus.lastModified && localStatus.count === serverStatus.count
+          });
+
+          if (localStatus) {
+            // Case 1: Server has fewer items than local -> Something was deleted or reset.
+            // Safety fallback: Full re-fetch.
+            if (serverStatus.count < localStatus.count) {
+              logAggregation('queryFn:cacheInvalidation', { reason: 'server_count_lower', local: localStatus, server: serverStatus });
+              console.warn('[SyncCheck] Server count lower than local. Forcing full refresh.');
+              await clear();
+              await set('incidents-sync-status', serverStatus);
+            }
+            // Case 2: Server is newer -> Delta Sync (for Unfiltered or Active Only views)
+            else if (serverStatus.lastModified !== localStatus.lastModified) {
+              if (isUnfiltered) {
+                console.log('[SyncCheck] Delta Sync triggered.');
+                try {
+                  const delta = await apiClient.incidents.getDelta(localStatus.lastModified, { signal });
+                  const cacheKey = `incidents-cache-${filterSignature}`;
+                  const cachedData = await get<AggregatedIncidentResult>(cacheKey);
+
+                  if (cachedData && Array.isArray(cachedData.incidents)) {
+                    console.log(`[SyncCheck] Applying ${delta.length} changes to cache...`);
+
+                    // Merge Logic
+                    const incidentMap = new Map(cachedData.incidents.map(i => [i.id, i]));
+                    let deletedCount = 0;
+                    let updatedCount = 0;
+                    const viewingActiveOnly = normalizedParams.isActive === true;
+
+                    for (const item of delta) {
+                      // If viewing "Active Only", remove items that are deleted OR became inactive
+                      // If viewing "All", only remove deleted items
+                      const shouldRemove = item.deletedAt || (viewingActiveOnly && !item.isActive);
+
+                      if (shouldRemove) {
+                        if (incidentMap.delete(item.incidentNumber)) {
+                          deletedCount++;
+                        }
+                      } else {
+                        const mapped = mapIncidentToUi(item);
+                        if (mapped) {
+                          incidentMap.set(mapped.id, mapped);
+                          updatedCount++;
+                        } else {
+                          console.warn('[SyncCheck] Dropped delta item during mapping:', item.incidentNumber);
+                        }
+                      }
+                    }
+                    // Re-sort (reportedAt desc)
+                    const mergedIncidents = Array.from(incidentMap.values()).sort((a, b) =>
+                      new Date(b.date).getTime() - new Date(a.date).getTime()
+                    );
+
+                    const mergedResult: AggregatedIncidentResult = {
+                      ...cachedData,
+                      incidents: mergedIncidents,
+                      totalCount: mergedIncidents.length,
+                      // We assume global stats might be slightly off until next full metadata fetch, but totalCount is correct
+                      global: {
+                        ...cachedData.global,
+                        hasMore: false // We have full dataset
+                      }
+                    };
+
+                    // Save merged cache
+                    // We clear everything else to ensure consistency, but save our merged result
+                    await clear();
+                    await set(cacheKey, mergedResult);
+                    await set('incidents-sync-status', serverStatus);
+
+                    // Seed the query cache immediately
+                    queryClient.setQueryData(queryKey, mergedResult);
+                    cachedResultRef.current = mergedResult;
+
+                    console.log(`[SyncCheck] Delta Sync complete. Updated: ${updatedCount}, Deleted: ${deletedCount}. New Total: ${mergedIncidents.length}`);
+                    return mergedResult; // Return immediately, skip full fetch
+                  }
+                } catch (deltaErr) {
+                  console.error('[SyncCheck] Delta Sync failed, falling back to full fetch', deltaErr);
+                  await clear();
+                  await set('incidents-sync-status', serverStatus);
+                }
+              } else {
+                // Filtered view mismatch -> Standard invalidation
+                logAggregation('queryFn:cacheInvalidation', { reason: 'sync_mismatch_filtered', local: localStatus, server: serverStatus });
+                console.log('[SyncCheck] Mismatch on filtered view. Clearing IDB...');
+                await clear();
+                await set('incidents-sync-status', serverStatus);
+              }
+            } else {
+              console.log('[SyncCheck] Status match. Using cache.');
+            }
+          } else {
+            // No local status -> First run or cleared.
+            if (serverStatus) {
+              await set('incidents-sync-status', serverStatus);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to check sync status', err);
+      }
+
       const restored = persistedResultsRef.current.get(filterSignature);
       const existing =
         queryClient.getQueryData<AggregatedIncidentResult>(queryKey) ??
@@ -485,27 +621,106 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         hasExisting: Boolean(existing),
         incidents: existing?.incidents.length ?? 0,
       });
+
+      // Try to load from IDB if we have no existing data and this is the first load
+      let initialData = existing;
+      if (!initialData) {
+        try {
+          const idbData = await get<AggregatedIncidentResult>(`incidents-cache-${filterSignature}`);
+          if (idbData) {
+            // Basic validity check
+            if (Array.isArray(idbData.incidents)) {
+              initialData = idbData;
+              logAggregation('queryFn:loadedFromIDB', {
+                signature: filterSignature,
+                incidents: idbData.incidents.length
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load from IDB', err);
+        }
+      }
+
+      // Optimization: Show cached data immediately while we verify/fetch
+      if (initialData) {
+        queryClient.setQueryData(queryKey, initialData);
+      }
+
+      // Robustness check: If we are requesting "All Data" (unfiltered), ensure cache matches server total
+      if (initialData && serverStatus && normalizedParams.isActive === false) {
+        const hasFilters =
+          normalizedParams.typeCodes?.length ||
+          normalizedParams.severityCodes?.length ||
+          normalizedParams.statusCodes?.length ||
+          normalizedParams.startDate ||
+          normalizedParams.endDate ||
+          normalizedParams.incidentNumber;
+
+        if (!hasFilters) {
+          const cacheCount = initialData.incidents.length;
+          const serverCount = serverStatus.count;
+          const isComplete = !initialData.global.hasMore;
+
+          if (cacheCount !== serverCount && isComplete) {
+            console.warn('[SyncCheck] Cache inconsistency detected for unfiltered view.', {
+              cache: cacheCount,
+              server: serverCount,
+              isComplete
+            });
+            logAggregation('queryFn:cacheInconsistency', { cacheCount, serverCount });
+            initialData = undefined; // Force re-fetch
+          } else if (initialData.totalCount !== serverCount) {
+            console.warn('[SyncCheck] Total count mismatch.', {
+              localTotal: initialData.totalCount,
+              serverTotal: serverCount
+            });
+            initialData = undefined; // Force re-fetch to get correct total
+          }
+        }
+      }
+
+      let lastEmit = 0;
+      const EMIT_THROTTLE_MS = 500;
+
       return fetchIncidentsAggregated(
         normalizedParams,
         viewportQuery,
         signal,
         targetLimit,
         fetchPageSize,
-        existing,
+        initialData,
         (partial) => {
-          queryClient.setQueryData(queryKey, partial);
-          cachedResultRef.current = partial;
-          persistedResultsRef.current.set(filterSignature, partial);
-          logAggregation('queryFn:updateCache', {
-            signature: filterSignature,
-            incidents: partial.incidents.length,
-            totalCount: partial.totalCount,
-          });
+          const now = Date.now();
+          const isComplete = !partial.global.hasMore && !partial.viewport?.hasMore;
+
+          // Emit if complete, or if enough time has passed
+          if (isComplete || now - lastEmit > EMIT_THROTTLE_MS) {
+            queryClient.setQueryData(queryKey, partial);
+            cachedResultRef.current = partial;
+            persistedResultsRef.current.set(filterSignature, partial);
+            lastEmit = now;
+
+            logAggregation('queryFn:updateCache', {
+              signature: filterSignature,
+              incidents: partial.incidents.length,
+              totalCount: partial.totalCount,
+              throttled: true
+            });
+
+            // Persist to IDB only when we have a significant chunk or are done
+            // This prevents spamming IDB on every small update
+            if (isComplete || partial.incidents.length % 5000 === 0) {
+              set(`incidents-cache-${filterSignature}`, partial).catch(err =>
+                console.warn('Failed to save to IDB', err)
+              );
+            }
+          }
         },
       );
     },
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
+    staleTime: 5 * 60_000, // 5 minutes
+    // gcTime: default (24h) is fine, no need to override
     placeholderData: (previousData: AggregatedIncidentResult | undefined) => previousData,
   });
 
@@ -592,13 +807,13 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   };
 };
 
-const mapListResponseToIncidents = (response: IncidentListResponse): Incident[] => {
+const mapListResponseToIncidents = (response: IncidentListResponse): LiteIncident[] => {
   if (!response || !Array.isArray(response.data)) {
     return [];
   }
   return response.data
     .map(mapIncidentToUi)
-    .filter((incident): incident is Incident => incident !== null);
+    .filter((incident): incident is LiteIncident => incident !== null);
 };
 
 const resolvePaginationRemainder = (pagination?: PaginationMeta): number => {

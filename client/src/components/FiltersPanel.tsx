@@ -196,13 +196,12 @@ export function FiltersPanel() {
       if (clamped === current.renderLimit) {
         return current;
       }
-      setFilters({ renderLimit: clamped });
       return {
         ...current,
         renderLimit: clamped,
       };
     });
-  }, [clampRenderLimitDraft, setFilters]);
+  }, [clampRenderLimitDraft]);
 
   const toggleCode = (
     key: keyof Pick<DraftFilters, 'typeCodes' | 'severityCodes' | 'statusCodes'>,

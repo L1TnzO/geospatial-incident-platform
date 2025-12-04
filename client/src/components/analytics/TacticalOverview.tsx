@@ -78,7 +78,7 @@ export function TacticalOverview({ incidents }: TacticalOverviewProps) {
   // Recent incidents list
   const recentIncidents = [...incidents]
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 5);
+    .slice(0, 20);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -229,26 +229,28 @@ export function TacticalOverview({ incidents }: TacticalOverviewProps) {
           <CardTitle>Recent Incidents</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {recentIncidents.map((incident) => (
-              <div
-                key={incident.id}
-                className="flex items-center justify-between p-3 border rounded-lg"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span>{incident.id}</span>
-                    <Badge variant={getSeverityColor(incident.severity)}>{incident.severity}</Badge>
+          <div className="overflow-y-auto pr-4 border rounded-md" style={{ height: '400px' }}>
+            <div className="space-y-3 p-1">
+              {recentIncidents.map((incident) => (
+                <div
+                  key={incident.id}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span>{incident.id}</span>
+                      <Badge variant={getSeverityColor(incident.severity)}>{incident.severity}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {incident.type} - {incident.location.address}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {incident.type} - {incident.location.address}
-                  </p>
+                  <div className="text-sm text-muted-foreground">
+                    {new Date(incident.timestamp).toLocaleString()}
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {new Date(incident.timestamp).toLocaleString()}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>

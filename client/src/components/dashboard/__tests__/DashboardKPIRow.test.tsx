@@ -100,29 +100,6 @@ describe('DashboardKPIRow', () => {
     expect(screen.getByText('+20.0%')).toBeInTheDocument();
   });
 
-  it('calls refresh when refresh button is clicked', async () => {
-    const user = userEvent.setup();
-    const mockQuery: UseDashboardLast24HoursKpiResult = {
-      data: mockKpiData,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refresh: mockRefresh,
-      lastUpdated: Date.now(),
-    } as unknown as UseDashboardLast24HoursKpiResult;
-
-    render(<DashboardKPIRow kpiQuery={mockQuery} onExport={mockExport} isExporting={false} />, {
-      wrapper: createWrapper(),
-    });
-
-    const refreshButton = screen.getByRole('button', { name: /refresh/i });
-    await user.click(refreshButton);
-
-    await waitFor(() => {
-      expect(mockRefresh).toHaveBeenCalledWith(true);
-    });
-  });
-
   it('calls onExport when export button is clicked', async () => {
     const user = userEvent.setup();
     const mockQuery: UseDashboardLast24HoursKpiResult = {

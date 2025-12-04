@@ -15,6 +15,7 @@ import type {
   StrategicResponseMetricsResponse,
   StrategicPriorityScoreResponse,
 } from '../types/api/strategic';
+import type { DailyTrendResponse, DashboardFilterParams } from '../types/api/dashboard';
 
 export class StrategicServiceError extends Error {
   constructor(
@@ -70,6 +71,17 @@ export const fetchStrategicTrends = async (
     return await apiClient.strategic.monthlyTrends(params, { signal });
   } catch (error) {
     throw mapHttpError(error, 'Failed to fetch monthly trends');
+  }
+};
+
+export const fetchStrategicDailyTrend = async (
+  params: DashboardFilterParams = {},
+  signal?: AbortSignal,
+): Promise<DailyTrendResponse> => {
+  try {
+    return await apiClient.strategic.dailyTrend(params, { signal });
+  } catch (error) {
+    throw mapHttpError(error, 'Failed to fetch daily trend');
   }
 };
 
