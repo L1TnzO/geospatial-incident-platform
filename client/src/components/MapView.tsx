@@ -39,6 +39,7 @@ import type {
   PriorityScoreGroup,
 } from '../types/api/strategic';
 import { useMediaQuery } from '../hooks/use-media-query';
+import { useAuth } from '../hooks/useAuth';
 import '../styles/map/map.css';
 
 const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low'];
@@ -194,12 +195,6 @@ const MapViewportTracker = () => {
     mousedown: () => {
       markUserAdjusted();
     },
-    touchstart: () => {
-      markUserAdjusted();
-    },
-    wheel: () => {
-      markUserAdjusted();
-    },
     moveend: updateStoreFromMap,
     zoomend: updateStoreFromMap,
   });
@@ -300,6 +295,8 @@ export function MapView({
         : state.showPriorityZones,
     })),
   );
+
+  const { user } = useAuth();
 
   const severityLegend = useMemo(() => {
     const entries = new Map<string, string>();
@@ -584,9 +581,8 @@ export function MapView({
 
       <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 items-end">
         <Card
-          className={`flex flex-col gap-2 p-3 transition-all duration-300 ease-in-out text-white backdrop-blur-2xl border border-white/10 shadow-[0_20px_45px_rgba(0,0,0,0.45)] ${
-            isControlPanelExpanded ? (isDesktop ? 'w-64' : 'w-52') : 'w-12 items-center'
-          }`}
+          className={`flex flex-col gap-2 p-3 transition-all duration-300 ease-in-out text-white backdrop-blur-2xl border border-white/10 shadow-[0_20px_45px_rgba(0,0,0,0.45)] ${isControlPanelExpanded ? (isDesktop ? 'w-64' : 'w-52') : 'w-12 items-center'
+            }`}
           style={{
             backgroundColor: isControlPanelExpanded ? 'rgba(34, 34, 37, 0.85)' : 'rgba(34, 34, 37, 0.78)',
           }}
@@ -621,9 +617,8 @@ export function MapView({
             <Button
               variant="ghost"
               size="sm"
-              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${
-                isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
-              }`}
+              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
+                }`}
               onClick={handleZoomIn}
               aria-label="Zoom in"
             >
@@ -636,9 +631,8 @@ export function MapView({
             <Button
               variant="ghost"
               size="sm"
-              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${
-                isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
-              }`}
+              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
+                }`}
               onClick={handleZoomOut}
               aria-label="Zoom out"
             >
@@ -651,9 +645,8 @@ export function MapView({
             <Button
               variant="ghost"
               size="sm"
-              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${
-                isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
-              }`}
+              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
+                }`}
               onClick={handleResetView}
               aria-label="Reset map view"
             >
@@ -666,9 +659,8 @@ export function MapView({
             <Button
               variant={showStations ? 'secondary' : 'ghost'}
               size="sm"
-              className={`justify-start h-9 rounded-lg text-white ${
-                isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
-              } ${showStations ? 'bg-white/15' : 'hover:bg-white/10'}`}
+              className={`justify-start h-9 rounded-lg text-white ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
+                } ${showStations ? 'bg-white/15' : 'hover:bg-white/10'}`}
               onClick={toggleStations}
               aria-label="Toggle fire stations"
             >
@@ -689,9 +681,8 @@ export function MapView({
             <Button
               variant="ghost"
               size="sm"
-              className={`justify-start h-9 rounded-lg text-white ${
-                isControlPanelExpanded ? 'w-full px-2 opacity-100' : 'w-9 p-0'
-              } ${!isControlPanelExpanded ? 'hover:bg-white/10' : 'cursor-default'}`}
+              className={`justify-start h-9 rounded-lg text-white ${isControlPanelExpanded ? 'w-full px-2 opacity-100' : 'w-9 p-0'
+                } ${!isControlPanelExpanded ? 'hover:bg-white/10' : 'cursor-default'}`}
               onClick={ensurePanelExpanded}
               aria-label="Show legend"
             >
@@ -717,11 +708,10 @@ export function MapView({
                         variant="ghost"
                         size="sm"
                         onClick={() => setBaseLayer(option.id)}
-                        className={`justify-start h-9 rounded-lg text-sm ${
-                          isActive
-                            ? 'bg-white/20 text-white border border-white/20'
-                            : 'text-white/80 hover:bg-white/10'
-                        }`}
+                        className={`justify-start h-9 rounded-lg text-sm ${isActive
+                          ? 'bg-white/20 text-white border border-white/20'
+                          : 'text-white/80 hover:bg-white/10'
+                          }`}
                         aria-pressed={isActive}
                         aria-label={`Switch to ${option.label} base layer`}
                       >
@@ -763,7 +753,7 @@ export function MapView({
         </Card>
       </div>
 
-      {!isDesktop && (
+      {!isDesktop && user && (
         <div className="absolute bottom-6 right-4 z-[1000]">
           <Button
             size="icon"

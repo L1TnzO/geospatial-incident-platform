@@ -74,6 +74,10 @@ const toDraft = (filters: FilterSnapshot, isMobileLayout: boolean): DraftFilters
   renderLimit: resolveDraftRenderLimit(filters),
 });
 
+import { useAuth } from '../hooks/useAuth';
+
+// ... existing imports ...
+
 export function FiltersPanel() {
   const {
     startDate,
@@ -87,8 +91,9 @@ export function FiltersPanel() {
     reset,
   } = useIncidentFiltersStore();
 
+  const { user } = useAuth();
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const isMobileLayout = !isDesktop || isMobile();
+  const isMobileLayout = !isDesktop || isMobile() || !user;
 
   const fetchParams = useIncidentFiltersStore(
     useShallow((state) => ({
@@ -207,7 +212,7 @@ export function FiltersPanel() {
     key: keyof Pick<DraftFilters, 'typeCodes' | 'severityCodes' | 'statusCodes'>,
     code: string,
   ) => {
-  setDraft((current: DraftFilters) => {
+    setDraft((current: DraftFilters) => {
       const next = new Set(current[key]);
       if (next.has(code)) {
         next.delete(code);
