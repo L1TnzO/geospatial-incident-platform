@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import type { Incident } from '../types';
+import type { LiteIncident } from '../types';
 import type { IncidentSortField, PaginationMeta } from '../types/api/incidents';
 import { AlertTriangle, ChevronDown, ChevronUp, Download, Loader2, RefreshCw } from 'lucide-react';
 import {
@@ -16,7 +16,7 @@ import {
 import { Card } from './ui/card';
 
 interface TableViewProps {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   pagination?: PaginationMeta;
   totalCount: number;
   remainder: number;
@@ -28,7 +28,7 @@ interface TableViewProps {
   hasPrevious: boolean;
   onSortChange: (field: IncidentSortField, direction: 'asc' | 'desc') => void;
   onPageChange: (page: number) => void;
-  onIncidentClick: (incident: Incident) => void;
+  onIncidentClick: (incident: LiteIncident) => void;
   isLoading: boolean;
   isFetching: boolean;
   isError: boolean;
@@ -37,7 +37,7 @@ interface TableViewProps {
   activeIncidentId?: string | null;
 }
 
-const getSeverityColor = (incident: Incident) =>
+const getSeverityColor = (incident: LiteIncident) =>
   incident.severityColor
     ? { backgroundColor: `${incident.severityColor}22`, borderColor: incident.severityColor }
     : undefined;

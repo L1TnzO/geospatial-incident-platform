@@ -1,13 +1,18 @@
-import type { Incident } from '../types';
+import type { LiteIncident } from '../types';
+import Supercluster from 'supercluster';
+import type { ClusterFeature, PointFeature } from 'supercluster';
+import type { Feature as GeoJsonFeature, Point as GeoJsonPoint } from 'geojson';
 
 // Define message types
 export type WorkerMessage =
-    | { type: 'SET_DATA'; payload: { incidents: Incident[]; filters: FilterCriteria } }
-    | { type: 'FILTER_DATA'; payload: { filters: FilterCriteria } };
+    | { type: 'SET_DATA'; payload: { incidents: LiteIncident[]; filters: FilterCriteria } }
+    | { type: 'FILTER_DATA'; payload: { filters: FilterCriteria } }
+    | { type: 'GET_CLUSTERS'; payload: { bbox: [number, number, number, number]; zoom: number } };
 
 export type WorkerResponse =
-    | { type: 'DATA_UPDATED'; payload: { incidents: Incident[]; totalCount: number } }
-    | { type: 'FILTER_COMPLETE'; payload: { incidents: Incident[]; totalCount: number } }
+    | { type: 'DATA_UPDATED'; payload: { incidents: LiteIncident[]; totalCount: number } }
+    | { type: 'FILTER_COMPLETE'; payload: { incidents: LiteIncident[]; totalCount: number } }
+    | { type: 'CLUSTERS_CALCULATED'; payload: { clusters: ClusterEntry[] } }
     | { type: 'ERROR'; payload: { message: string } };
 
 export interface FilterCriteria {
@@ -17,9 +22,59 @@ export interface FilterCriteria {
     incidentNumber?: string;
 }
 
-let cachedIncidents: Incident[] = [];
+type IncidentProperties = {
+    type: 'incident';
+    incident: LiteIncident;
+};
 
-const filterIncidents = (incidents: Incident[], filters: FilterCriteria): Incident[] => {
+type ClusterProperties = {
+    type: 'cluster';
+};
+
+type IncidentFeature = GeoJsonFeature<GeoJsonPoint, IncidentProperties>;
+
+export type ClusterEntry = ClusterFeature<ClusterProperties> | PointFeature<IncidentProperties>;
+
+let cachedIncidents: LiteIncident[] = [];
+let filteredIncidents: LiteIncident[] = [];
+let clusterIndex: Supercluster<IncidentProperties, ClusterProperties> | null = null;
+
+const incidentToFeature = (incident: LiteIncident): IncidentFeature | null => {
+    const { lat, lng } = incident.location;
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+        return null;
+    }
+
+    return {
+        type: 'Feature',
+        geometry: {
+            type: 'Point',
+            coordinates: [lng, lat],
+        },
+        properties: {
+            type: 'incident',
+            incident,
+        },
+    };
+};
+
+const updateClusterIndex = (incidents: LiteIncident[]) => {
+    const features: IncidentFeature[] = [];
+    for (const incident of incidents) {
+        const feature = incidentToFeature(incident);
+        if (feature) {
+            features.push(feature);
+        }
+    }
+
+    clusterIndex = new Supercluster<IncidentProperties, ClusterProperties>({
+        radius: 60,
+        maxZoom: 18,
+    });
+    clusterIndex.load(features);
+};
+
+const filterIncidents = (incidents: LiteIncident[], filters: FilterCriteria): LiteIncident[] => {
     let result = incidents;
 
     if (filters.typeCodes && filters.typeCodes.length > 0) {
@@ -57,13 +112,16 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
                 cachedIncidents = incidents;
 
                 // Apply initial filters
-                const filtered = filterIncidents(cachedIncidents, filters);
+                filteredIncidents = filterIncidents(cachedIncidents, filters);
+
+                // Update cluster index
+                updateClusterIndex(filteredIncidents);
 
                 self.postMessage({
                     type: 'DATA_UPDATED',
                     payload: {
-                        incidents: filtered,
-                        totalCount: filtered.length,
+                        incidents: filteredIncidents,
+                        totalCount: filteredIncidents.length,
                     },
                 });
                 break;
@@ -71,13 +129,39 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
             case 'FILTER_DATA': {
                 const { filters } = payload;
-                const filtered = filterIncidents(cachedIncidents, filters);
+                filteredIncidents = filterIncidents(cachedIncidents, filters);
+
+                // Update cluster index
+                updateClusterIndex(filteredIncidents);
 
                 self.postMessage({
                     type: 'FILTER_COMPLETE',
                     payload: {
-                        incidents: filtered,
-                        totalCount: filtered.length,
+                        incidents: filteredIncidents,
+                        totalCount: filteredIncidents.length,
+                    },
+                });
+                break;
+            }
+
+            case 'GET_CLUSTERS': {
+                const { bbox, zoom } = payload;
+                if (!clusterIndex) {
+                    self.postMessage({
+                        type: 'CLUSTERS_CALCULATED',
+                        payload: {
+                            clusters: [],
+                        },
+                    });
+                    break;
+                }
+
+                const clusters = clusterIndex.getClusters(bbox, zoom);
+
+                self.postMessage({
+                    type: 'CLUSTERS_CALCULATED',
+                    payload: {
+                        clusters: clusters as ClusterEntry[],
                     },
                 });
                 break;

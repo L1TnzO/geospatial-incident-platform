@@ -1,5 +1,5 @@
 import { latLngBounds, type LatLngBounds } from 'leaflet';
-import type { Incident } from '../../types';
+import type { LiteIncident } from '../../types';
 
 const FALLBACK_SEVERITY_COLORS: Record<string, string> = {
   Critical: '#ef4444',
@@ -8,10 +8,10 @@ const FALLBACK_SEVERITY_COLORS: Record<string, string> = {
   Low: '#3b82f6',
 };
 
-export const resolveSeverityColor = (incident: Incident) =>
+export const resolveSeverityColor = (incident: LiteIncident) =>
   incident.severityColor ?? FALLBACK_SEVERITY_COLORS[incident.severity] ?? '#2563eb';
 
-export const computeIncidentBounds = (incidents: Incident[]): LatLngBounds | null => {
+export const computeIncidentBounds = (incidents: LiteIncident[]): LatLngBounds | null => {
   const points = incidents
     .map((incident) => {
       const { lat, lng } = incident.location;

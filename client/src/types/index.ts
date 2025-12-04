@@ -27,6 +27,29 @@ export interface Incident {
   notes?: IncidentNoteSummary[];
 }
 
+export interface LiteIncident {
+  id: string;
+  type: string;
+  typeCode?: string;
+  severity: string;
+  severityCode?: string;
+  severityColor?: string;
+  date: string;
+  timestamp: string;
+  reportedAt?: string;
+  occurrenceAt?: string;
+  location: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  status: string;
+  statusCode?: string;
+  isActive: boolean;
+  description: string;
+  // Excluded: narrative, metadata, units, assets, notes, history
+}
+
 export interface FireStation {
   id: string;
   name: string;

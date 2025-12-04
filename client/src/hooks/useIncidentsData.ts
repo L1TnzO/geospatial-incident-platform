@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { get, set } from 'idb-keyval';
 import { mapIncidentToUi } from '../services/incidents';
 import { apiClient, type FetchIncidentsParams } from '../services/api-client';
 import {
@@ -9,7 +10,7 @@ import {
   HISTORICAL_RENDER_LIMIT_MAX,
   MIN_RENDER_LIMIT,
 } from '../store/incident-filters-store';
-import type { Incident } from '../types';
+import type { LiteIncident } from '../types';
 import type { IncidentListResponse, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
@@ -19,7 +20,7 @@ const AGGREGATION_LOG_SCOPE = '[IncidentsAggregator]';
 const logAggregation = (...args: unknown[]) => console.log(AGGREGATION_LOG_SCOPE, ...args);
 
 export interface IncidentsDataResult {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   isLoading: boolean;
   isFetching: boolean;
   isError: boolean;
@@ -33,7 +34,7 @@ export interface IncidentsDataResult {
 }
 
 export interface IncidentsTableDataResult {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   pagination?: PaginationMeta;
   totalCount: number;
   remainder: number;
@@ -58,7 +59,7 @@ interface PhaseState {
 }
 
 interface AggregatedIncidentResult {
-  incidents: Incident[];
+  incidents: LiteIncident[];
   totalCount: number;
   pageSize: number;
   viewport: PhaseState | null;
@@ -121,7 +122,7 @@ const fetchIncidentsAggregated = async (
   const backlog = existing ? [...existing.incidents] : [];
   const aggregatedOrder = backlog.map((incident) => incident.id);
   const aggregatedOrderSet = new Set<string>(aggregatedOrder);
-  const aggregatedById = new Map<string, Incident>(
+  const aggregatedById = new Map<string, LiteIncident>(
     backlog.map((incident) => [incident.id, incident] as const),
   );
   const viewportPriority = new Set<string>();
@@ -140,7 +141,7 @@ const fetchIncidentsAggregated = async (
     : null;
   const globalState = clonePhaseState(existing?.global, params.page ?? 1);
 
-  const buildSnapshotIncidents = (): Incident[] => {
+  const buildSnapshotIncidents = (): LiteIncident[] => {
     const prioritizeViewport = viewportPriority.size > 0;
     const prioritized: string[] = [];
     const fallback: string[] = [];
@@ -198,7 +199,7 @@ const fetchIncidentsAggregated = async (
     onPartialUpdate(snapshot);
   };
 
-  const registerIncident = (incident: Incident, prioritize: boolean) => {
+  const registerIncident = (incident: LiteIncident, prioritize: boolean) => {
     aggregatedById.set(incident.id, incident);
     ensureOrder(incident.id);
     if (prioritize) {
@@ -258,7 +259,7 @@ const fetchIncidentsAggregated = async (
 
     const mapped = response.data
       .map(mapIncidentToUi)
-      .filter((incident): incident is Incident => incident !== null);
+      .filter((incident): incident is LiteIncident => incident !== null);
 
     for (const incident of mapped) {
       registerIncident(incident, isViewport);
@@ -485,22 +486,65 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         hasExisting: Boolean(existing),
         incidents: existing?.incidents.length ?? 0,
       });
+
+      // Try to load from IDB if we have no existing data and this is the first load
+      let initialData = existing;
+      if (!initialData) {
+        try {
+          const idbData = await get<AggregatedIncidentResult>(`incidents-cache-${filterSignature}`);
+          if (idbData) {
+            // Basic validity check - could be improved with versioning/timestamps
+            if (Array.isArray(idbData.incidents)) {
+              initialData = idbData;
+              logAggregation('queryFn:loadedFromIDB', {
+                signature: filterSignature,
+                incidents: idbData.incidents.length
+              });
+              // Seed the cache immediately
+              queryClient.setQueryData(queryKey, idbData);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load from IDB', err);
+        }
+      }
+
+      let lastEmit = 0;
+      const EMIT_THROTTLE_MS = 500;
+
       return fetchIncidentsAggregated(
         normalizedParams,
         viewportQuery,
         signal,
         targetLimit,
         fetchPageSize,
-        existing,
+        initialData,
         (partial) => {
-          queryClient.setQueryData(queryKey, partial);
-          cachedResultRef.current = partial;
-          persistedResultsRef.current.set(filterSignature, partial);
-          logAggregation('queryFn:updateCache', {
-            signature: filterSignature,
-            incidents: partial.incidents.length,
-            totalCount: partial.totalCount,
-          });
+          const now = Date.now();
+          const isComplete = !partial.global.hasMore && !partial.viewport?.hasMore;
+
+          // Emit if complete, or if enough time has passed
+          if (isComplete || now - lastEmit > EMIT_THROTTLE_MS) {
+            queryClient.setQueryData(queryKey, partial);
+            cachedResultRef.current = partial;
+            persistedResultsRef.current.set(filterSignature, partial);
+            lastEmit = now;
+
+            logAggregation('queryFn:updateCache', {
+              signature: filterSignature,
+              incidents: partial.incidents.length,
+              totalCount: partial.totalCount,
+              throttled: true
+            });
+
+            // Persist to IDB only when we have a significant chunk or are done
+            // This prevents spamming IDB on every small update
+            if (isComplete || partial.incidents.length % 5000 === 0) {
+              set(`incidents-cache-${filterSignature}`, partial).catch(err =>
+                console.warn('Failed to save to IDB', err)
+              );
+            }
+          }
         },
       );
     },
@@ -592,13 +636,13 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
   };
 };
 
-const mapListResponseToIncidents = (response: IncidentListResponse): Incident[] => {
+const mapListResponseToIncidents = (response: IncidentListResponse): LiteIncident[] => {
   if (!response || !Array.isArray(response.data)) {
     return [];
   }
   return response.data
     .map(mapIncidentToUi)
-    .filter((incident): incident is Incident => incident !== null);
+    .filter((incident): incident is LiteIncident => incident !== null);
 };
 
 const resolvePaginationRemainder = (pagination?: PaginationMeta): number => {

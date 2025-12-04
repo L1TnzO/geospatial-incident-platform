@@ -5,6 +5,7 @@ import type {
 } from '../types/api/incidents';
 import type {
     Incident,
+    LiteIncident,
     IncidentAssetSummary,
     IncidentNoteSummary,
     IncidentUnitSummary,
@@ -48,7 +49,7 @@ const resolveAddress = (incident: IncidentListLike) => {
     return (value as string | undefined) ?? undefined;
 };
 
-export const mapIncidentToUi = (incident: IncidentListLike): Incident | null => {
+export const mapIncidentToUi = (incident: IncidentListLike): LiteIncident | null => {
     const coordinates = extractCoordinates(incident);
     if (!coordinates) {
         return null;
@@ -71,10 +72,8 @@ export const mapIncidentToUi = (incident: IncidentListLike): Incident | null => 
             address: resolveAddress(incident) ?? 'Location unavailable',
         },
         description: incident.title,
-        responseTime: undefined,
         status: incident.status.name,
         statusCode: incident.status.code,
-        zoneId: incident.primaryStation?.stationCode ?? undefined,
         isActive: incident.isActive,
     };
 };

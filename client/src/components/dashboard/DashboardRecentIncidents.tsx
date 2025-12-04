@@ -9,7 +9,7 @@ import { useMapStore } from '../../store/map-store';
 import { useIncidentDetailStore } from '../../store/incident-detail-store';
 import type { UseDashboardRecentIncidentsResult } from '../../hooks/useDashboardRecentIncidents';
 import type { RecentIncident } from '../../types/api/dashboard';
-import type { Incident } from '../../types';
+import type { LiteIncident } from '../../types';
 
 interface DashboardRecentIncidentsProps {
   recentQuery: UseDashboardRecentIncidentsResult;
@@ -23,14 +23,15 @@ const DEFAULT_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 });
 
-// Convert dashboard incident to legacy Incident format for detail modal
-const toIncident = (incident: RecentIncident): Incident => {
+// Convert dashboard incident to LiteIncident format for detail modal
+const toIncident = (incident: RecentIncident): LiteIncident => {
   const coordinates = incident.location?.geometry?.coordinates;
   const [lng, lat] = Array.isArray(coordinates) ? coordinates : [0, 0];
 
   return {
     id: incident.incidentNumber,
     type: incident.type.name,
+    typeCode: incident.type.code,
     severity: incident.severity.name,
     severityCode: incident.severity.code,
     severityColor: incident.severity.colorHex,
@@ -45,9 +46,8 @@ const toIncident = (incident: RecentIncident): Incident => {
     },
     description: incident.title,
     status: incident.status.name,
+    statusCode: incident.status.code,
     isActive: incident.isActive,
-    narrative: null,
-    metadata: {},
   };
 };
 

@@ -1,11 +1,18 @@
 import { createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
-import type { Incident } from '../types';
+import type { LiteIncident } from '../types';
 import type { WorkerResponse } from '../workers/incident-worker';
 import { useShallow } from 'zustand/react/shallow';
 import { useIncidentFiltersStore } from '../store/incident-filters-store';
 import { useIncidentsData, IncidentsDataResult } from '../hooks/useIncidentsData';
 
-const IncidentsContext = createContext<IncidentsDataResult | undefined>(undefined);
+interface IncidentsContextValue extends IncidentsDataResult {
+    incidents: LiteIncident[];
+    totalCount: number;
+    renderedCount: number;
+    worker: Worker | null;
+}
+
+const IncidentsContext = createContext<IncidentsContextValue | undefined>(undefined);
 
 export function IncidentsProvider({ children }: { children: ReactNode }) {
     const filters = useIncidentFiltersStore(
@@ -43,8 +50,7 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
         ...fetchParams,
     });
 
-    const [filteredIncidents, setFilteredIncidents] = useState<Incident[]>([]);
-    const [isFiltering, setIsFiltering] = useState(false);
+    const [filteredIncidents, setFilteredIncidents] = useState<LiteIncident[]>([]);
     const workerRef = useRef<Worker | null>(null);
 
     // Initialize worker
@@ -57,7 +63,6 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
             const { type, payload } = event.data;
             if (type === 'DATA_UPDATED' || type === 'FILTER_COMPLETE') {
                 setFilteredIncidents(payload.incidents);
-                setIsFiltering(false);
             }
         };
 
@@ -66,14 +71,28 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
+    const lastIncidentsRef = useRef<LiteIncident[]>([]);
+
     // Send data to worker when it changes
     useEffect(() => {
-        if (workerRef.current && incidentsData.incidents.length > 0) {
-            setIsFiltering(true);
+        const currentIncidents = incidentsData.incidents;
+
+        // Simple check to avoid processing if reference is same (handled by dependency array)
+        // But also check if length and content (shallowly) are same to avoid loop if reference changes but content is same
+        const isSame =
+            currentIncidents === lastIncidentsRef.current ||
+            (currentIncidents.length === lastIncidentsRef.current.length &&
+                currentIncidents[0]?.id === lastIncidentsRef.current[0]?.id);
+
+        if (isSame && currentIncidents.length > 0) return;
+
+        lastIncidentsRef.current = currentIncidents;
+
+        if (workerRef.current && currentIncidents.length > 0) {
             workerRef.current.postMessage({
                 type: 'SET_DATA',
                 payload: {
-                    incidents: incidentsData.incidents,
+                    incidents: currentIncidents,
                     filters: {
                         typeCodes: filters.typeCodes,
                         severityCodes: filters.severityCodes,
@@ -82,7 +101,7 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
                     },
                 },
             });
-        } else if (incidentsData.incidents.length === 0) {
+        } else if (currentIncidents.length === 0) {
             setFilteredIncidents([]);
         }
     }, [incidentsData.incidents]);
@@ -90,13 +109,6 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
     // Send filters to worker when they change
     useEffect(() => {
         if (workerRef.current && incidentsData.incidents.length > 0) {
-            // Avoid double-triggering if data just updated (handled by SET_DATA)
-            // But SET_DATA dependency array ensures it runs on data change.
-            // This effect runs on filter change.
-            // We might have a race condition or double update if both change, but React batches updates.
-            // A simple optimization is to check if filters actually changed, but useShallow handles that.
-
-            setIsFiltering(true);
             workerRef.current.postMessage({
                 type: 'FILTER_DATA',
                 payload: {
@@ -121,8 +133,7 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
         incidents: filteredIncidents,
         totalCount: filteredIncidents.length,
         renderedCount: filteredIncidents.length,
-        // If filtering, we might want to show a loading state or stale data
-        // For now, we just show stale data until update comes
+        worker: workerRef.current,
     }), [incidentsData, filteredIncidents]);
 
     return (
