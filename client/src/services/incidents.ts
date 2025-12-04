@@ -67,6 +67,7 @@ export const mapIncidentToUi = (incident: IncidentListLike): Incident | null => 
   return {
     id: incident.incidentNumber,
     type: incident.type.name,
+    typeCode: incident.type.code,
     severity: incident.severity.name,
     severityColor: incident.severity.colorHex,
     severityCode: incident.severity.code,
@@ -82,6 +83,7 @@ export const mapIncidentToUi = (incident: IncidentListLike): Incident | null => 
     description: incident.title,
     responseTime: undefined,
     status: incident.status.name,
+    statusCode: incident.status.code,
     zoneId: incident.primaryStation?.stationCode ?? undefined,
     isActive: incident.isActive,
   };

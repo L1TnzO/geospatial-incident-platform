@@ -1,6 +1,7 @@
 export interface Incident {
   id: string;
   type: string;
+  typeCode?: string;
   severity: string;
   severityCode?: string;
   severityColor?: string;
@@ -16,6 +17,7 @@ export interface Incident {
   description: string;
   responseTime?: number; // in minutes
   status: string;
+  statusCode?: string;
   zoneId?: string;
   isActive: boolean;
   narrative?: string | null;

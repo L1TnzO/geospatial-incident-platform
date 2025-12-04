@@ -393,9 +393,9 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
 
   const viewportQuery = viewportBounds
     ? {
-        ...normalizedParams,
-        viewportBounds,
-      }
+      ...normalizedParams,
+      viewportBounds,
+    }
     : undefined;
 
   const queryKey = buildAggregatedQueryKey({
@@ -504,8 +504,8 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         },
       );
     },
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
+    staleTime: 5 * 60_000, // 5 minutes
+    // gcTime: default (24h) is fine, no need to override
     placeholderData: (previousData: AggregatedIncidentResult | undefined) => previousData,
   });
 

@@ -39,8 +39,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
     // Derived State: Date Range
     const { start, end } = useMemo(() => {
-        const endDate = new Date();
-        const startDate = new Date();
+        const now = new Date();
+        // Round to nearest 5 minutes to stabilize query keys and leverage cache
+        const coeff = 1000 * 60 * 5;
+        const roundedNow = new Date(Math.ceil(now.getTime() / coeff) * coeff);
+
+        const endDate = roundedNow;
+        const startDate = new Date(roundedNow);
 
         switch (timeRange) {
             case '24h':
