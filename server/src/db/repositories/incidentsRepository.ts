@@ -94,6 +94,7 @@ interface IncidentRowBase {
   weatherDescription: string | null;
   primaryStationCode: string | null;
   primaryStationName: string | null;
+  deleted_at?: string | null;
 }
 
 interface IncidentMapRow {
@@ -441,6 +442,9 @@ const applyFilters = (query: Knex.QueryBuilder, filters: IncidentListFilters): v
       north,
     ]);
   }
+
+  // Soft delete filter: exclude deleted items unless specifically requested (future proofing)
+  query.whereNull('i.deleted_at');
 };
 
 const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
@@ -482,6 +486,7 @@ const mapIncidentRow = (row: IncidentRowBase): IncidentListItem => {
         name: row.primaryStationName ?? row.primaryStationCode,
       }
       : null,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
   };
 };
 
@@ -807,6 +812,7 @@ export class IncidentRepository {
 
   public async getSyncStatus(): Promise<{ lastModified: string; count: number }> {
     const result = await this.db('incidents')
+      .whereNull('deleted_at')
       .select(this.db.raw('MAX(updated_at) as "lastModified"'))
       .count<{ count: string; lastModified: string }>('id as count')
       .first();
@@ -815,6 +821,72 @@ export class IncidentRepository {
       lastModified: result?.lastModified ? new Date(result.lastModified).toISOString() : new Date(0).toISOString(),
       count: Number(result?.count ?? 0),
     };
+  }
+
+  public async getChangesSince(since: string): Promise<IncidentListItem[]> {
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .leftJoin('incident_sources as iso', 'i.source_id', 'iso.id')
+      .leftJoin('weather_conditions as iwc', 'i.weather_condition_id', 'iwc.id')
+      .leftJoin('stations as ps', 'i.primary_station_id', 'ps.id')
+      .select([
+        'i.id as incidentId',
+        'i.incident_number as incidentNumber',
+        'i.external_reference as externalReference',
+        'i.title as title',
+        'i.occurrence_at as occurrenceAt',
+        'i.reported_at as reportedAt',
+        'i.dispatch_at as dispatchAt',
+        'i.arrival_at as arrivalAt',
+        'i.resolved_at as resolvedAt',
+        'i.is_active as isActive',
+        'i.casualty_count as casualtyCount',
+        'i.responder_injuries as responderInjuries',
+        'i.estimated_damage_amount as estimatedDamageAmount',
+        'i.location_geohash as locationGeohash',
+        'i.deleted_at as deleted_at',
+        'it.type_code as typeCode',
+        'it.name as typeName',
+        'it.description as typeDescription',
+        'isv.severity_code as severityCode',
+        'isv.name as severityName',
+        'isv.description as severityDescription',
+        'isv.priority as severityPriority',
+        'isv.color_hex as severityColorHex',
+        'ist.status_code as statusCode',
+        'ist.name as statusName',
+        'ist.description as statusDescription',
+        'ist.is_terminal as statusIsTerminal',
+        'iso.source_code as sourceCode',
+        'iso.name as sourceName',
+        'iso.description as sourceDescription',
+        'iwc.condition_code as weatherCode',
+        'iwc.name as weatherName',
+        'iwc.description as weatherDescription',
+        'ps.station_code as primaryStationCode',
+        'ps.name as primaryStationName',
+      ])
+      .select(this.db.raw('ST_AsGeoJSON(i.location)::json as "locationGeoJson"'))
+      .where('i.updated_at', '>', since)
+      .orderBy('i.updated_at', 'asc');
+
+    const rows = (await query) as IncidentRowBase[];
+    return rows.map(mapIncidentRow);
+  }
+
+  public async deleteIncident(incidentNumber: string): Promise<void> {
+    const deleted = await this.db('incidents')
+      .where('incident_number', incidentNumber)
+      .update({
+        deleted_at: this.db.fn.now(),
+        updated_at: this.db.fn.now()
+      });
+
+    if (deleted === 0) {
+      throw new Error(`Incident '${incidentNumber}' not found`);
+    }
   }
 
   public async countIncidents(filters: IncidentListFilters = {}): Promise<number> {

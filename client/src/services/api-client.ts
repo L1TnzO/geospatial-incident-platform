@@ -3,6 +3,7 @@ import type { MapBounds, MapCenter } from '../store/map-store';
 import type {
   IncidentCreateRequest,
   IncidentDetail,
+  IncidentListItem,
   IncidentListResponse,
   IncidentMapListResponse,
   IncidentMetadata,
@@ -122,6 +123,11 @@ export const apiClient = {
     ) => http.post<IncidentDetail>('/incidents', payload, options),
     syncStatus: (options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
       http.get<IncidentSyncStatus>('/incidents/sync-status', options),
+    getDelta: (since: string, options?: Omit<RequestOptions, 'method' | 'body' | 'query'>) =>
+      http.get<IncidentListItem[]>('/incidents/delta', {
+        ...options,
+        query: { since },
+      }),
   },
   stations: {
     list: ({ signal, isActive }: FetchStationsParams = {}) =>

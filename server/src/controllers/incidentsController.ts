@@ -63,3 +63,13 @@ export const getSyncStatus = async (req: Request, res: Response): Promise<void> 
   const status = await incidentService.getSyncStatus();
   res.json(status);
 };
+
+export const getDelta = async (req: Request, res: Response): Promise<void> => {
+  const since = req.query.since as string;
+  if (!since) {
+    res.status(400).json({ error: "Query parameter 'since' is required." });
+    return;
+  }
+  const delta = await incidentService.getDelta(since);
+  res.json(delta);
+};

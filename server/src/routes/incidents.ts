@@ -7,12 +7,14 @@ import {
   listMapIncidents,
   searchIncidentByNumber,
   getSyncStatus,
+  getDelta,
 } from '../controllers/incidentsController';
 
 const router = Router();
 
 router.get('/meta', getIncidentMetadata);
 router.get('/sync-status', getSyncStatus);
+router.get('/delta', getDelta);
 router.get('/search', searchIncidentByNumber);
 router.post('/', createIncident);
 router.get('/map', listMapIncidents);

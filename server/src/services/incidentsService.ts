@@ -539,6 +539,7 @@ interface IncidentRepositoryLike {
   findIncidentSummary(incidentNumber: string): Promise<IncidentSearchResult | null>;
   createIncident(input: CreateIncidentInput): Promise<IncidentDetail>;
   getSyncStatus(): Promise<{ lastModified: string; count: number }>;
+  getChangesSince(since: string): Promise<IncidentListItem[]>;
 }
 
 export class IncidentService {
@@ -716,6 +717,10 @@ export class IncidentService {
 
   public async getSyncStatus(): Promise<{ lastModified: string; count: number }> {
     return this.repository.getSyncStatus();
+  }
+
+  public async getDelta(since: string): Promise<IncidentListItem[]> {
+    return this.repository.getChangesSince(since);
   }
 
   public async createIncident(payload: CreateIncidentRequest = {}): Promise<IncidentDetail> {

@@ -11,7 +11,7 @@ import {
   MIN_RENDER_LIMIT,
 } from '../store/incident-filters-store';
 import type { LiteIncident } from '../types';
-import type { IncidentListResponse, IncidentSyncStatus, PaginationMeta } from '../types/api/incidents';
+import type { IncidentListItem, IncidentListResponse, IncidentSyncStatus, PaginationMeta } from '../types/api/incidents';
 import { useIncidentsQuery } from './useIncidentsQuery';
 
 const INCIDENT_FETCH_PAGE_SIZE = 1_000;
@@ -257,9 +257,15 @@ const fetchIncidentsAggregated = async (
 
     state.hasFetched = true;
 
-    const mapped = response.data
-      .map(mapIncidentToUi)
-      .filter((incident): incident is LiteIncident => incident !== null);
+    const mapped: LiteIncident[] = [];
+    for (const item of response.data) {
+      const incident = mapIncidentToUi(item);
+      if (incident) {
+        mapped.push(incident);
+      } else {
+        console.warn('[useIncidentsData] Dropped incident during mapping:', item.incidentNumber);
+      }
+    }
 
     for (const incident of mapped) {
       registerIncident(incident, isViewport);
@@ -479,6 +485,7 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
       let serverStatus: IncidentSyncStatus | undefined;
 
       // Check sync status before loading cache
+      // Check sync status before loading cache
       try {
         serverStatus = await apiClient.incidents.syncStatus({
           signal,
@@ -487,25 +494,117 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
 
         if (serverStatus) {
           const localStatus = await get<{ lastModified: string; count: number }>('incidents-sync-status');
+          const isUnfiltered =
+            !normalizedParams.typeCodes?.length &&
+            !normalizedParams.severityCodes?.length &&
+            !normalizedParams.statusCodes?.length &&
+            !normalizedParams.startDate &&
+            !normalizedParams.endDate &&
+            !normalizedParams.incidentNumber;
 
-          console.log('[SyncCheck] Status:', { local: localStatus, server: serverStatus });
+          console.log('[SyncCheck] Status Comparison:', {
+            local: localStatus,
+            server: serverStatus,
+            isUnfiltered,
+            isActive: normalizedParams.isActive,
+            match: localStatus && localStatus.lastModified === serverStatus.lastModified && localStatus.count === serverStatus.count
+          });
 
-          if (
-            !localStatus ||
-            localStatus.lastModified !== serverStatus.lastModified ||
-            localStatus.count !== serverStatus.count
-          ) {
-            logAggregation('queryFn:cacheInvalidation', {
-              reason: 'sync_mismatch',
-              local: localStatus,
-              server: serverStatus,
-            });
-            console.log('[SyncCheck] Mismatch detected. Clearing IDB...');
-            await clear();
-            await set('incidents-sync-status', serverStatus);
-            console.log('[SyncCheck] IDB Cleared and new status set.');
+          if (localStatus) {
+            // Case 1: Server has fewer items than local -> Something was deleted or reset.
+            // Safety fallback: Full re-fetch.
+            if (serverStatus.count < localStatus.count) {
+              logAggregation('queryFn:cacheInvalidation', { reason: 'server_count_lower', local: localStatus, server: serverStatus });
+              console.warn('[SyncCheck] Server count lower than local. Forcing full refresh.');
+              await clear();
+              await set('incidents-sync-status', serverStatus);
+            }
+            // Case 2: Server is newer -> Delta Sync (for Unfiltered or Active Only views)
+            else if (serverStatus.lastModified !== localStatus.lastModified) {
+              if (isUnfiltered) {
+                console.log('[SyncCheck] Delta Sync triggered.');
+                try {
+                  const delta = await apiClient.incidents.getDelta(localStatus.lastModified, { signal });
+                  const cacheKey = `incidents-cache-${filterSignature}`;
+                  const cachedData = await get<AggregatedIncidentResult>(cacheKey);
+
+                  if (cachedData && Array.isArray(cachedData.incidents)) {
+                    console.log(`[SyncCheck] Applying ${delta.length} changes to cache...`);
+
+                    // Merge Logic
+                    const incidentMap = new Map(cachedData.incidents.map(i => [i.id, i]));
+                    let deletedCount = 0;
+                    let updatedCount = 0;
+                    const viewingActiveOnly = normalizedParams.isActive === true;
+
+                    for (const item of delta) {
+                      // If viewing "Active Only", remove items that are deleted OR became inactive
+                      // If viewing "All", only remove deleted items
+                      const shouldRemove = item.deletedAt || (viewingActiveOnly && !item.isActive);
+
+                      if (shouldRemove) {
+                        if (incidentMap.delete(item.incidentNumber)) {
+                          deletedCount++;
+                        }
+                      } else {
+                        const mapped = mapIncidentToUi(item);
+                        if (mapped) {
+                          incidentMap.set(mapped.id, mapped);
+                          updatedCount++;
+                        } else {
+                          console.warn('[SyncCheck] Dropped delta item during mapping:', item.incidentNumber);
+                        }
+                      }
+                    }
+                    // Re-sort (reportedAt desc)
+                    const mergedIncidents = Array.from(incidentMap.values()).sort((a, b) =>
+                      new Date(b.date).getTime() - new Date(a.date).getTime()
+                    );
+
+                    const mergedResult: AggregatedIncidentResult = {
+                      ...cachedData,
+                      incidents: mergedIncidents,
+                      totalCount: mergedIncidents.length,
+                      // We assume global stats might be slightly off until next full metadata fetch, but totalCount is correct
+                      global: {
+                        ...cachedData.global,
+                        hasMore: false // We have full dataset
+                      }
+                    };
+
+                    // Save merged cache
+                    // We clear everything else to ensure consistency, but save our merged result
+                    await clear();
+                    await set(cacheKey, mergedResult);
+                    await set('incidents-sync-status', serverStatus);
+
+                    // Seed the query cache immediately
+                    queryClient.setQueryData(queryKey, mergedResult);
+                    cachedResultRef.current = mergedResult;
+
+                    console.log(`[SyncCheck] Delta Sync complete. Updated: ${updatedCount}, Deleted: ${deletedCount}. New Total: ${mergedIncidents.length}`);
+                    return mergedResult; // Return immediately, skip full fetch
+                  }
+                } catch (deltaErr) {
+                  console.error('[SyncCheck] Delta Sync failed, falling back to full fetch', deltaErr);
+                  await clear();
+                  await set('incidents-sync-status', serverStatus);
+                }
+              } else {
+                // Filtered view mismatch -> Standard invalidation
+                logAggregation('queryFn:cacheInvalidation', { reason: 'sync_mismatch_filtered', local: localStatus, server: serverStatus });
+                console.log('[SyncCheck] Mismatch on filtered view. Clearing IDB...');
+                await clear();
+                await set('incidents-sync-status', serverStatus);
+              }
+            } else {
+              console.log('[SyncCheck] Status match. Using cache.');
+            }
           } else {
-            console.log('[SyncCheck] Status match. Using cache.');
+            // No local status -> First run or cleared.
+            if (serverStatus) {
+              await set('incidents-sync-status', serverStatus);
+            }
           }
         }
       } catch (err) {
@@ -541,6 +640,11 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
         } catch (err) {
           console.warn('Failed to load from IDB', err);
         }
+      }
+
+      // Optimization: Show cached data immediately while we verify/fetch
+      if (initialData) {
+        queryClient.setQueryData(queryKey, initialData);
       }
 
       // Robustness check: If we are requesting "All Data" (unfiltered), ensure cache matches server total

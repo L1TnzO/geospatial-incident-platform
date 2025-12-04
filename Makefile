@@ -142,6 +142,31 @@ db-init: backend-install
 db-setup-full: db-init db-load-data
 	@echo "=== Full database setup complete ==="
 
+db-restore:
+	@echo "Restoring 100k records..."
+	$(MAKE) data-generate INCIDENT_COUNT=100000
+	$(MAKE) db-load-data
+
+db-add-incident:
+	@echo "Adding 1 incident via API..."
+	@timestamp=$$(date +%s); \
+	occurrence=$$(date -u -d "yesterday" +"%Y-%m-%dT12:00:00Z"); \
+	reported=$$(date -u -d "yesterday" +"%Y-%m-%dT12:05:00Z"); \
+	curl -s -X POST http://localhost:4000/api/incidents \
+		-H "Content-Type: application/json" \
+		-d "{ \
+			\"incidentNumber\": \"ADD-$$timestamp\", \
+			\"title\": \"Manual Incident $$timestamp\", \
+			\"typeCode\": \"FIRE_STRUCTURE\", \
+			\"severityCode\": \"HIGH\", \
+			\"statusCode\": \"REPORTED\", \
+			\"isActive\": true, \
+			\"occurrenceAt\": \"$$occurrence\", \
+			\"reportedAt\": \"$$reported\", \
+			\"location\": { \"latitude\": -33.45, \"longitude\": -70.66 } \
+		}"
+	@echo "\nIncident added."
+
 db-verify:
 	@echo "📊 Verifying database data..."
 	@$(COMPOSE) exec db psql -U gis_dev -d gis -c "\
