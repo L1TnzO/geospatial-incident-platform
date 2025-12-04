@@ -26,7 +26,7 @@ INCIDENT_NUMBER ?=
 CITY_COORDS ?= tools/data_generator/cities_coords/comunas.csv
 REGION_LOOKUP ?= tools/data_generator/cities_coords/regiones.csv
 
-.PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
+.PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate data-generate-local logs-tail
 .PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-shell-fixed db-verify-data backend-install
 .PHONY: frontend-check-config frontend-fix-vps
 
@@ -61,7 +61,7 @@ db-seed:
 db-reset:
 	$(COMPOSE) run --rm backend npm run db:reset
 
-data-generate:
+data-generate-local:
 	$(DATA_GENERATOR) \
 		--output-dir $(OUTPUT_DIR) \
 		--incident-count $(INCIDENT_COUNT) \
@@ -81,6 +81,32 @@ data-generate:
 		$(if $(filter $(INCLUDE_ASSETS),false),--no-include-assets,) \
 		$(if $(filter $(INCLUDE_NOTES),false),--no-include-notes,) \
 		$(if $(filter $(VERBOSE),false),--no-verbose,)
+
+data-generate:
+	docker run --rm \
+		-v "$$(pwd):/app" \
+		-w /app \
+		python:3.11-slim \
+		bash -c "pip install --no-cache-dir -r tools/data_generator/requirements.txt && \
+		python -m tools.data_generator.cli \
+			--output-dir $(OUTPUT_DIR) \
+			--incident-count $(INCIDENT_COUNT) \
+			--station-count $(STATION_COUNT) \
+			--output-format $(FORMAT) \
+			--window-days $(WINDOW_DAYS) \
+			--units-min $(UNITS_MIN) \
+			--units-max $(UNITS_MAX) \
+			--assets-probability $(ASSETS_PROBABILITY) \
+			--notes-probability $(NOTES_PROBABILITY) \
+			--geohash-precision $(GEOHASH_PRECISION) \
+			--city-coords-file $(CITY_COORDS) \
+			--region-lookup-file $(REGION_LOOKUP) \
+			$(if $(SEED),--seed $(SEED),) \
+			$(if $(START_DATETIME),--start-datetime $(START_DATETIME),) \
+			$(if $(filter $(INCLUDE_UNITS),false),--no-include-units,) \
+			$(if $(filter $(INCLUDE_ASSETS),false),--no-include-assets,) \
+			$(if $(filter $(INCLUDE_NOTES),false),--no-include-notes,) \
+			$(if $(filter $(VERBOSE),false),--no-verbose,)"
 
 logs-tail:
 	$(COMPOSE) logs --tail=50

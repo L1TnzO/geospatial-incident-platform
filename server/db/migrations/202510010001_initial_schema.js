@@ -345,5 +345,5 @@ exports.down = async function down(knex) {
   await knex.schema.dropTableIfExists('incident_types');
 
   await knex.raw('DROP EXTENSION IF EXISTS pgcrypto');
-  await knex.raw('DROP EXTENSION IF EXISTS postgis');
+  await knex.raw('DROP EXTENSION IF EXISTS postgis CASCADE');
 };
