@@ -23,6 +23,8 @@ DATABASE_URL ?= postgres://gis_dev:gis_dev_password@localhost:5432/gis
 SKIP_VALIDATION ?= false
 BENCHMARK_SCRIPT ?= tools/performance/benchmark.sql
 INCIDENT_NUMBER ?=
+CITY_COORDS ?= tools/data_generator/cities_coords/comunas.csv
+REGION_LOOKUP ?= tools/data_generator/cities_coords/regiones.csv
 
 .PHONY: compose-up compose-down compose-stop compose-logs compose-config compose-restart db-shell db-migrate db-seed db-reset data-generate logs-tail
 .PHONY: db-load-data db-load-data-host db-benchmark db-init db-setup-full db-shell-fixed db-verify-data backend-install
@@ -71,6 +73,8 @@ data-generate:
 		--assets-probability $(ASSETS_PROBABILITY) \
 		--notes-probability $(NOTES_PROBABILITY) \
 		--geohash-precision $(GEOHASH_PRECISION) \
+		--city-coords-file $(CITY_COORDS) \
+		--region-lookup-file $(REGION_LOOKUP) \
 		$(if $(SEED),--seed $(SEED),) \
 		$(if $(START_DATETIME),--start-datetime $(START_DATETIME),) \
 		$(if $(filter $(INCLUDE_UNITS),false),--no-include-units,) \
