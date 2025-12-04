@@ -494,6 +494,7 @@ export function MapView({
         maxZoom={19}
         zoomControl={false}
         className="h-full w-full"
+        preferCanvas={true}
       >
         <BaseLayerTile layer={baseLayer} />
         <MapViewportController />
