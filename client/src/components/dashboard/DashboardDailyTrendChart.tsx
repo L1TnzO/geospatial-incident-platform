@@ -13,6 +13,7 @@ interface DashboardDailyTrendChartProps {
   timeRangeLabel: string;
   comparisonLabel: string;
   timeRange: TimeRange;
+  isYoY: boolean;
 }
 
 const formatDate = (isoDate: string) =>
@@ -28,7 +29,7 @@ const formatLongDate = (isoDate: string) =>
     day: 'numeric',
   });
 
-export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel, timeRange }: DashboardDailyTrendChartProps) {
+export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel, timeRange, isYoY }: DashboardDailyTrendChartProps) {
   const { data, isLoading, isError, error, refresh, lastUpdated } = trendQuery;
 
   const formatWindow = (start: Date, end: Date): string => {
@@ -44,39 +45,39 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
     switch (timeRange) {
       case '24h':
         start.setHours(end.getHours() - 24);
-        previousEnd.setHours(end.getHours() - 24);
-        previousStart.setHours(end.getHours() - 48);
         break;
       case '7d':
         start.setDate(end.getDate() - 7);
-        previousEnd.setDate(end.getDate() - 7);
-        previousStart.setDate(end.getDate() - 14);
         break;
       case '30d':
         start.setDate(end.getDate() - 30);
-        previousEnd.setDate(end.getDate() - 30);
-        previousStart.setDate(end.getDate() - 60);
         break;
       case '3m':
         {
           const start3m = subMonths(end, 3);
           start.setTime(start3m.getTime());
-          previousEnd.setTime(start3m.getTime());
-          previousStart.setTime(subMonths(start3m, 3).getTime());
         }
         break;
       case '1y':
         {
           const start1y = subYears(end, 1);
           start.setTime(start1y.getTime());
-          previousEnd.setTime(start1y.getTime());
-          previousStart.setTime(subYears(start1y, 1).getTime());
         }
         break;
       default:
         start.setHours(end.getHours() - 24);
-        previousEnd.setHours(end.getHours() - 24);
-        previousStart.setHours(end.getHours() - 48);
+    }
+
+    if (isYoY) {
+      const prevStart = subYears(start, 1);
+      const prevEnd = subYears(end, 1);
+      previousStart.setTime(prevStart.getTime());
+      previousEnd.setTime(prevEnd.getTime());
+    } else {
+      // Default behavior: previous period of same duration
+      const durationMs = end.getTime() - start.getTime();
+      previousEnd.setTime(start.getTime());
+      previousStart.setTime(start.getTime() - durationMs);
     }
 
     return {

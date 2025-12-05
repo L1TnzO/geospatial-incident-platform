@@ -509,10 +509,21 @@ export class DashboardService {
       end: currentEnd.toISOString(),
     };
 
-    // Determine previous window (same duration as current window)
-    const durationMs = currentEnd.getTime() - currentStart.getTime();
-    const previousStart = new Date(currentStart.getTime() - durationMs);
-    const previousEnd = currentStart;
+    // Determine previous window
+    let previousStart: Date;
+    let previousEnd: Date;
+
+    if (query.compare === 'year') {
+      previousStart = new Date(currentStart);
+      previousStart.setFullYear(previousStart.getFullYear() - 1);
+      previousEnd = new Date(currentEnd);
+      previousEnd.setFullYear(previousEnd.getFullYear() - 1);
+    } else {
+      // Default: previous period of same duration
+      const durationMs = currentEnd.getTime() - currentStart.getTime();
+      previousStart = new Date(currentStart.getTime() - durationMs);
+      previousEnd = currentStart;
+    }
 
     const previousWindow = {
       start: previousStart.toISOString(),
@@ -522,6 +533,7 @@ export class DashboardService {
     const cacheKey = buildCacheKey('kpi:last24h', filters, {
       window: currentWindow,
       previousWindow,
+      compare: query.compare,
     });
 
     return this.withCache(cacheKey, refresh, async () => {
@@ -603,6 +615,7 @@ export class DashboardService {
     now: Date = new Date()
   ): Promise<DailyTrend> {
     const filters = this.getFilters(query);
+    const compare = query.compare as string | undefined;
 
     let range: { start: string; end: string };
     let startDate: Date;
@@ -639,7 +652,7 @@ export class DashboardService {
       };
     }
 
-    const cacheKey = buildCacheKey('incidents:dailyTrend', filters, range);
+    const cacheKey = buildCacheKey('incidents:dailyTrend', filters, { range, compare });
 
     return this.withCache(cacheKey, refresh, async () => {
       const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
@@ -677,23 +690,27 @@ export class DashboardService {
         });
       }
 
-      // Trend calculation logic (current range vs previous range of same duration)
+      // Trend calculation logic (current range vs previous range)
       const currentTotal = points.reduce((sum, point) => sum + point.count, 0);
 
-      // We need to fetch the previous window's data to calculate the trend correctly
-      // Since we don't have the previous points here, we'll need to query for them
-      // OR, simpler: we can just use the previous total if we want to be accurate, 
-      // but getDailyTrend is currently designed to return points for the chart.
+      let previousRange: { start: string; end: string };
 
-      // Actually, to be consistent with KPI, we should probably fetch the previous window count.
-      // But for now, let's stick to the points we have if possible, OR make a second query.
-      // Making a second query is safer for accuracy.
-
-      const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
-      const previousRange = {
-        start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
-        end: range.start,
-      };
+      if (compare === 'year') {
+        const prevStart = new Date(range.start);
+        prevStart.setFullYear(prevStart.getFullYear() - 1);
+        const prevEnd = new Date(range.end);
+        prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+        previousRange = {
+          start: prevStart.toISOString(),
+          end: prevEnd.toISOString(),
+        };
+      } else {
+        const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
+        previousRange = {
+          start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
+          end: range.start,
+        };
+      }
 
       const { startDate: _sd2, endDate: _ed2, ...baseFilters2 } = filters;
       // We need the total count for the previous range. 

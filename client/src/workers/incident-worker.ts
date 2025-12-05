@@ -20,6 +20,8 @@ export interface FilterCriteria {
     severityCodes?: string[];
     statusCodes?: string[];
     incidentNumber?: string;
+    startDate?: string;
+    endDate?: string;
 }
 
 type IncidentProperties = {
@@ -76,6 +78,16 @@ const updateClusterIndex = (incidents: LiteIncident[]) => {
 
 const filterIncidents = (incidents: LiteIncident[], filters: FilterCriteria): LiteIncident[] => {
     let result = incidents;
+
+    if (filters.startDate || filters.endDate) {
+        const start = filters.startDate ? new Date(filters.startDate).getTime() : 0;
+        const end = filters.endDate ? new Date(filters.endDate).getTime() : Infinity;
+
+        result = result.filter((i) => {
+            const time = new Date(i.date).getTime();
+            return time >= start && time <= end;
+        });
+    }
 
     if (filters.typeCodes && filters.typeCodes.length > 0) {
         const typeSet = new Set(filters.typeCodes);

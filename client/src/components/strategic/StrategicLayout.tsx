@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { subYears, startOfDay, endOfDay } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
@@ -20,6 +21,8 @@ import { ZoneFrequencyTable } from './ZoneFrequencyTable';
 import { StationVolumeChart } from './StationVolumeChart';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 
 import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
@@ -28,7 +31,7 @@ import { useDashboard } from '../../providers/dashboard-provider';
 import { useIncidentMetadataQuery } from '../../hooks/useIncidentMetadataQuery';
 
 export function StrategicLayout() {
-  const { timeRange, setTimeRange, filters, comparisonLabel } = useDashboard();
+  const { timeRange, setTimeRange, filters, comparisonLabel, isYoY, setIsYoY } = useDashboard();
 
   const {
     showIncidentsStrategic: showIncidents,
@@ -67,15 +70,24 @@ export function StrategicLayout() {
     ...filters,
   });
 
+
   // Map data
   // Use local filters for the map to ensure independence from global filters
-  // This shares the cache if the params match, but doesn't react to global filter changes
-  const incidentsData = useIncidentsData({
-    ...filters,
-    isActive: undefined, // Force ALL incidents (active + inactive)
-    // Ensure we fetch enough data for the map
-    renderLimit: 2000,
-  });
+  // Fetch a larger dataset (e.g., 1 year) to allow client-side filtering in the worker
+  // We align the dates to the start/end of the day to ensure the cache key remains stable
+  // across navigations and reloads within the same day.
+  // The Delta Sync mechanism in useIncidentsData will still ensure we get the latest updates.
+  const mapFilters = useMemo(() => {
+    const now = new Date();
+    return {
+      ...filters,
+      startDate: subYears(startOfDay(now), 1).toISOString(),
+      endDate: endOfDay(now).toISOString(),
+      isActive: undefined, // Force ALL incidents (active + inactive)
+    };
+  }, [filters]); // Re-fetch only if filters object changes
+
+  const incidentsData = useIncidentsData(mapFilters);
   const stationsQuery = useStationsData({ isActive: true });
 
   const incidents = incidentsData.incidents;
@@ -171,10 +183,13 @@ export function StrategicLayout() {
       type: 'SET_DATA',
       payload: {
         incidents,
-        filters: {}, // No filters for strategic map (show all)
+        filters: {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        },
       },
     });
-  }, [incidents, worker]);
+  }, [incidents, worker, filters.startDate, filters.endDate]);
 
   return (
     <div className="p-6">
@@ -188,7 +203,14 @@ export function StrategicLayout() {
             </p>
           </div>
           <div className="flex items-center gap-4">
-
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="strategic-yoy-mode"
+                checked={isYoY}
+                onCheckedChange={(checked: boolean | 'indeterminate') => setIsYoY(checked === true)}
+              />
+              <Label htmlFor="strategic-yoy-mode">Compare to Last Year</Label>
+            </div>
             <Select value={timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select time range" />
@@ -221,6 +243,7 @@ export function StrategicLayout() {
             selectedType={selectedType}
             onTypeChange={setSelectedType}
             incidentTypes={metadataQuery.data?.types || []}
+            isYoY={isYoY}
           />
         </div>
 
