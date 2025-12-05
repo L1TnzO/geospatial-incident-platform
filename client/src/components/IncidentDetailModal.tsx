@@ -53,17 +53,14 @@ export function IncidentDetailModal() {
   }, [detailQuery.data, selectedIncident]);
 
   const coordinates = incident?.location;
-  const hasCoordinates =
-    typeof coordinates?.lat === 'number' && typeof coordinates?.lng === 'number';
-  const reportedAddress = coordinates?.address?.trim();
-  const normalizedReportedAddress = reportedAddress &&
-    !/unknown|unavailable|no data/i.test(reportedAddress)
-      ? reportedAddress
-      : '';
+  // Protección de coordenadas
+  const lat = typeof coordinates?.lat === 'number' ? coordinates.lat : Number(coordinates?.lat);
+  const lng = typeof coordinates?.lng === 'number' ? coordinates.lng : Number(coordinates?.lng);
+  const hasCoordinates = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
 
   const reverseGeocodeQuery = useReverseGeocode({
-    lat: hasCoordinates ? coordinates?.lat : undefined,
-    lng: hasCoordinates ? coordinates?.lng : undefined,
+    lat: hasCoordinates ? lat : undefined,
+    lng: hasCoordinates ? lng : undefined,
     enabled: isOpen && hasCoordinates,
   });
 
@@ -71,9 +68,9 @@ export function IncidentDetailModal() {
     reverseGeocodeQuery.data?.shortLabel || reverseGeocodeQuery.data?.displayName || '';
 
   const locationLabel = (() => {
-    if (normalizedReportedAddress) {
-      return normalizedReportedAddress;
-    }
+    const metaAddress = (incident?.metadata as any)?.generated_address;
+    if (metaAddress) return metaAddress;
+
     if (reverseGeocodeQuery.isLoading && hasCoordinates) {
       return 'Loading location…';
     }
@@ -84,12 +81,66 @@ export function IncidentDetailModal() {
   })();
 
   const googleMapsUrl = hasCoordinates
-    ? `https://www.google.com/maps/search/?api=1&query=${coordinates?.lat},${coordinates?.lng}`
+    ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
     : null;
 
-  const units = incident?.units ?? [];
-  const assets = incident?.assets ?? [];
-  const notes = incident?.notes ?? [];
+  // --- ADAPTADORES DE DATOS ---
+  const meta = (incident?.metadata as any) || {};
+
+  const units: IncidentUnitSummary[] = useMemo(() => {
+    if (incident?.units && incident.units.length > 0) return incident.units;
+    if (meta.response_units && Array.isArray(meta.response_units)) {
+      return meta.response_units.map((u: any) => ({
+        stationCode: u.station_code,
+        stationName: u.station_code,
+        assignmentRole: u.role,
+        dispatchedAt: u.dispatched_at,
+        clearedAt: u.cleared_at
+      }));
+    }
+    return [];
+  }, [incident?.units, meta.response_units]);
+
+  const assets: IncidentAssetSummary[] = useMemo(() => {
+    if (incident?.assets && incident.assets.length > 0) return incident.assets;
+    if (meta.equipment_assets && Array.isArray(meta.equipment_assets)) {
+      return meta.equipment_assets.map((a: any) => ({
+        assetIdentifier: a.assetIdentifier,
+        assetType: a.assetType,
+        status: a.status,
+        notes: a.notes
+      }));
+    }
+    if (typeof meta.equipment_assets === 'string' && meta.equipment_assets.length > 0) {
+      return [{
+        assetIdentifier: 'Legacy Assets',
+        assetType: 'Equipment',
+        status: 'Active',
+        notes: meta.equipment_assets
+      }];
+    }
+    return [];
+  }, [incident?.assets, meta.equipment_assets]);
+
+  const notes: IncidentNoteSummary[] = useMemo(() => {
+    if (incident?.notes && incident.notes.length > 0) return incident.notes;
+    if (meta.field_notes && Array.isArray(meta.field_notes)) {
+      return meta.field_notes.map((n: any) => ({
+        author: n.author || 'Operator',
+        note: n.note,
+        createdAt: n.createdAt || new Date().toISOString()
+      }));
+    }
+    return [];
+  }, [incident?.notes, meta.field_notes]);
+
+  // --- TÍTULOS Y DESCRIPCIONES ---
+  // displayTitle: Lo que se ve GRANDE en el encabezado
+  const displayTitle = (incident as any)?.title || (incident as any)?.description || incident?.id || 'Incident';
+
+  // renderDescription: Lo que se ve en la caja gris "Short Description"
+  // Buscamos title O description.
+  const renderDescription = (incident as any)?.title || (incident as any)?.description;
 
   const isInitialLoading = detailQuery.isLoading && !detailQuery.data;
   const isRefetching = detailQuery.isFetching && !!detailQuery.data;
@@ -103,9 +154,9 @@ export function IncidentDetailModal() {
 
   const severityColor = incident?.severityColor
     ? {
-        backgroundColor: `${incident.severityColor}22`,
-        borderColor: incident.severityColor,
-      }
+      backgroundColor: `${incident.severityColor}22`,
+      borderColor: incident.severityColor,
+    }
     : undefined;
 
   return (
@@ -130,9 +181,10 @@ export function IncidentDetailModal() {
           <DialogHeader>
             <div className="flex items-start justify-between gap-3">
               <DialogTitle className="flex flex-col gap-1 text-left">
-                <span className="text-xl md:text-2xl font-bold break-words">{incident?.id ?? incidentId ?? 'Incident'}</span>
+                {/* Título Grande */}
+                <span className="text-xl md:text-2xl font-bold break-words">{displayTitle}</span>
                 <span className="text-sm font-normal text-muted-foreground">
-                  {incident?.type || 'Incident Details'}
+                  {incident?.type?.name || (incident as any)?.type || 'Incident Details'}
                 </span>
               </DialogTitle>
               <div className="flex items-center gap-2 shrink-0">
@@ -176,121 +228,105 @@ export function IncidentDetailModal() {
 
           {incident && !isInitialLoading && (
             <div className="space-y-6">
-            {/* Status and Severity - Prominent at top */}
-            <div className="flex items-center gap-4">
-              <Badge variant="outline" className="text-base py-1 px-3">
-                {incident.status}
-              </Badge>
-              <Badge variant="outline" style={severityColor} className="text-base py-1 px-3">
-                {incident.severity}
-              </Badge>
-            </div>
 
-            {/* Key Information Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-lg">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                  Time Reported
-                </p>
-                <p className="text-base font-medium">
-                  {formatDateTime(incident.reportedAt ?? incident.timestamp)}
-                </p>
+              <div className="flex items-center gap-4">
+                <Badge variant="outline" className="text-base py-1 px-3">
+                  {incident.status?.name || (incident as any).status}
+                </Badge>
+                <Badge variant="outline" style={severityColor} className="text-base py-1 px-3">
+                  {incident.severity?.name || (incident as any).severity}
+                </Badge>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                  Time Occurred
-                </p>
-                <p className="text-base font-medium">{formatDateTime(incident.occurrenceAt)}</p>
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                  Location
-                </p>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <p className="text-base font-medium">{locationLabel}</p>
-                  {googleMapsUrl && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
-                        Go to Location <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </Button>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span>
-                    Coordinates: {incident.location.lat.toFixed(4)},{' '}
-                    {incident.location.lng.toFixed(4)}
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Description</p>
-              <p className="text-base leading-relaxed">{incident.description}</p>
-            </div>
-
-            {/* Narrative - Most important for managers */}
-            {incident.narrative && (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">Incident Narrative</p>
-                <div className="bg-muted/30 p-4 rounded-lg">
-                  <p className="whitespace-pre-wrap text-base leading-relaxed">
-                    {incident.narrative}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-lg">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                    Time Reported
+                  </p>
+                  <p className="text-base font-medium">
+                    {formatDateTime(incident.reportedAt || (incident as any).timestamp)}
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* Response Units */}
-            {units.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Response Units</p>
-                <IncidentUnitsTable units={units} />
-              </div>
-            )}
-
-            {/* Assets */}
-            {assets.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Equipment & Assets</p>
-                <IncidentAssetsTable assets={assets} />
-              </div>
-            )}
-
-            {/* Field Notes */}
-            {notes.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Field Notes</p>
-                <IncidentNotesList notes={notes} />
-              </div>
-            )}
-
-            {detailError && incident.metadata && (
-              <>
-                <Separator />
-                <div className="flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                  <div className="flex-1">
-                    <p className="font-medium text-destructive">Some details may be stale</p>
-                    <p className="text-muted-foreground">{detailError}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => detailQuery.refetch()}
-                  >
-                    <RefreshCw className="h-4 w-4" /> Retry
-                  </Button>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                    Time Occurred
+                  </p>
+                  <p className="text-base font-medium">{formatDateTime(incident.occurrenceAt)}</p>
                 </div>
-              </>
-            )}
-          </div>
-        )}
+                <div className="space-y-1 md:col-span-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                    Location
+                  </p>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="text-base font-medium">{locationLabel}</p>
+                    {googleMapsUrl && (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                          Go to Location <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                  {incident.location && (
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span>
+                        Coordinates: {lat.toFixed(4)}, {lng.toFixed(4)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* --- SECCIÓN SHORT DESCRIPTION --- */}
+              {/* Ahora usamos 'renderDescription' que es a prueba de fallos */}
+              {renderDescription && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Short Description</p>
+                  <div className="bg-muted/10 p-3 rounded-md border border-border/50">
+                    <p className="text-base leading-relaxed">{renderDescription}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Narrative */}
+              {incident.narrative && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Incident Narrative</p>
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <p className="whitespace-pre-wrap text-base leading-relaxed">
+                      {incident.narrative}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Response Units */}
+              {units.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Response Units</p>
+                  <IncidentUnitsTable units={units} />
+                </div>
+              )}
+
+              {/* Assets */}
+              {assets.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Equipment & Assets</p>
+                  <IncidentAssetsTable assets={assets} />
+                </div>
+              )}
+
+              {/* Field Notes */}
+              {notes.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Field Notes</p>
+                  <IncidentNotesList notes={notes} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        
+
         <div className="p-6 pt-4 border-t shrink-0">
           <Button className="w-full md:w-auto md:ml-auto" onClick={closeIncident}>
             Close
@@ -301,6 +337,7 @@ export function IncidentDetailModal() {
   );
 }
 
+// Subcomponentes (Tablas) - Sin cambios
 const IncidentUnitsTable = ({ units }: { units: IncidentUnitSummary[] }) => (
   <div className="rounded-lg border overflow-hidden max-w-full">
     <div className="overflow-x-auto w-full">
@@ -314,8 +351,8 @@ const IncidentUnitsTable = ({ units }: { units: IncidentUnitSummary[] }) => (
           </TableRow>
         </TableHeader>
         <TableBody>
-          {units.map((unit) => (
-            <TableRow key={`${unit.stationCode}-${unit.assignmentRole ?? 'role'}`}>
+          {units.map((unit, i) => (
+            <TableRow key={`${unit.stationCode}-${unit.assignmentRole ?? 'role'}-${i}`}>
               <TableCell className="font-medium">
                 <div className="flex flex-col">
                   <span>{unit.stationName}</span>
@@ -350,8 +387,8 @@ const IncidentAssetsTable = ({ assets }: { assets: IncidentAssetSummary[] }) => 
           </TableRow>
         </TableHeader>
         <TableBody>
-          {assets.map((asset) => (
-            <TableRow key={asset.assetIdentifier}>
+          {assets.map((asset, i) => (
+            <TableRow key={`${asset.assetIdentifier}-${i}`}>
               <TableCell className="font-medium">{asset.assetIdentifier}</TableCell>
               <TableCell>{asset.assetType}</TableCell>
               <TableCell>
@@ -372,8 +409,8 @@ const IncidentAssetsTable = ({ assets }: { assets: IncidentAssetSummary[] }) => 
 
 const IncidentNotesList = ({ notes }: { notes: IncidentNoteSummary[] }) => (
   <div className="space-y-3">
-    {notes.map((note) => (
-      <div key={`${note.author}-${note.createdAt}`} className="rounded-lg border bg-muted/20 p-4">
+    {notes.map((note, i) => (
+      <div key={`${note.author}-${note.createdAt}-${i}`} className="rounded-lg border bg-muted/20 p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="font-medium text-sm">{note.author}</span>
           <span className="text-xs text-muted-foreground whitespace-nowrap">

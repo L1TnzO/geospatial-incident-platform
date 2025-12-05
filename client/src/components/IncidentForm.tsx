@@ -11,6 +11,11 @@ import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 import { useCreateIncident } from '../hooks/useCreateIncident';
 import { useIncidentCreateStore } from '../store/incident-create-store';
 
+// Importamos los 3 selectores especializados
+import { StationSelector, type IncidentUnit } from './StationSelector';
+import { AssetSelector, type IncidentAsset } from './AssetSelector';
+import { NoteSelector, type IncidentNote } from './NoteSelector';
+
 const STATUS_OPTIONS = [
   { code: 'REPORTED', label: 'Reported (Awaiting dispatch)' },
   { code: 'DISPATCHED', label: 'Dispatched (Units en route)' },
@@ -27,6 +32,7 @@ export function IncidentForm() {
   const typeOptions = metadataQuery.data?.types ?? [];
   const severityOptions = metadataQuery.data?.severities ?? [];
 
+  // --- ESTADO DEL FORMULARIO ---
   const [formData, setFormData] = useState({
     type: '',
     severity: '',
@@ -34,15 +40,20 @@ export function IncidentForm() {
     isActive: 'true',
     date: '',
     time: '',
-    description: '',
+    title: '',         // Título obligatorio (Short Description)
+    narrative: '',     // Narrativa opcional
     latitude: '',
     longitude: '',
-    // address: '', <--- ELIMINADO
   });
+
+  // Estados para las listas complejas (Arrays)
+  const [selectedUnits, setSelectedUnits] = useState<IncidentUnit[]>([]);
+  const [selectedAssets, setSelectedAssets] = useState<IncidentAsset[]>([]);
+  const [selectedNotes, setSelectedNotes] = useState<IncidentNote[]>([]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Actualizar coordenadas cuando se selecciona en el mapa
+  // Sincronizar coordenadas desde el mapa
   useEffect(() => {
     if (coordinates) {
       setFormData((prev) => ({
@@ -53,6 +64,7 @@ export function IncidentForm() {
     }
   }, [coordinates]);
 
+  // --- VALIDACIÓN ---
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
@@ -61,14 +73,17 @@ export function IncidentForm() {
     if (!formData.statusCode) newErrors.statusCode = 'Status is required';
     if (!formData.date) newErrors.date = 'Date is required';
     if (!formData.time) newErrors.time = 'Time is required';
-    if (!formData.description) newErrors.description = 'Description is required';
+
+    // El título es obligatorio, la narrativa no
+    if (!formData.title) newErrors.title = 'Short description (Title) is required';
+
     if (!formData.latitude) newErrors.latitude = 'Location is required (Pick on map)';
-    // if (!formData.address) ... <--- ELIMINADO: Ya no validamos address manual
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // --- ENVÍO ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -78,27 +93,45 @@ export function IncidentForm() {
         return;
       }
 
+      // Construcción del Payload
       const payload = {
         incidentNumber: `INC-${Date.now()}`,
-        title: formData.description.slice(0, 50) || 'New incident',
+
+        // Campos principales
+        title: formData.title,
         typeCode: formData.type,
         severityCode: formData.severity,
         statusCode: formData.statusCode,
         isActive: formData.isActive === 'true',
         occurrenceAt: new Date(`${formData.date}T${formData.time}`).toISOString(),
         reportedAt: new Date().toISOString(),
+
+        // Ubicación
         location: {
           latitude: Number(formData.latitude),
           longitude: Number(formData.longitude),
         },
-        // Como quitamos el input manual, enviamos una referencia generada
-        // para cumplir con la API si es que espera este campo.
-        // La API de Google en el backend se encargará después.
         address: `Lat: ${Number(formData.latitude).toFixed(4)}, Lng: ${Number(formData.longitude).toFixed(4)}`,
-        narrative: formData.description,
+
+        // Narrativa
+        narrative: formData.narrative,
+
+        // Metadatos Estructurados (Aquí guardamos todo lo extra)
+        metadata: {
+          response_units: selectedUnits.map(u => ({
+            station_code: u.stationCode,
+            role: u.assignmentRole,
+            dispatched_at: u.dispatchedAt,
+            cleared_at: u.clearedAt
+          })),
+          equipment_assets: selectedAssets,
+          field_notes: selectedNotes,
+
+          generated_address: `Lat: ${Number(formData.latitude).toFixed(4)}, Lng: ${Number(formData.longitude).toFixed(4)}`
+        }
       };
 
-      createMutation.mutate(payload, {
+      createMutation.mutate(payload as any, {
         onError: (err: unknown) => {
           const message = err instanceof Error ? err.message : 'Failed to create incident.';
           toast.error(message);
@@ -106,6 +139,8 @@ export function IncidentForm() {
         onSuccess: () => {
           toast.success('Incident created successfully!');
           close();
+          // Opcional: Redirigir al mapa
+          // navigate('/map'); 
         },
       });
     } else {
@@ -122,9 +157,9 @@ export function IncidentForm() {
     <div className="w-full max-w-3xl mx-auto pb-10">
       <Card>
         <CardHeader>
-          <CardTitle>Incident Details</CardTitle>
+          <CardTitle>Incident Report</CardTitle>
           <CardDescription>
-            Enter incident details. Location address will be auto-detected by the system.
+            Enter incident details. Location address will be auto-detected.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -143,9 +178,7 @@ export function IncidentForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {typeOptions.map((type) => (
-                      <SelectItem key={type.code} value={type.code}>
-                        {type.name}
-                      </SelectItem>
+                      <SelectItem key={type.code} value={type.code}>{type.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -163,9 +196,7 @@ export function IncidentForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {severityOptions.map((severity) => (
-                      <SelectItem key={severity.code} value={severity.code}>
-                        {severity.name}
-                      </SelectItem>
+                      <SelectItem key={severity.code} value={severity.code}>{severity.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -186,9 +217,7 @@ export function IncidentForm() {
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((status) => (
-                      <SelectItem key={status.code} value={status.code}>
-                        {status.label}
-                      </SelectItem>
+                      <SelectItem key={status.code} value={status.code}>{status.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -200,9 +229,7 @@ export function IncidentForm() {
                   value={formData.isActive}
                   onValueChange={(value: string) => setFormData({ ...formData, isActive: value })}
                 >
-                  <SelectTrigger id="active">
-                    <SelectValue placeholder="Select..." />
-                  </SelectTrigger>
+                  <SelectTrigger id="active"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">Yes (Active)</SelectItem>
                     <SelectItem value="false">No (Inactive)</SelectItem>
@@ -216,65 +243,89 @@ export function IncidentForm() {
               <div className="space-y-2">
                 <Label htmlFor="date">Date *</Label>
                 <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
+                  id="date" type="date" value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   className={errors.date ? 'border-destructive' : ''}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="time">Time *</Label>
                 <Input
-                  id="time"
-                  type="time"
-                  value={formData.time}
+                  id="time" type="time" value={formData.time}
                   onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                   className={errors.time ? 'border-destructive' : ''}
                 />
               </div>
             </div>
 
-            {/* Descripción */}
+            {/* Título (Short Description) */}
             <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                placeholder="Detailed description of the incident..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-                className={errors.description ? 'border-destructive' : ''}
+              <Label htmlFor="title">Short Description / Title *</Label>
+              <Input
+                id="title"
+                placeholder="e.g. Structure Fire on Main St."
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className={errors.title ? 'border-destructive' : ''}
               />
-              {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
+              {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
             </div>
 
-            {/* Dirección y Coordenadas (Solo lectura) */}
-            <div className="space-y-4 pt-2 border-t">
-              {/* <--- INPUT DE ADDRESS ELIMINADO DE AQUÍ ---> */}
+            {/* Narrativa (Opcional) */}
+            <div className="space-y-2">
+              <Label htmlFor="narrative">Incident Narrative (Optional)</Label>
+              <Textarea
+                id="narrative"
+                placeholder="Detailed timeline of events and observations..."
+                value={formData.narrative}
+                onChange={(e) => setFormData({ ...formData, narrative: e.target.value })}
+                rows={4}
+              />
+            </div>
 
+            {/* --- SECCIÓN OPERATIVA (Los 3 Selectores) --- */}
+            <div className="space-y-6 pt-4 border-t">
+              <h3 className="text-sm font-medium">Operational Details (Optional)</h3>
+
+              {/* 1. Unidades */}
+              <StationSelector
+                selectedUnits={selectedUnits}
+                onChange={setSelectedUnits}
+              />
+
+              {/* 2. Activos */}
+              <AssetSelector
+                selectedAssets={selectedAssets}
+                onChange={setSelectedAssets}
+              />
+
+              {/* 3. Notas de Campo */}
+              <NoteSelector
+                notes={selectedNotes}
+                onChange={setSelectedNotes}
+              />
+            </div>
+
+            {/* Coordenadas */}
+            <div className="space-y-4 pt-2 border-t">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude</Label>
+                  <Label>Latitude</Label>
                   <Input
-                    id="latitude"
                     value={formData.latitude}
                     readOnly
                     className="bg-muted text-muted-foreground"
-                    placeholder="Pick on map ->"
+                    placeholder="Select on map ->"
                   />
                   {errors.latitude && <p className="text-xs text-destructive">{errors.latitude}</p>}
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude</Label>
+                  <Label>Longitude</Label>
                   <Input
-                    id="longitude"
                     value={formData.longitude}
                     readOnly
                     className="bg-muted text-muted-foreground"
-                    placeholder="Pick on map ->"
+                    placeholder="Select on map ->"
                   />
                 </div>
               </div>
@@ -285,12 +336,8 @@ export function IncidentForm() {
 
             {/* Botones */}
             <div className="flex gap-4 pt-4">
-              <Button type="submit" className="flex-1">
-                Save Incident
-              </Button>
-              <Button type="button" variant="outline" onClick={handleCancel} className="flex-1">
-                Cancel
-              </Button>
+              <Button type="submit" className="flex-1">Save Incident</Button>
+              <Button type="button" variant="outline" onClick={handleCancel} className="flex-1">Cancel</Button>
             </div>
           </form>
         </CardContent>
