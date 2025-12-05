@@ -318,3 +318,13 @@ export interface StrategicZoneFrequencyResponse {
   }[];
   total: number;
 }
+
+export interface StrategicStationVolumeResponse {
+  stations: {
+    stationCode: string;
+    stationName: string;
+    count: number;
+    percentage: number;
+  }[];
+  total: number;
+}

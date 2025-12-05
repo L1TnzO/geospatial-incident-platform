@@ -9,6 +9,7 @@ import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones
 import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
 import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
 import { useStrategicZoneFrequency } from '../../hooks/useStrategicZoneFrequency';
+import { useStrategicStationVolume } from '../../hooks/useStrategicStationVolume';
 import { useIncidentsContext } from '../../providers/incidents-provider';
 import { useStationsData } from '../../hooks/useStationsData';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
@@ -16,6 +17,7 @@ import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
 import { StrategicTimeOfDayChart } from './StrategicTimeOfDayChart';
 import { ZoneFrequencyTable } from './ZoneFrequencyTable';
+import { StationVolumeChart } from './StationVolumeChart';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
 
@@ -54,6 +56,7 @@ export function StrategicLayout() {
   const dailyTrendQuery = useStrategicDailyTrend(trendFilters);
   const timeOfDayQuery = useStrategicTimeOfDay(trendFilters);
   const zoneFrequencyQuery = useStrategicZoneFrequency(trendFilters);
+  const stationVolumeQuery = useStrategicStationVolume(trendFilters);
 
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
@@ -206,6 +209,13 @@ export function StrategicLayout() {
           />
           <StrategicTimeOfDayChart query={timeOfDayQuery} />
           <ZoneFrequencyTable query={zoneFrequencyQuery} />
+          <StationVolumeChart
+            data={stationVolumeQuery.data || null}
+            isLoading={stationVolumeQuery.isLoading}
+            isError={stationVolumeQuery.isError}
+            error={stationVolumeQuery.error}
+            onRefresh={() => stationVolumeQuery.refetch()}
+          />
         </div>
 
         {/* Map with Overlays - Full Width */}

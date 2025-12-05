@@ -653,6 +653,30 @@ export class IncidentRepository {
     }));
   }
 
+  public async getStationIncidentCounts(
+    filters: IncidentListFilters = {}
+  ): Promise<{ stationCode: string; stationName: string; count: number }[]> {
+    const baseQuery = this.db('incidents as i')
+      .join('stations as s', 'i.primary_station_id', 's.id')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+
+    applyFilters(baseQuery, filters);
+
+    const rows = await baseQuery
+      .select('s.station_code as stationCode', 's.name as stationName')
+      .count('i.id as count')
+      .groupBy('s.station_code', 's.name')
+      .orderBy('count', 'desc');
+
+    return rows.map((row) => ({
+      stationCode: String(row.stationCode),
+      stationName: String(row.stationName || row.stationCode),
+      count: Number(row.count),
+    }));
+  }
+
   public async listIncidents(
     filters: IncidentListFilters = {}
   ): Promise<PaginatedResult<IncidentListItem>> {

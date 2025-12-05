@@ -130,6 +130,16 @@ export interface ZoneFrequencyResponse {
   total: number;
 }
 
+export interface StationVolumeResponse {
+  stations: {
+    stationCode: string;
+    stationName: string;
+    count: number;
+    percentage: number;
+  }[];
+  total: number;
+}
+
 export interface QuarterlyTrendResponse {
   range: {
     start: string;
@@ -1674,6 +1684,24 @@ export class StrategicAnalyticsService {
         zones,
         total,
       };
+    });
+  }
+  public async getStationIncidentCounts(
+    query: Record<string, QueryValue>
+  ): Promise<StationVolumeResponse> {
+    const filters = this.getFilters(query);
+    const cacheKey = buildCacheKey('strategic:station-volume', filters);
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getStationIncidentCounts(filters);
+      const total = rows.reduce((sum, row) => sum + row.count, 0);
+
+      const stations = rows.map((row) => ({
+        ...row,
+        percentage: total > 0 ? clampPercentage((row.count / total) * 100) : 0,
+      }));
+
+      return { stations, total };
     });
   }
 }

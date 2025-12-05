@@ -150,3 +150,18 @@ export const getZoneFrequency = async (
     next(error);
   }
 };
+
+export const getStationIncidentCounts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await strategicService.getStationIncidentCounts(
+      req.query as Record<string, string | string[] | undefined>
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};

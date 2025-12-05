@@ -10,6 +10,7 @@ import {
   getHotspots,
   getTimeOfDayDistribution,
   getZoneFrequency,
+  getStationIncidentCounts,
 } from '../controllers/strategicController';
 
 const router = Router();
@@ -24,5 +25,6 @@ router.get('/response-metrics', getResponseMetrics);
 router.get('/priority-scores', getPriorityScores);
 router.get('/hotspots', getHotspots);
 router.get('/zones/frequency', getZoneFrequency);
+router.get('/stations/volume', getStationIncidentCounts);
 
 export default router;
