@@ -229,7 +229,16 @@ interface ResponseMetricGridRow {
   p90Seconds: number | string;
 }
 
-type ResponseMetricRow = ResponseMetricStationRow | ResponseMetricGridRow;
+interface ResponseMetricZoneRow {
+  groupType: 'zone';
+  zoneName: string;
+  sampleSize: number | string;
+  averageSeconds: number | string;
+  medianSeconds: number | string;
+  p90Seconds: number | string;
+}
+
+export type ResponseMetricRow = ResponseMetricStationRow | ResponseMetricGridRow | ResponseMetricZoneRow;
 
 interface PriorityScoreStationRow {
   groupType: 'station';
@@ -1654,7 +1663,7 @@ export class IncidentRepository {
 
   public async getResponseTimeMetrics(
     filters: IncidentListFilters,
-    options: { groupBy: 'station' | 'grid'; cellSizeMeters?: number; resolution?: number }
+    options: { groupBy: 'station' | 'grid' | 'zone'; cellSizeMeters?: number; resolution?: number }
   ): Promise<ResponseMetricRow[]> {
     const baseQuery = this.db('incidents as i')
       .leftJoin('incident_types as it', 'i.type_id', 'it.id')
@@ -1701,6 +1710,38 @@ export class IncidentRepository {
         groupType: 'station',
         stationCode: row.stationCode,
         stationName: row.stationName,
+        sampleSize: Number(row.sampleSize ?? 0),
+        averageSeconds: Number(row.averageSeconds ?? 0),
+        medianSeconds: Number(row.medianSeconds ?? 0),
+        p90Seconds: Number(row.p90Seconds ?? 0),
+      }));
+    }
+
+    if (options.groupBy === 'zone') {
+      const rows = (await this.db
+        .with(responseDataAlias, baseQuery)
+        .from<ResponseMetricZoneRow>(responseDataAlias)
+        .join('incidents as i2', 'response_data.incidentId', 'i2.id')
+        .whereNotNull('i2.city')
+        .where('response_seconds', '>', 0)
+        .select([
+          this.db.raw('\'zone\'::text as "groupType"'),
+          'i2.city as zoneName',
+          this.db.raw('COUNT(*)::int as "sampleSize"'),
+          this.db.raw('AVG(response_seconds) as "averageSeconds"'),
+          this.db.raw(
+            'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_seconds) as "medianSeconds"'
+          ),
+          this.db.raw(
+            'PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY response_seconds) as "p90Seconds"'
+          ),
+        ])
+        .groupBy('i2.city')
+        .orderBy('averageSeconds', 'desc')) as ResponseMetricZoneRow[];
+
+      return rows.map((row) => ({
+        groupType: 'zone',
+        zoneName: row.zoneName,
         sampleSize: Number(row.sampleSize ?? 0),
         averageSeconds: Number(row.averageSeconds ?? 0),
         medianSeconds: Number(row.medianSeconds ?? 0),

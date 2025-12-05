@@ -52,7 +52,7 @@ export interface CoverageBuffersParams extends StrategicFilterParams {
 }
 
 export interface ResponseMetricsParams extends StrategicFilterParams {
-  groupBy?: 'station' | 'grid'; // default 'station'
+  groupBy?: 'station' | 'grid' | 'zone'; // default 'station'
   resolution?: number; // 1-8, default 4 (for grid grouping)
 }
 
@@ -241,7 +241,7 @@ export interface StrategicCoverageResponse {
 // ============================================================================
 
 export interface ResponseMetricGroup {
-  groupType: 'station' | 'grid';
+  groupType: 'station' | 'grid' | 'zone';
   station?: StationRef; // Present when groupType === 'station'
   cell?: {
     // Present when groupType === 'grid'
@@ -249,6 +249,7 @@ export interface ResponseMetricGroup {
     centroid: GeometryPoint;
     geometry: GeoJSON.Feature<GeoJSON.Polygon>;
   };
+  zoneName?: string; // Present when groupType === 'zone'
   sampleSize: number;
   averageSeconds: number;
   medianSeconds: number;
@@ -260,12 +261,14 @@ export interface ResponseMetricGroup {
 
 export interface StrategicResponseMetricsResponse {
   metadata: {
-    groupBy: 'station' | 'grid';
+    groupBy: 'station' | 'grid' | 'zone';
     sampleThreshold: number;
     totalGroups: number;
     minAverageSeconds: number;
     maxAverageSeconds: number;
     generatedAt: string; // ISO 8601 timestamp
+    globalAverageSeconds: number | null;
+    allTimeAverageSeconds: number | null;
   };
   groups: ResponseMetricGroup[];
 }

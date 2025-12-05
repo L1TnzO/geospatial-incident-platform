@@ -19,6 +19,7 @@ import { PriorityZonesPanel } from './PriorityZonesPanel';
 import { StrategicTimeOfDayChart } from './StrategicTimeOfDayChart';
 import { ZoneFrequencyTable } from './ZoneFrequencyTable';
 import { StationVolumeChart } from './StationVolumeChart';
+import { HighResponseTimeZones } from './HighResponseTimeZones';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -64,6 +65,7 @@ export function StrategicLayout() {
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
   const responseTimesQuery = useStrategicResponseTimes({ groupBy: 'station', ...filters });
+  const zoneResponseTimesQuery = useStrategicResponseTimes({ groupBy: 'zone', ...filters });
   const priorityZonesQuery = useStrategicPriorityZones({
     groupBy: 'grid',
     decayHalfLifeDays: 45,
@@ -275,6 +277,7 @@ export function StrategicLayout() {
             error={stationVolumeQuery.error}
             onRefresh={() => stationVolumeQuery.refetch()}
           />
+          <HighResponseTimeZones query={zoneResponseTimesQuery} />
         </div>
 
         {/* Map with Overlays - Full Width */}
