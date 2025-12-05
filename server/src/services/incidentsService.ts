@@ -583,6 +583,7 @@ export class IncidentService {
       incidentNumber,
       bounds,
       center,
+      searchTerm: normalizeValue(query.searchTerm),
     };
     serviceLog('buildFilterOptions', {
       incidentNumber,

@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Button } from './ui/button';
+import { Command, CommandInput } from './ui/command';
 import { Badge } from './ui/badge';
 import type { LiteIncident } from '../types';
 import type { IncidentSortField, PaginationMeta } from '../types/api/incidents';
-import { AlertTriangle, ChevronDown, ChevronUp, Download, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Download, Loader2, RefreshCw, Search } from 'lucide-react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
   Pagination,
   PaginationContent,
@@ -35,6 +37,8 @@ interface TableViewProps {
   error?: string;
   onRetry: () => void;
   activeIncidentId?: string | null;
+  searchTerm?: string;
+  onSearchChange: (term: string) => void;
 }
 
 const getSeverityColor = (incident: LiteIncident) =>
@@ -92,7 +96,25 @@ export function TableView({
   error,
   onRetry,
   activeIncidentId,
+  searchTerm,
+  onSearchChange,
 }: TableViewProps) {
+  const [searchValue, setSearchValue] = useState(searchTerm ?? '');
+  const debouncedSearchValue = useDebounce(searchValue, 300);
+
+  useEffect(() => {
+    if (debouncedSearchValue !== (searchTerm ?? '')) {
+      onSearchChange(debouncedSearchValue);
+    }
+  }, [debouncedSearchValue, onSearchChange, searchTerm]);
+
+  useEffect(() => {
+    if (searchTerm !== undefined && searchTerm !== searchValue) {
+      setSearchValue(searchTerm);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
   const totalPages = pagination?.totalPages ?? Math.max(1, Math.ceil(totalCount / pageSize));
   const pageNumbers = useMemo(() => buildPageRange(page, totalPages), [page, totalPages]);
   const showingStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -160,26 +182,38 @@ export function TableView({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm text-muted-foreground">
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading incidents…
-            </span>
-          ) : (
-            <span>
-              Showing{' '}
-              <span className="font-medium text-foreground">
-                {totalCount === 0
-                  ? 0
-                  : `${showingStart.toLocaleString()} – ${showingEnd.toLocaleString()}`}
-              </span>{' '}
-              of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span>{' '}
-              incidents
-              {pagination?.totalPages
-                ? ` • Page ${page.toLocaleString()} of ${pagination.totalPages.toLocaleString()}`
-                : ''}
-            </span>
-          )}
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="relative max-w-sm w-full border rounded-md">
+            <Command className="border-none shadow-none bg-transparent">
+              <CommandInput
+                placeholder="Search by ID..."
+                value={searchValue}
+                onValueChange={setSearchValue}
+                className="h-9"
+              />
+            </Command>
+          </div>
+          <div className="text-sm text-muted-foreground hidden md:block">
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading incidents…
+              </span>
+            ) : (
+              <span>
+                Showing{' '}
+                <span className="font-medium text-foreground">
+                  {totalCount === 0
+                    ? 0
+                    : `${showingStart.toLocaleString()} – ${showingEnd.toLocaleString()}`}
+                </span>{' '}
+                of <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span>{' '}
+                incidents
+                {pagination?.totalPages
+                  ? ` • Page ${page.toLocaleString()} of ${pagination.totalPages.toLocaleString()}`
+                  : ''}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {isFetching && !isLoading && (

@@ -47,6 +47,7 @@ function AppRoutes() {
       startDate: state.startDate,
       endDate: state.endDate,
       incidentNumber: state.incidentNumber,
+      searchTerm: state.searchTerm,
       isActive: state.isActive,
       renderLimit: state.renderLimit,
     })),
@@ -64,6 +65,7 @@ function AppRoutes() {
     startDate: filters.startDate,
     endDate: filters.endDate,
     incidentNumber: filters.incidentNumber,
+    searchTerm: filters.searchTerm,
     isActive: filters.isActive ?? true,
     renderLimit: filters.renderLimit,
   };
@@ -187,6 +189,8 @@ function AppRoutes() {
                       error={incidentsTableData.error}
                       onRetry={incidentsTableData.refresh}
                       activeIncidentId={activeIncidentId ?? undefined}
+                      searchTerm={filters.searchTerm}
+                      onSearchChange={(term) => setIncidentFilters({ searchTerm: term, page: 1 })}
                     />
                   </main>
                 </div>

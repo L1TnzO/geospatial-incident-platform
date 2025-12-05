@@ -49,6 +49,7 @@ export interface IncidentListFilters {
     latitude: number;
     longitude: number;
   } | null;
+  searchTerm?: string;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -441,6 +442,10 @@ const applyFilters = (query: Knex.QueryBuilder, filters: IncidentListFilters): v
       east,
       north,
     ]);
+  }
+
+  if (filters.searchTerm) {
+    query.where('i.incident_number', 'ilike', `%${filters.searchTerm}%`);
   }
 
   // Soft delete filter: exclude deleted items unless specifically requested (future proofing)

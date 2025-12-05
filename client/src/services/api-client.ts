@@ -50,6 +50,7 @@ export interface FetchIncidentsParams extends Record<string, unknown> {
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
   incidentNumber?: string;
+  searchTerm?: string;
   renderLimit?: number;
   signal?: AbortSignal;
   viewportBounds?: MapBounds | null;
@@ -87,6 +88,7 @@ export const apiClient = {
           sortBy: params.sortBy,
           sortDirection: params.sortDirection,
           incidentNumber: params.incidentNumber,
+          searchTerm: params.searchTerm,
         },
       }),
     mapList: (params: FetchIncidentsParams = {}) =>
