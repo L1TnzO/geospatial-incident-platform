@@ -8,6 +8,7 @@ import { useDashboardTypeDistribution } from '../hooks/useDashboardTypeDistribut
 import { useDashboardSeverityDistribution } from '../hooks/useDashboardSeverityDistribution';
 import { useDashboardDailyTrend } from '../hooks/useDashboardDailyTrend';
 import { useDashboardRecentIncidents } from '../hooks/useDashboardRecentIncidents';
+import { useDashboardHighSeverityKpi } from '../hooks/useDashboardHighSeverityKpi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { DashboardProvider, useDashboard } from '../providers/dashboard-provider';
 
@@ -40,6 +41,7 @@ function DashboardContent() {
 
   // Initialize all dashboard hooks with filters from context
   const kpiQuery = useDashboardLast24HoursKpi(filters);
+  const highSeverityKpiQuery = useDashboardHighSeverityKpi(filters);
   const typeDistributionQuery = useDashboardTypeDistribution(filters);
   const severityDistributionQuery = useDashboardSeverityDistribution(filters);
   const dailyTrendQuery = useDashboardDailyTrend(filters);
@@ -54,6 +56,7 @@ function DashboardContent() {
 
           <DashboardKPIRow
             kpiQuery={kpiQuery}
+            highSeverityKpiQuery={highSeverityKpiQuery}
             timeRangeLabel={timeRangeLabel}
             comparisonLabel={comparisonLabel}
           />
