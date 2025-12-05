@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -11,7 +11,6 @@ import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 import { useCreateIncident } from '../hooks/useCreateIncident';
 import { useIncidentCreateStore } from '../store/incident-create-store';
 
-// <--- NUEVO: Opciones de estatus predefinidas
 const STATUS_OPTIONS = [
   { code: 'REPORTED', label: 'Reported (Awaiting dispatch)' },
   { code: 'DISPATCHED', label: 'Dispatched (Units en route)' },
@@ -31,39 +30,40 @@ export function IncidentForm() {
   const [formData, setFormData] = useState({
     type: '',
     severity: '',
-    statusCode: 'REPORTED', // <--- NUEVO: Valor por defecto
-    isActive: 'true',       // <--- NUEVO: Manejamos como string para el Select, luego convertimos
+    statusCode: 'REPORTED',
+    isActive: 'true',
     date: '',
     time: '',
     description: '',
     latitude: '',
     longitude: '',
-    address: '',
+    // address: '', <--- ELIMINADO
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Efecto para actualizar lat/lng cuando se selecciona en el mapa
-  if (coordinates && (formData.latitude !== coordinates.lat.toString() || formData.longitude !== coordinates.lng.toString())) {
-    setFormData(prev => ({
-      ...prev,
-      latitude: coordinates.lat.toString(),
-      longitude: coordinates.lng.toString()
-    }));
-  }
+  // Actualizar coordenadas cuando se selecciona en el mapa
+  useEffect(() => {
+    if (coordinates) {
+      setFormData((prev) => ({
+        ...prev,
+        latitude: coordinates.lat.toString(),
+        longitude: coordinates.lng.toString(),
+      }));
+    }
+  }, [coordinates]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.type) newErrors.type = 'Incident type is required';
     if (!formData.severity) newErrors.severity = 'Severity is required';
-    if (!formData.statusCode) newErrors.statusCode = 'Status is required'; // <--- NUEVO
+    if (!formData.statusCode) newErrors.statusCode = 'Status is required';
     if (!formData.date) newErrors.date = 'Date is required';
     if (!formData.time) newErrors.time = 'Time is required';
     if (!formData.description) newErrors.description = 'Description is required';
-    if (!formData.latitude) newErrors.latitude = 'Latitude is required (Pick on map)';
-    if (!formData.longitude) newErrors.longitude = 'Longitude is required';
-    if (!formData.address) newErrors.address = 'Address is required';
+    if (!formData.latitude) newErrors.latitude = 'Location is required (Pick on map)';
+    // if (!formData.address) ... <--- ELIMINADO: Ya no validamos address manual
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -73,7 +73,6 @@ export function IncidentForm() {
     e.preventDefault();
 
     if (validate()) {
-      // Validación extra por seguridad
       if (!formData.latitude || !formData.longitude) {
         toast.error('Please pick a location on the map.');
         return;
@@ -81,20 +80,21 @@ export function IncidentForm() {
 
       const payload = {
         incidentNumber: `INC-${Date.now()}`,
-        title: formData.description.slice(0, 50) || 'New incident', // Título corto basado en descripción
+        title: formData.description.slice(0, 50) || 'New incident',
         typeCode: formData.type,
         severityCode: formData.severity,
-
-        // <--- NUEVO: Usamos los valores seleccionados
         statusCode: formData.statusCode,
-        isActive: formData.isActive === 'true', // Convertimos string "true" a boolean true
-
+        isActive: formData.isActive === 'true',
         occurrenceAt: new Date(`${formData.date}T${formData.time}`).toISOString(),
         reportedAt: new Date().toISOString(),
         location: {
           latitude: Number(formData.latitude),
           longitude: Number(formData.longitude),
         },
+        // Como quitamos el input manual, enviamos una referencia generada
+        // para cumplir con la API si es que espera este campo.
+        // La API de Google en el backend se encargará después.
+        address: `Lat: ${Number(formData.latitude).toFixed(4)}, Lng: ${Number(formData.longitude).toFixed(4)}`,
         narrative: formData.description,
       };
 
@@ -106,8 +106,6 @@ export function IncidentForm() {
         onSuccess: () => {
           toast.success('Incident created successfully!');
           close();
-          // Opcional: Redirigir al mapa general tras crear
-          // navigate('/map'); 
         },
       });
     } else {
@@ -121,12 +119,12 @@ export function IncidentForm() {
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
+    <div className="w-full max-w-3xl mx-auto pb-10">
       <Card>
         <CardHeader>
           <CardTitle>Incident Details</CardTitle>
           <CardDescription>
-            Complete the form to register a new incident in the system.
+            Enter incident details. Location address will be auto-detected by the system.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -175,7 +173,7 @@ export function IncidentForm() {
               </div>
             </div>
 
-            {/* <--- NUEVO: Fila 2: Estatus y Activo */}
+            {/* Fila 2: Estatus y Activo */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Current Status *</Label>
@@ -210,9 +208,6 @@ export function IncidentForm() {
                     <SelectItem value="false">No (Inactive)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] text-muted-foreground">
-                  Inactive incidents might not appear on the main map by default.
-                </p>
               </div>
             </div>
 
@@ -246,29 +241,18 @@ export function IncidentForm() {
               <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
-                placeholder="Detailed description..."
+                placeholder="Detailed description of the incident..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
+                rows={4}
                 className={errors.description ? 'border-destructive' : ''}
               />
               {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
             </div>
 
-            {/* Dirección y Coordenadas */}
+            {/* Dirección y Coordenadas (Solo lectura) */}
             <div className="space-y-4 pt-2 border-t">
-              <h3 className="text-sm font-medium">Location</h3>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Address / Reference *</Label>
-                <Input
-                  id="address"
-                  placeholder="Street address or reference point"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className={errors.address ? 'border-destructive' : ''}
-                />
-              </div>
+              {/* <--- INPUT DE ADDRESS ELIMINADO DE AQUÍ ---> */}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -294,6 +278,9 @@ export function IncidentForm() {
                   />
                 </div>
               </div>
+              <p className="text-[10px] text-muted-foreground">
+                * Location address will be automatically identified.
+              </p>
             </div>
 
             {/* Botones */}
