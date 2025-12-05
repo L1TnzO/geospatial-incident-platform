@@ -19,6 +19,8 @@ import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
 import { useDashboard } from '../../providers/dashboard-provider';
 
+import { useIncidentMetadataQuery } from '../../hooks/useIncidentMetadataQuery';
+
 export function StrategicLayout() {
   const { timeRange, setTimeRange, filters, comparisonLabel } = useDashboard();
 
@@ -34,10 +36,18 @@ export function StrategicLayout() {
   } = useMapPreferencesStore();
   const { setView } = useMapStore();
   const [highlightedZone, setHighlightedZone] = useState<PriorityScoreGroup | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+
+  const metadataQuery = useIncidentMetadataQuery();
 
   // Strategic data hooks
   // Use daily trend for all dashboard time ranges (24h, 7d, 30d)
-  const dailyTrendQuery = useStrategicDailyTrend(filters);
+  const trendFilters = useMemo(() => ({
+    ...filters,
+    typeCodes: selectedType ? [selectedType] : undefined,
+  }), [filters, selectedType]);
+
+  const dailyTrendQuery = useStrategicDailyTrend(trendFilters);
 
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
@@ -133,6 +143,7 @@ export function StrategicLayout() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+
             <Select value={timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select time range" />
@@ -162,6 +173,9 @@ export function StrategicLayout() {
             onPeriodClick={handlePeriodClick}
             comparisonLabel={comparisonLabel}
             timeRange={timeRange}
+            selectedType={selectedType}
+            onTypeChange={setSelectedType}
+            incidentTypes={metadataQuery.data?.types || []}
           />
         </div>
 

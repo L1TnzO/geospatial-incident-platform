@@ -10,6 +10,9 @@ import { subMonths, subYears } from 'date-fns';
 
 type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import type { IncidentLookupValue } from '../../types/api/incidents';
+
 interface StrategicTrendsChartProps {
   data: StrategicMonthlyTrendResponse | DailyTrendResponse | null;
   trendType?: 'monthly' | 'daily';
@@ -20,6 +23,9 @@ interface StrategicTrendsChartProps {
   onPeriodClick?: (period: string, startDate: string, endDate: string) => void;
   comparisonLabel: string;
   timeRange: TimeRange;
+  selectedType: string | null;
+  onTypeChange: (type: string | null) => void;
+  incidentTypes: IncidentLookupValue[];
 }
 
 export function StrategicTrendsChart({
@@ -32,6 +38,9 @@ export function StrategicTrendsChart({
   onPeriodClick,
   comparisonLabel,
   timeRange,
+  selectedType,
+  onTypeChange,
+  incidentTypes,
 }: StrategicTrendsChartProps) {
   const formatWindow = (start: Date, end: Date): string => {
     return `${start.toLocaleString()} – ${end.toLocaleString()}`;
@@ -266,7 +275,19 @@ export function StrategicTrendsChart({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Trend Analysis</CardTitle>
-
+        <Select value={selectedType || 'all'} onValueChange={(val: string) => onTypeChange(val === 'all' ? null : val)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Incident Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Incident Types</SelectItem>
+            {incidentTypes.map((type) => (
+              <SelectItem key={type.code} value={type.code}>
+                {type.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardHeader>
       <CardContent>
         {/* Summary metrics */}
