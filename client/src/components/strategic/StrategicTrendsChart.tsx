@@ -10,6 +10,9 @@ import { subMonths, subYears } from 'date-fns';
 
 type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import type { IncidentLookupValue } from '../../types/api/incidents';
+
 interface StrategicTrendsChartProps {
   data: StrategicMonthlyTrendResponse | DailyTrendResponse | null;
   trendType?: 'monthly' | 'daily';
@@ -20,6 +23,10 @@ interface StrategicTrendsChartProps {
   onPeriodClick?: (period: string, startDate: string, endDate: string) => void;
   comparisonLabel: string;
   timeRange: TimeRange;
+  selectedType: string | null;
+  onTypeChange: (type: string | null) => void;
+  incidentTypes: IncidentLookupValue[];
+  isYoY: boolean;
 }
 
 export function StrategicTrendsChart({
@@ -32,6 +39,10 @@ export function StrategicTrendsChart({
   onPeriodClick,
   comparisonLabel,
   timeRange,
+  selectedType,
+  onTypeChange,
+  incidentTypes,
+  isYoY,
 }: StrategicTrendsChartProps) {
   const formatWindow = (start: Date, end: Date): string => {
     return `${start.toLocaleString()} – ${end.toLocaleString()}`;
@@ -46,39 +57,39 @@ export function StrategicTrendsChart({
     switch (timeRange) {
       case '24h':
         start.setHours(end.getHours() - 24);
-        previousEnd.setHours(end.getHours() - 24);
-        previousStart.setHours(end.getHours() - 48);
         break;
       case '7d':
         start.setDate(end.getDate() - 7);
-        previousEnd.setDate(end.getDate() - 7);
-        previousStart.setDate(end.getDate() - 14);
         break;
       case '30d':
         start.setDate(end.getDate() - 30);
-        previousEnd.setDate(end.getDate() - 30);
-        previousStart.setDate(end.getDate() - 60);
         break;
       case '3m':
         {
           const start3m = subMonths(end, 3);
           start.setTime(start3m.getTime());
-          previousEnd.setTime(start3m.getTime());
-          previousStart.setTime(subMonths(start3m, 3).getTime());
         }
         break;
       case '1y':
         {
           const start1y = subYears(end, 1);
           start.setTime(start1y.getTime());
-          previousEnd.setTime(start1y.getTime());
-          previousStart.setTime(subYears(start1y, 1).getTime());
         }
         break;
       default:
         start.setHours(end.getHours() - 24);
-        previousEnd.setHours(end.getHours() - 24);
-        previousStart.setHours(end.getHours() - 48);
+    }
+
+    if (isYoY) {
+      const prevStart = subYears(start, 1);
+      const prevEnd = subYears(end, 1);
+      previousStart.setTime(prevStart.getTime());
+      previousEnd.setTime(prevEnd.getTime());
+    } else {
+      // Default behavior: previous period of same duration
+      const durationMs = end.getTime() - start.getTime();
+      previousEnd.setTime(start.getTime());
+      previousStart.setTime(start.getTime() - durationMs);
     }
 
     return {
@@ -266,7 +277,19 @@ export function StrategicTrendsChart({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Trend Analysis</CardTitle>
-
+        <Select value={selectedType || 'all'} onValueChange={(val: string) => onTypeChange(val === 'all' ? null : val)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Incident Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Incident Types</SelectItem>
+            {incidentTypes.map((type) => (
+              <SelectItem key={type.code} value={type.code}>
+                {type.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardHeader>
       <CardContent>
         {/* Summary metrics */}

@@ -8,17 +8,31 @@ import { useDashboardTypeDistribution } from '../hooks/useDashboardTypeDistribut
 import { useDashboardSeverityDistribution } from '../hooks/useDashboardSeverityDistribution';
 import { useDashboardDailyTrend } from '../hooks/useDashboardDailyTrend';
 import { useDashboardRecentIncidents } from '../hooks/useDashboardRecentIncidents';
+import { useDashboardHighSeverityKpi } from '../hooks/useDashboardHighSeverityKpi';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { DashboardProvider, useDashboard } from '../providers/dashboard-provider';
+
+import { Checkbox } from '../components/ui/checkbox';
+import { Label } from '../components/ui/label';
 
 function DashboardHeader() {
   const {
     timeRange,
     setTimeRange,
+    isYoY,
+    setIsYoY,
   } = useDashboard();
 
   return (
     <div className="flex justify-end mb-4 items-center gap-4">
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          id="yoy-mode"
+          checked={isYoY}
+          onCheckedChange={(checked: boolean | 'indeterminate') => setIsYoY(checked === true)}
+        />
+        <Label htmlFor="yoy-mode">Compare to Last Year</Label>
+      </div>
       <Select value={timeRange} onValueChange={(val: any) => setTimeRange(val)}>
         <SelectTrigger className="w-[180px]">
           <SelectValue placeholder="Select time range" />
@@ -40,6 +54,7 @@ function DashboardContent() {
 
   // Initialize all dashboard hooks with filters from context
   const kpiQuery = useDashboardLast24HoursKpi(filters);
+  const highSeverityKpiQuery = useDashboardHighSeverityKpi(filters);
   const typeDistributionQuery = useDashboardTypeDistribution(filters);
   const severityDistributionQuery = useDashboardSeverityDistribution(filters);
   const dailyTrendQuery = useDashboardDailyTrend(filters);
@@ -54,6 +69,7 @@ function DashboardContent() {
 
           <DashboardKPIRow
             kpiQuery={kpiQuery}
+            highSeverityKpiQuery={highSeverityKpiQuery}
             timeRangeLabel={timeRangeLabel}
             comparisonLabel={comparisonLabel}
           />
@@ -78,7 +94,13 @@ function DashboardContent() {
 
         {/* Daily Trend (Full Width) */}
         <section>
-          <DashboardDailyTrendChart trendQuery={dailyTrendQuery} timeRangeLabel={timeRangeLabel} comparisonLabel={comparisonLabel} timeRange={timeRange} />
+          <DashboardDailyTrendChart
+            trendQuery={dailyTrendQuery}
+            timeRangeLabel={timeRangeLabel}
+            comparisonLabel={comparisonLabel}
+            timeRange={timeRange}
+            isYoY={useDashboard().isYoY}
+          />
         </section>
 
         {/* Recent Incidents Panel */}

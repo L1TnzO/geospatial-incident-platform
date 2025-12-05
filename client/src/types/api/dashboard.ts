@@ -14,6 +14,7 @@ export interface DashboardFilterParams extends Record<string, unknown> {
   endDate?: string;
   isActive?: boolean;
   refresh?: boolean;
+  compare?: 'previous' | 'year';
 }
 
 export interface DashboardRecentIncidentsParams extends DashboardFilterParams {

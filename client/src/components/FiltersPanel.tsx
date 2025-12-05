@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
+import { useEffect, useMemo, useState } from 'react';
+
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -7,19 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Checkbox } from './ui/checkbox';
 import { ScrollArea } from './ui/scroll-area';
 import { Switch } from './ui/switch';
-import { Slider } from './ui/slider';
 import {
   useIncidentFiltersStore,
-  ACTIVE_RENDER_LIMIT_MAX,
   DEFAULT_ACTIVE_RENDER_LIMIT,
-  DEFAULT_HISTORICAL_RENDER_LIMIT,
-  GLOBAL_RENDER_LIMIT_MAX,
-  HISTORICAL_RENDER_LIMIT_MAX,
-  MIN_RENDER_LIMIT,
 } from '../store/incident-filters-store';
-import { useMapStore } from '../store/map-store';
 import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
-import { useIncidentsData } from '../hooks/useIncidentsData';
 import { isMobile } from '../utils/platform';
 import { useMediaQuery } from '../hooks/use-media-query';
 
@@ -56,13 +48,7 @@ const toDateInputValue = (value?: string): string => {
   return date.toISOString().slice(0, 10);
 };
 
-const resolveDraftRenderLimit = (filters: FilterSnapshot): number => {
-  const isActive = filters.isActive !== false;
-  const fallback = isActive ? DEFAULT_ACTIVE_RENDER_LIMIT : DEFAULT_HISTORICAL_RENDER_LIMIT;
-  const candidate = typeof filters.renderLimit === 'number' ? filters.renderLimit : fallback;
-  const upper = isActive ? ACTIVE_RENDER_LIMIT_MAX : HISTORICAL_RENDER_LIMIT_MAX;
-  return Math.min(Math.max(Math.floor(candidate), MIN_RENDER_LIMIT), upper);
-};
+
 
 const toDraft = (filters: FilterSnapshot, isMobileLayout: boolean): DraftFilters => ({
   startDate: toDateInputValue(filters.startDate),
@@ -71,7 +57,7 @@ const toDraft = (filters: FilterSnapshot, isMobileLayout: boolean): DraftFilters
   severityCodes: filters.severityCodes ?? [],
   statusCodes: filters.statusCodes ?? [],
   isActive: isMobileLayout ? true : (filters.isActive ?? true),
-  renderLimit: resolveDraftRenderLimit(filters),
+  renderLimit: filters.renderLimit ?? DEFAULT_ACTIVE_RENDER_LIMIT,
 });
 
 import { useAuth } from '../hooks/useAuth';
@@ -95,22 +81,7 @@ export function FiltersPanel() {
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const isMobileLayout = !isDesktop || isMobile() || !user;
 
-  const fetchParams = useIncidentFiltersStore(
-    useShallow((state) => ({
-      page: state.page,
-      pageSize: state.pageSize,
-      sortBy: state.sortBy,
-      sortDirection: state.sortDirection,
-      typeCodes: state.typeCodes,
-      severityCodes: state.severityCodes,
-      statusCodes: state.statusCodes,
-      startDate: state.startDate,
-      endDate: state.endDate,
-      incidentNumber: state.incidentNumber,
-      isActive: state.isActive,
-      renderLimit: state.renderLimit,
-    })),
-  );
+
 
   const metadataQuery = useIncidentMetadataQuery();
   const [draft, setDraft] = useState<DraftFilters>(() =>
@@ -151,12 +122,7 @@ export function FiltersPanel() {
   const severityOptions = metadata?.severities ?? [];
   const statusOptions = metadata?.statuses ?? [];
 
-  const viewportCenter = useMapStore((state) => state.center);
 
-  const incidentsData = useIncidentsData({
-    ...fetchParams,
-    priorityCenter: viewportCenter,
-  });
 
   const reportedStart = metadata?.reportedRange?.start
     ? toDateInputValue(metadata.reportedRange.start)
@@ -168,45 +134,7 @@ export function FiltersPanel() {
   const storeStartDateInput = toDateInputValue(startDate);
   const storeEndDateInput = toDateInputValue(endDate);
 
-  const renderLimitBounds = useMemo(() => {
-    const baseMax = draft.isActive ? ACTIVE_RENDER_LIMIT_MAX : HISTORICAL_RENDER_LIMIT_MAX;
-    const dynamicMax = incidentsData.totalCount > 0 ? incidentsData.totalCount : baseMax;
-    const cap = Math.min(Math.max(baseMax, dynamicMax), GLOBAL_RENDER_LIMIT_MAX);
-    return {
-      min: MIN_RENDER_LIMIT,
-      max: Math.max(MIN_RENDER_LIMIT, cap),
-    };
-  }, [draft.isActive, incidentsData.totalCount]);
 
-  const renderLimitStep = useMemo(() => {
-    const dynamicStep = Math.round(renderLimitBounds.max / 200);
-    return Math.max(10, dynamicStep || 10);
-  }, [renderLimitBounds.max]);
-
-  const clampRenderLimitDraft = useCallback(
-    (value: number): number =>
-      Math.min(
-        Math.max(
-          Math.floor(Number.isFinite(value) ? value : renderLimitBounds.min),
-          renderLimitBounds.min,
-        ),
-        renderLimitBounds.max,
-      ),
-    [renderLimitBounds.max, renderLimitBounds.min],
-  );
-
-  useEffect(() => {
-    setDraft((current: DraftFilters) => {
-      const clamped = clampRenderLimitDraft(current.renderLimit);
-      if (clamped === current.renderLimit) {
-        return current;
-      }
-      return {
-        ...current,
-        renderLimit: clamped,
-      };
-    });
-  }, [clampRenderLimitDraft]);
 
   const toggleCode = (
     key: keyof Pick<DraftFilters, 'typeCodes' | 'severityCodes' | 'statusCodes'>,
@@ -236,7 +164,6 @@ export function FiltersPanel() {
       severityCodes: draft.severityCodes.length > 0 ? draft.severityCodes : undefined,
       statusCodes: draft.statusCodes.length > 0 ? draft.statusCodes : undefined,
       isActive: draft.isActive,
-      renderLimit: clampRenderLimitDraft(draft.renderLimit),
       page: 1,
     });
   };
@@ -263,7 +190,6 @@ export function FiltersPanel() {
       draft.startDate === storeStartDateInput &&
       draft.endDate === storeEndDateInput &&
       draft.isActive === (isActive ?? true) &&
-      clampRenderLimitDraft(draft.renderLimit) === clampRenderLimitDraft(renderLimit) &&
       normalizeCodes(draft.typeCodes) === normalizeCodes(typeCodes) &&
       normalizeCodes(draft.severityCodes) === normalizeCodes(severityCodes) &&
       normalizeCodes(draft.statusCodes) === normalizeCodes(statusCodes)
@@ -272,24 +198,11 @@ export function FiltersPanel() {
     draft.startDate,
     draft.endDate,
     draft.isActive,
-    draft.renderLimit,
-    isActive,
-    renderLimit,
-    draft.typeCodes,
-    draft.severityCodes,
-    draft.statusCodes,
-    typeCodes,
-    severityCodes,
-    statusCodes,
     storeStartDateInput,
     storeEndDateInput,
-    clampRenderLimitDraft,
   ]);
 
-  const totalCountLabel =
-    incidentsData.totalCount === 0 && incidentsData.isLoading
-      ? '…'
-      : incidentsData.totalCount.toLocaleString();
+
 
   return (
     <Card className="h-full">
@@ -341,60 +254,7 @@ export function FiltersPanel() {
           </div>
         )}
 
-        {!isMobileLayout && (
-          <div className="space-y-2">
-            <Label htmlFor="render-limit-slider" className="flex items-center justify-between">
-              Records to display
-              <span className="text-xs text-muted-foreground">
-                {draft.renderLimit.toLocaleString()} /{' '}
-                {totalCountLabel}
-              </span>
-            </Label>
-            <div className="flex items-center gap-3">
-              <Slider
-                id="render-limit-slider"
-                min={renderLimitBounds.min}
-                max={renderLimitBounds.max}
-                step={renderLimitStep}
-                value={[draft.renderLimit]}
-                onValueChange={(values: number[]) => {
-                  const [value] = values;
-                  setDraft((current) => ({
-                    ...current,
-                    renderLimit: clampRenderLimitDraft(value ?? current.renderLimit),
-                  }));
-                }}
-                onValueCommit={(values: number[]) => {
-                  const [value] = values;
-                  const nextValue = clampRenderLimitDraft(value ?? draft.renderLimit);
-                  setDraft((current) => ({ ...current, renderLimit: nextValue }));
-                  setFilters({ renderLimit: nextValue });
-                }}
-                className="flex-1"
-              />
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={renderLimitBounds.min}
-                max={renderLimitBounds.max}
-                step={renderLimitStep}
-                value={draft.renderLimit}
-                onChange={(event) => {
-                  const nextValue = clampRenderLimitDraft(Number(event.target.value));
-                  setDraft((current) => ({ ...current, renderLimit: nextValue }));
-                }}
-                onBlur={() => {
-                  const nextValue = clampRenderLimitDraft(draft.renderLimit);
-                  setFilters({ renderLimit: nextValue });
-                }}
-                className="w-28"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Adjust how many incidents load at once. Higher values may increase load time, especially when showing hundreds of thousands of records.
-            </p>
-          </div>
-        )}
+
 
         <div className="space-y-2">
           <Label>Incident types</Label>

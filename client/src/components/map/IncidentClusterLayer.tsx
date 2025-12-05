@@ -11,6 +11,7 @@ import type { ClusterEntry, WorkerResponse } from '../../workers/incident-worker
 interface IncidentClusterLayerProps {
   incidents: LiteIncident[];
   onIncidentClick: (incident: LiteIncident) => void;
+  worker?: Worker | null;
 }
 
 const createClusterIcon = (count: number) =>
@@ -33,9 +34,10 @@ const createIncidentIcon = (color: string) =>
 const isClusterFeature = (feature: ClusterEntry): feature is ClusterFeature<any> =>
   'cluster' in feature.properties && feature.properties.cluster === true;
 
-const IncidentClusterLayer = ({ incidents, onIncidentClick }: IncidentClusterLayerProps) => {
+const IncidentClusterLayer = ({ incidents, onIncidentClick, worker: propWorker }: IncidentClusterLayerProps) => {
   const map = useMap();
-  const { worker } = useIncidentsContext();
+  const { worker: contextWorker } = useIncidentsContext();
+  const worker = propWorker || contextWorker;
   const [clusters, setClusters] = useState<ClusterEntry[]>([]);
 
   const clusterIconCache = useRef(new Map<number, L.DivIcon>());

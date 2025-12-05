@@ -10,6 +10,8 @@ interface DashboardContextType {
     setTimeRange: (range: TimeRange) => void;
     isActive: boolean;
     setIsActive: (active: boolean) => void;
+    isYoY: boolean;
+    setIsYoY: (yoy: boolean) => void;
     filters: DashboardFilterParams;
     timeRangeLabel: string;
     comparisonLabel: string;
@@ -23,6 +25,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         return (stored as TimeRange) || '24h';
     });
 
+    const [isYoY, setIsYoY] = useState(() => {
+        const stored = localStorage.getItem('dashboard_isYoY');
+        return stored === 'true';
+    });
+
     // Local state for dashboard view, decoupled from global map filters
     // Default to showing ALL incidents (isActive = false) so historical data is visible by default
     const [isActive, setIsActive] = useState(() => {
@@ -33,6 +40,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         localStorage.setItem('dashboard_timeRange', timeRange);
     }, [timeRange]);
+
+    useEffect(() => {
+        localStorage.setItem('dashboard_isYoY', String(isYoY));
+    }, [isYoY]);
 
     useEffect(() => {
         localStorage.setItem('dashboard_isActive', String(isActive));
@@ -97,6 +108,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }, [timeRange]);
 
     const comparisonLabel = useMemo(() => {
+        if (isYoY) {
+            return 'vs same period last year';
+        }
         switch (timeRange) {
             case '24h':
                 return 'vs previous 24h';
@@ -111,7 +125,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             default:
                 return 'vs previous 24h';
         }
-    }, [timeRange]);
+    }, [timeRange, isYoY]);
 
     // Derived State: Filters
     const filters = useMemo<DashboardFilterParams>(
@@ -119,12 +133,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             startDate: start,
             endDate: end,
             isActive: isActive ? true : undefined,
+            compare: isYoY ? 'year' : 'previous',
             // Decoupled from global filters as requested
             typeCodes: [],
             severityCodes: [],
             statusCodes: [],
         }),
-        [start, end, isActive]
+        [start, end, isActive, isYoY]
     );
 
     const value = {
@@ -132,6 +147,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         setTimeRange,
         isActive,
         setIsActive,
+        isYoY,
+        setIsYoY,
         filters,
         timeRangeLabel,
         comparisonLabel,

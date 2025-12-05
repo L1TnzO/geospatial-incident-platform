@@ -36,6 +36,8 @@ import type {
   StrategicCoverageResponse,
   StrategicResponseMetricsResponse,
   StrategicPriorityScoreResponse,
+  StrategicTimeOfDayResponse,
+  StrategicZoneFrequencyResponse,
 } from '../types/api/strategic';
 
 export interface FetchIncidentsParams extends Record<string, unknown> {
@@ -306,6 +308,28 @@ export const apiClient = {
         >,
       });
     },
+    timeOfDay: (
+      params: DashboardFilterParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicTimeOfDayResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicTimeOfDayResponse>('/strategic/trends/time-of-day', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicTimeOfDayResponse>;
+      }
+      return http.get<StrategicTimeOfDayResponse>('/strategic/trends/time-of-day', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
     quarterlyTrends: (
       params: QuarterlyTrendsParams = {},
       options?: ApiClientOptions,
@@ -431,6 +455,28 @@ export const apiClient = {
         }) as Promise<StrategicPriorityScoreResponse>;
       }
       return http.get<StrategicPriorityScoreResponse>('/strategic/priority-scores', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    zoneFrequency: (
+      params: DashboardFilterParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicZoneFrequencyResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicZoneFrequencyResponse>('/strategic/zones/frequency', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicZoneFrequencyResponse>;
+      }
+      return http.get<StrategicZoneFrequencyResponse>('/strategic/zones/frequency', {
         ...requestOptions,
         query: params as Record<
           string,

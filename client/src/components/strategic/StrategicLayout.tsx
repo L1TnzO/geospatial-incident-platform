@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { subYears, startOfDay, endOfDay } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
@@ -7,20 +8,31 @@ import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
 import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
-import { useIncidentsContext } from '../../providers/incidents-provider';
+import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
+import { useStrategicZoneFrequency } from '../../hooks/useStrategicZoneFrequency';
+import { useStrategicStationVolume } from '../../hooks/useStrategicStationVolume';
+import { useIncidentsData } from '../../hooks/useIncidentsData';
 import { useStationsData } from '../../hooks/useStationsData';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
+import { StrategicTimeOfDayChart } from './StrategicTimeOfDayChart';
+import { ZoneFrequencyTable } from './ZoneFrequencyTable';
+import { StationVolumeChart } from './StationVolumeChart';
+import { HighResponseTimeZones } from './HighResponseTimeZones';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 
 import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
 import { useDashboard } from '../../providers/dashboard-provider';
 
+import { useIncidentMetadataQuery } from '../../hooks/useIncidentMetadataQuery';
+
 export function StrategicLayout() {
-  const { timeRange, setTimeRange, filters, comparisonLabel } = useDashboard();
+  const { timeRange, setTimeRange, filters, comparisonLabel, isYoY, setIsYoY } = useDashboard();
 
   const {
     showIncidentsStrategic: showIncidents,
@@ -34,23 +46,50 @@ export function StrategicLayout() {
   } = useMapPreferencesStore();
   const { setView } = useMapStore();
   const [highlightedZone, setHighlightedZone] = useState<PriorityScoreGroup | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
+
+  const metadataQuery = useIncidentMetadataQuery();
 
   // Strategic data hooks
   // Use daily trend for all dashboard time ranges (24h, 7d, 30d)
-  const dailyTrendQuery = useStrategicDailyTrend(filters);
+  const trendFilters = useMemo(() => ({
+    ...filters,
+    typeCodes: selectedType ? [selectedType] : undefined,
+  }), [filters, selectedType]);
+
+  const dailyTrendQuery = useStrategicDailyTrend(trendFilters);
+  const timeOfDayQuery = useStrategicTimeOfDay(trendFilters);
+  const zoneFrequencyQuery = useStrategicZoneFrequency(trendFilters);
+  const stationVolumeQuery = useStrategicStationVolume(trendFilters);
 
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
   const responseTimesQuery = useStrategicResponseTimes({ groupBy: 'station', ...filters });
+  const zoneResponseTimesQuery = useStrategicResponseTimes({ groupBy: 'zone', ...filters });
   const priorityZonesQuery = useStrategicPriorityZones({
     groupBy: 'grid',
     decayHalfLifeDays: 45,
     ...filters,
   });
 
+
   // Map data
-  // Use global filters for the map to show "truth" (same as main map)
-  const incidentsData = useIncidentsContext();
+  // Use local filters for the map to ensure independence from global filters
+  // Fetch a larger dataset (e.g., 1 year) to allow client-side filtering in the worker
+  // We align the dates to the start/end of the day to ensure the cache key remains stable
+  // across navigations and reloads within the same day.
+  // The Delta Sync mechanism in useIncidentsData will still ensure we get the latest updates.
+  const mapFilters = useMemo(() => {
+    const now = new Date();
+    return {
+      ...filters,
+      startDate: subYears(startOfDay(now), 1).toISOString(),
+      endDate: endOfDay(now).toISOString(),
+      isActive: undefined, // Force ALL incidents (active + inactive)
+    };
+  }, [filters]); // Re-fetch only if filters object changes
+
+  const incidentsData = useIncidentsData(mapFilters);
   const stationsQuery = useStationsData({ isActive: true });
 
   const incidents = incidentsData.incidents;
@@ -121,6 +160,39 @@ export function StrategicLayout() {
 
 
 
+  // Local worker for strategic map clustering
+  const [worker, setWorker] = useState<Worker | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+
+  // Initialize worker
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('../../workers/incident-worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    setWorker(workerRef.current);
+
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  // Feed data to worker
+  useEffect(() => {
+    if (!worker) return;
+
+    worker.postMessage({
+      type: 'SET_DATA',
+      payload: {
+        incidents,
+        filters: {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        },
+      },
+    });
+  }, [incidents, worker, filters.startDate, filters.endDate]);
+
   return (
     <div className="p-6">
       <div className="max-w-[1600px] mx-auto space-y-6">
@@ -133,6 +205,14 @@ export function StrategicLayout() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="strategic-yoy-mode"
+                checked={isYoY}
+                onCheckedChange={(checked: boolean | 'indeterminate') => setIsYoY(checked === true)}
+              />
+              <Label htmlFor="strategic-yoy-mode">Compare to Last Year</Label>
+            </div>
             <Select value={timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select time range" />
@@ -162,11 +242,15 @@ export function StrategicLayout() {
             onPeriodClick={handlePeriodClick}
             comparisonLabel={comparisonLabel}
             timeRange={timeRange}
+            selectedType={selectedType}
+            onTypeChange={setSelectedType}
+            incidentTypes={metadataQuery.data?.types || []}
+            isYoY={isYoY}
           />
         </div>
 
-        {/* Response Times & Priority Zones - Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Response Times, Priority Zones & Time of Day */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <ResponseTimeChart
             data={responseTimesQuery.data || null}
             isLoading={responseTimesQuery.isLoading}
@@ -184,6 +268,16 @@ export function StrategicLayout() {
 
             onViewOnMap={handleViewOnMap}
           />
+          <StrategicTimeOfDayChart query={timeOfDayQuery} />
+          <ZoneFrequencyTable query={zoneFrequencyQuery} />
+          <StationVolumeChart
+            data={stationVolumeQuery.data || null}
+            isLoading={stationVolumeQuery.isLoading}
+            isError={stationVolumeQuery.isError}
+            error={stationVolumeQuery.error}
+            onRefresh={() => stationVolumeQuery.refetch()}
+          />
+          <HighResponseTimeZones query={zoneResponseTimesQuery} />
         </div>
 
         {/* Map with Overlays - Full Width */}
@@ -207,6 +301,7 @@ export function StrategicLayout() {
               priorityZones: showPriorityZones ? priorityZonesQuery.data?.groups || [] : [],
               highlightedZone,
             }}
+            worker={worker}
           />
         </div>
 

@@ -31,6 +31,21 @@ export const getDailyTrend = async (
   }
 };
 
+export const getTimeOfDayDistribution = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await strategicService.getTimeOfDayDistribution(
+      req.query as Record<string, string | string[] | undefined>
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getQuarterlyTrends = async (
   req: Request,
   res: Response,
@@ -113,6 +128,36 @@ export const getHotspots = async (
 ): Promise<void> => {
   try {
     const result = await strategicService.getHotspots(
+      req.query as Record<string, string | string[] | undefined>
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getZoneFrequency = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await strategicService.getZoneFrequency(
+      req.query as Record<string, string | string[] | undefined>
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getStationIncidentCounts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await strategicService.getStationIncidentCounts(
       req.query as Record<string, string | string[] | undefined>
     );
     res.json(result);

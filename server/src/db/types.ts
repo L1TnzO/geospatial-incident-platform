@@ -32,6 +32,11 @@ export interface IncidentStatus extends IncidentLookupValue {
   isTerminal: boolean;
 }
 
+export interface ZoneFrequencyRow {
+  zoneName: string;
+  count: string | number;
+}
+
 export type IncidentSource = IncidentLookupValue;
 
 export type IncidentWeather = IncidentLookupValue;

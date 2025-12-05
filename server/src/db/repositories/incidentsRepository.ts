@@ -22,6 +22,7 @@ import {
   type PaginatedResult,
   type RecentIncidentSummary,
   type StationCoverageBuffer,
+  type ZoneFrequencyRow,
 } from '../types';
 import { geometryToFeature, parseGeometry, parseJsonColumn } from '../utils';
 
@@ -228,7 +229,16 @@ interface ResponseMetricGridRow {
   p90Seconds: number | string;
 }
 
-type ResponseMetricRow = ResponseMetricStationRow | ResponseMetricGridRow;
+interface ResponseMetricZoneRow {
+  groupType: 'zone';
+  zoneName: string;
+  sampleSize: number | string;
+  averageSeconds: number | string;
+  medianSeconds: number | string;
+  p90Seconds: number | string;
+}
+
+export type ResponseMetricRow = ResponseMetricStationRow | ResponseMetricGridRow | ResponseMetricZoneRow;
 
 interface PriorityScoreStationRow {
   groupType: 'station';
@@ -628,6 +638,52 @@ export class IncidentRepository {
       weatherConditionId,
       primaryStationId,
     };
+  }
+
+  public async getZoneFrequency(
+    filters: IncidentListFilters = {}
+  ): Promise<ZoneFrequencyRow[]> {
+    const baseQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+
+    applyFilters(baseQuery, filters);
+
+    const rows = await baseQuery
+      .select('i.city as zoneName')
+      .count('i.id as count')
+      .groupBy('i.city')
+      .orderBy('count', 'desc');
+
+    return rows.map((row) => ({
+      zoneName: String(row.zoneName || 'Unknown'),
+      count: row.count,
+    }));
+  }
+
+  public async getStationIncidentCounts(
+    filters: IncidentListFilters = {}
+  ): Promise<{ stationCode: string; stationName: string; count: number }[]> {
+    const baseQuery = this.db('incidents as i')
+      .join('stations as s', 'i.primary_station_id', 's.id')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+
+    applyFilters(baseQuery, filters);
+
+    const rows = await baseQuery
+      .select('s.station_code as stationCode', 's.name as stationName')
+      .count('i.id as count')
+      .groupBy('s.station_code', 's.name')
+      .orderBy('count', 'desc');
+
+    return rows.map((row) => ({
+      stationCode: String(row.stationCode),
+      stationName: String(row.stationName || row.stationCode),
+      count: Number(row.count),
+    }));
   }
 
   public async listIncidents(
@@ -1370,6 +1426,36 @@ export class IncidentRepository {
     }));
   }
 
+  public async getIncidentCountsByHourOfDay(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<{ hour: number; count: number }[]> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select<{ hour: number; total: string | number }[]>([
+        this.db.raw('EXTRACT(HOUR FROM i.reported_at) as hour'),
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw('EXTRACT(HOUR FROM i.reported_at)')
+      .orderByRaw('EXTRACT(HOUR FROM i.reported_at)');
+
+    applyFilters(query, filters);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as { hour: number; total: string | number }[];
+
+    return rows.map((row) => ({
+      hour: Number(row.hour),
+      count: coerceCount(row.total),
+    }));
+  }
+
   public async getSeverityDistribution(
     filters: IncidentListFilters
   ): Promise<IncidentSeverityBucket[]> {
@@ -1577,7 +1663,7 @@ export class IncidentRepository {
 
   public async getResponseTimeMetrics(
     filters: IncidentListFilters,
-    options: { groupBy: 'station' | 'grid'; cellSizeMeters?: number; resolution?: number }
+    options: { groupBy: 'station' | 'grid' | 'zone'; cellSizeMeters?: number; resolution?: number }
   ): Promise<ResponseMetricRow[]> {
     const baseQuery = this.db('incidents as i')
       .leftJoin('incident_types as it', 'i.type_id', 'it.id')
@@ -1624,6 +1710,38 @@ export class IncidentRepository {
         groupType: 'station',
         stationCode: row.stationCode,
         stationName: row.stationName,
+        sampleSize: Number(row.sampleSize ?? 0),
+        averageSeconds: Number(row.averageSeconds ?? 0),
+        medianSeconds: Number(row.medianSeconds ?? 0),
+        p90Seconds: Number(row.p90Seconds ?? 0),
+      }));
+    }
+
+    if (options.groupBy === 'zone') {
+      const rows = (await this.db
+        .with(responseDataAlias, baseQuery)
+        .from<ResponseMetricZoneRow>(responseDataAlias)
+        .join('incidents as i2', 'response_data.incidentId', 'i2.id')
+        .whereNotNull('i2.city')
+        .where('response_seconds', '>', 0)
+        .select([
+          this.db.raw('\'zone\'::text as "groupType"'),
+          'i2.city as zoneName',
+          this.db.raw('COUNT(*)::int as "sampleSize"'),
+          this.db.raw('AVG(response_seconds) as "averageSeconds"'),
+          this.db.raw(
+            'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_seconds) as "medianSeconds"'
+          ),
+          this.db.raw(
+            'PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY response_seconds) as "p90Seconds"'
+          ),
+        ])
+        .groupBy('i2.city')
+        .orderBy('averageSeconds', 'desc')) as ResponseMetricZoneRow[];
+
+      return rows.map((row) => ({
+        groupType: 'zone',
+        zoneName: row.zoneName,
         sampleSize: Number(row.sampleSize ?? 0),
         averageSeconds: Number(row.averageSeconds ?? 0),
         medianSeconds: Number(row.medianSeconds ?? 0),

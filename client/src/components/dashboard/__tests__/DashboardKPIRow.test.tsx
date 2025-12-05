@@ -51,11 +51,11 @@ describe('DashboardKPIRow', () => {
       lastUpdated: null,
     } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
+    render(<DashboardKPIRow kpiQuery={mockQuery} highSeverityKpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
       wrapper: createWrapper(),
     });
 
-    expect(screen.getByRole('status', { hidden: true })).toBeInTheDocument();
+    expect(screen.getAllByRole('status', { hidden: true })).toHaveLength(2);
   });
 
   it('renders error state with retry button', async () => {
@@ -69,14 +69,14 @@ describe('DashboardKPIRow', () => {
       lastUpdated: null,
     } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
+    render(<DashboardKPIRow kpiQuery={mockQuery} highSeverityKpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
       wrapper: createWrapper(),
     });
 
-    expect(screen.getByText(/Failed to load KPI/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Failed to load KPI/i)).toHaveLength(2);
 
-    const retryButton = screen.getByRole('button', { name: /retry/i });
-    await user.click(retryButton);
+    const retryButtons = screen.getAllByRole('button', { name: /retry/i });
+    await user.click(retryButtons[0]);
 
     expect(mockRefresh).toHaveBeenCalledWith(true);
   });
@@ -91,13 +91,13 @@ describe('DashboardKPIRow', () => {
       lastUpdated: Date.now(),
     } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
+    render(<DashboardKPIRow kpiQuery={mockQuery} highSeverityKpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
       wrapper: createWrapper(),
     });
 
-    expect(screen.getByText('42')).toBeInTheDocument();
-    expect(screen.getByText('+7')).toBeInTheDocument();
-    expect(screen.getByText('+20.0%')).toBeInTheDocument();
+    expect(screen.getAllByText('42')).toHaveLength(2);
+    expect(screen.getAllByText('+7')).toHaveLength(2);
+    expect(screen.getAllByText('+20.0%')).toHaveLength(2);
   });
 
 

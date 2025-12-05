@@ -4,6 +4,7 @@ import {
   type IncidentLookupValue,
   type StationCoverageBuffer,
   type IncidentDailyCount,
+  type ResponseMetricRow,
 } from '../db';
 import type { Feature, Polygon } from 'geojson';
 import { incidentService, type IncidentFilterOptions } from './incidentsService';
@@ -50,7 +51,7 @@ const COVERAGE_DEFAULT_RADIUS_METERS = 5000;
 const COVERAGE_MIN_RADIUS_METERS = 100;
 const COVERAGE_MAX_RADIUS_METERS = 50000;
 
-export type StrategicGroupBy = 'station' | 'grid';
+export type StrategicGroupBy = 'station' | 'grid' | 'zone';
 
 type QueryValue = string | string[] | undefined;
 
@@ -112,6 +113,32 @@ export interface DailyTrend {
     percentageChange: number | null;
     direction: 'up' | 'down' | 'flat';
   };
+}
+
+export interface TimeOfDayDistribution {
+  morning: number;
+  afternoon: number;
+  night: number;
+  total: number;
+}
+
+export interface ZoneFrequencyResponse {
+  zones: {
+    name: string;
+    count: number;
+    percentage: number;
+  }[];
+  total: number;
+}
+
+export interface StationVolumeResponse {
+  stations: {
+    stationCode: string;
+    stationName: string;
+    count: number;
+    percentage: number;
+  }[];
+  total: number;
 }
 
 export interface QuarterlyTrendResponse {
@@ -241,7 +268,12 @@ export interface ResponseMetricGridGroup extends ResponseMetricGroupBase {
   };
 }
 
-export type ResponseMetricGroup = ResponseMetricStationGroup | ResponseMetricGridGroup;
+export interface ResponseMetricZoneGroup extends ResponseMetricGroupBase {
+  groupType: 'zone';
+  zoneName: string;
+}
+
+export type ResponseMetricGroup = ResponseMetricStationGroup | ResponseMetricGridGroup | ResponseMetricZoneGroup;
 
 export interface ResponseMetricsResponse {
   metadata: {
@@ -253,6 +285,8 @@ export interface ResponseMetricsResponse {
     resolution?: number;
     cellSizeMeters?: number;
     generatedAt: string;
+    globalAverageSeconds: number | null;
+    allTimeAverageSeconds: number | null;
   };
   groups: ResponseMetricGroup[];
 }
@@ -584,7 +618,10 @@ const parseGroupByParam = (value: QueryValue, defaultValue: StrategicGroupBy): S
   if (normalized === 'grid') {
     return 'grid';
   }
-  throw HttpError.badRequest("Query parameter 'groupBy' must be either 'station' or 'grid'.");
+  if (normalized === 'zone') {
+    return 'zone';
+  }
+  throw HttpError.badRequest("Query parameter 'groupBy' must be either 'station', 'grid', or 'zone'.");
 };
 
 const parseHalfLifeParam = (value: QueryValue): number | null => {
@@ -907,6 +944,75 @@ export class StrategicAnalyticsService {
           direction,
         },
       } satisfies DailyTrend;
+    });
+  }
+
+  public async getTimeOfDayDistribution(
+    query: Record<string, QueryValue>,
+    now: Date = new Date()
+  ): Promise<TimeOfDayDistribution> {
+    const filters = this.getFilters(query);
+
+    let range: { start: string; end: string };
+    let startDate: Date;
+    let endDate: Date;
+
+    if (filters.startDate && filters.endDate) {
+      startDate = new Date(filters.startDate);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate = new Date(filters.endDate);
+      range = {
+        start: filters.startDate,
+        end: filters.endDate,
+      };
+    } else {
+      // Default to last 30 days
+      endDate = new Date(now);
+      const normalizedEnd = new Date(
+        Date.UTC(
+          endDate.getUTCFullYear(),
+          endDate.getUTCMonth(),
+          endDate.getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+      startDate = new Date(normalizedEnd.getTime() - 29 * DAY_MS);
+      startDate.setUTCHours(0, 0, 0, 0);
+
+      range = {
+        start: startDate.toISOString(),
+        end: normalizedEnd.toISOString(),
+      };
+    }
+
+    const cacheKey = buildCacheKey('strategic:timeOfDay', filters, range);
+
+    return this.withCache(cacheKey, async () => {
+      const countsByHour = await this.repository.getIncidentCountsByHourOfDay(filters, range);
+
+      let morning = 0;   // 06:00 - 11:59
+      let afternoon = 0; // 12:00 - 19:59
+      let night = 0;     // 20:00 - 05:59
+
+      for (const { hour, count } of countsByHour) {
+        if (hour >= 6 && hour < 12) {
+          morning += count;
+        } else if (hour >= 12 && hour < 20) {
+          afternoon += count;
+        } else {
+          night += count;
+        }
+      }
+
+      return {
+        morning,
+        afternoon,
+        night,
+        total: morning + afternoon + night,
+      };
     });
   }
 
@@ -1352,6 +1458,8 @@ export class StrategicAnalyticsService {
             resolution,
             cellSizeMeters,
             generatedAt: new Date().toISOString(),
+            globalAverageSeconds: null,
+            allTimeAverageSeconds: null,
           },
           groups: [],
         } satisfies ResponseMetricsResponse;
@@ -1361,6 +1469,49 @@ export class StrategicAnalyticsService {
       const minAverage = Math.min(...averages);
       const maxAverage = Math.max(...averages);
       const percentileRanks = computePercentileRanks(averages, true);
+
+      // Helper to calculate weighted average
+      const calculateWeightedAverage = (groupRows: ResponseMetricRow[]) => {
+        let totalSeconds = 0;
+        let totalSample = 0;
+        groupRows.forEach((row) => {
+          const avg = Number(row.averageSeconds ?? 0);
+          const sample = Number(row.sampleSize ?? 0);
+          totalSeconds += avg * sample;
+          totalSample += sample;
+        });
+        return totalSample > 0 ? totalSeconds / totalSample : null;
+      };
+
+      const periodAverageSeconds = calculateWeightedAverage(rows);
+
+      // Fetch all-time stats (cached separately)
+      // We want a true "Global" average, so we remove time, location (bounds), and specific incident filters.
+      // We keep categorical filters (type, severity, status) so the baseline is relevant to the category being analyzed.
+      const allTimeFilters = {
+        ...filters,
+        startDate: undefined,
+        endDate: undefined,
+        bounds: undefined,
+        center: undefined,
+        isActive: undefined,
+        incidentNumber: undefined,
+        searchTerm: undefined,
+      };
+      const allTimeCacheKey = buildCacheKey('strategic:responseMetrics:allTime', allTimeFilters, {
+        groupBy,
+        resolution: resolution ?? null,
+        cellSizeMeters: cellSizeMeters ?? null,
+      });
+
+      const allTimeAverageSeconds = await this.withCache(allTimeCacheKey, async () => {
+        const allTimeRows = await this.repository.getResponseTimeMetrics(allTimeFilters, {
+          groupBy,
+          cellSizeMeters,
+          resolution,
+        });
+        return calculateWeightedAverage(allTimeRows);
+      });
 
       const groups: ResponseMetricGroup[] = rows.map((row, index) => {
         const averageSeconds = Number(row.averageSeconds ?? 0);
@@ -1386,6 +1537,20 @@ export class StrategicAnalyticsService {
             percentileRank,
             insufficientSample,
           } satisfies ResponseMetricStationGroup;
+        }
+
+        if (row.groupType === 'zone') {
+          return {
+            groupType: 'zone',
+            zoneName: row.zoneName,
+            sampleSize,
+            averageSeconds,
+            medianSeconds,
+            p90Seconds,
+            normalizedAverage,
+            percentileRank,
+            insufficientSample,
+          } satisfies ResponseMetricZoneGroup;
         }
 
         const polygonGeometry = parseGeoJson<{
@@ -1434,6 +1599,8 @@ export class StrategicAnalyticsService {
           resolution,
           cellSizeMeters,
           generatedAt: new Date().toISOString(),
+          globalAverageSeconds: periodAverageSeconds,
+          allTimeAverageSeconds,
         },
         groups,
       } satisfies ResponseMetricsResponse;
@@ -1445,6 +1612,9 @@ export class StrategicAnalyticsService {
   ): Promise<PriorityScoreResponse> {
     const filters = this.getFilters(query);
     const groupBy = parseGroupByParam(query.groupBy, 'station');
+    if (groupBy === 'zone') {
+      throw HttpError.badRequest("Group by 'zone' is not supported for priority scores.");
+    }
     const decayHalfLifeDays = parseHalfLifeParam(query.decayHalfLifeDays);
 
     let resolution: number | undefined;
@@ -1562,6 +1732,51 @@ export class StrategicAnalyticsService {
         },
         groups,
       } satisfies PriorityScoreResponse;
+    });
+  }
+
+  public async getZoneFrequency(
+    query: Record<string, QueryValue>
+  ): Promise<ZoneFrequencyResponse> {
+    const filters = this.getFilters(query);
+    const cacheKey = buildCacheKey('strategic:zone-frequency', filters);
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getZoneFrequency(filters);
+
+      const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
+
+      const zones = rows.map((row) => {
+        const count = Number(row.count);
+        return {
+          name: row.zoneName,
+          count,
+          percentage: total > 0 ? clampPercentage((count / total) * 100) : 0,
+        };
+      });
+
+      return {
+        zones,
+        total,
+      };
+    });
+  }
+  public async getStationIncidentCounts(
+    query: Record<string, QueryValue>
+  ): Promise<StationVolumeResponse> {
+    const filters = this.getFilters(query);
+    const cacheKey = buildCacheKey('strategic:station-volume', filters);
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getStationIncidentCounts(filters);
+      const total = rows.reduce((sum, row) => sum + row.count, 0);
+
+      const stations = rows.map((row) => ({
+        ...row,
+        percentage: total > 0 ? clampPercentage((row.count / total) * 100) : 0,
+      }));
+
+      return { stations, total };
     });
   }
 }

@@ -392,7 +392,7 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
     ...params,
     viewportBounds: undefined,
     priorityCenter: priorityCenter ?? null,
-    isActive: params.isActive ?? true,
+    isActive: params.isActive,
     renderLimit: undefined,
     page: 1,
     pageSize: fetchPageSize,

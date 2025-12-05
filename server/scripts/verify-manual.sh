@@ -127,5 +127,24 @@ else
   echo "Match: ❌ (Note: Strategic aggregation might differ slightly due to timezone/bucketing, but should be close)"
 fi
 
+# 5. Verify Strategic (Station Volume)
+echo ""
+echo "[5] Verifying Strategic (Station Volume)"
+echo "Range: $START_30D to $NOW"
+
+# API Call
+API_RES_VOL=$(curl -s "$API_URL/strategic/stations/volume?startDate=$START_30D&endDate=$NOW")
+# Sum counts in the stations list
+API_COUNT_VOL=$(echo $API_RES_VOL | python3 -c "import sys, json; print(json.load(sys.stdin)['total'])")
+echo "API Station Volume Total: $API_COUNT_VOL"
+
+echo "DB Count (30D): $DB_COUNT_30D"
+
+if [ "$DB_COUNT_30D" == "$API_COUNT_VOL" ]; then
+  echo "Match: ✅"
+else
+  echo "Match: ❌"
+fi
+
 echo ""
 echo "--- Verification End ---"

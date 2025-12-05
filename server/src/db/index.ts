@@ -7,6 +7,7 @@ export {
   type BoundingBox,
   type CreateIncidentInput,
   type IncidentLocationInput,
+  type ResponseMetricRow,
   IncidentLookupError,
 } from './repositories/incidentsRepository';
 export {
