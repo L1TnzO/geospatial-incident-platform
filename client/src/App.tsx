@@ -23,6 +23,7 @@ import { useIncidentsTableData } from './hooks/useIncidentsData';
 import { useIncidentDetailStore } from './store/incident-detail-store';
 import { useStationsData } from './hooks/useStationsData';
 import { IncidentsProvider, useIncidentsContext } from './providers/incidents-provider';
+import { useIncidentExport } from './hooks/useIncidentExport';
 import type { Incident } from './types';
 import type { IncidentSortField } from './types/api/incidents';
 import { isMobile } from './utils/platform';
@@ -72,6 +73,7 @@ function AppRoutes() {
 
   const incidentsData = useIncidentsContext();
   const incidentsTableData = useIncidentsTableData(fetchParams);
+  const { exportData, isExporting } = useIncidentExport();
 
   const stationsData = useStationsData({ isActive: filters.isActive ?? true });
 
@@ -191,6 +193,8 @@ function AppRoutes() {
                       activeIncidentId={activeIncidentId ?? undefined}
                       searchTerm={filters.searchTerm}
                       onSearchChange={(term) => setIncidentFilters({ searchTerm: term, page: 1 })}
+                      onExport={() => exportData(fetchParams)}
+                      isExporting={isExporting}
                     />
                   </main>
                 </div>

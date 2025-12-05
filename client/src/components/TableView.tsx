@@ -5,7 +5,7 @@ import { Command, CommandInput } from './ui/command';
 import { Badge } from './ui/badge';
 import type { LiteIncident } from '../types';
 import type { IncidentSortField, PaginationMeta } from '../types/api/incidents';
-import { AlertTriangle, ChevronDown, ChevronUp, Download, Loader2, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Download, Loader2, RefreshCw } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   Pagination,
@@ -39,6 +39,8 @@ interface TableViewProps {
   activeIncidentId?: string | null;
   searchTerm?: string;
   onSearchChange: (term: string) => void;
+  onExport: () => void;
+  isExporting?: boolean;
 }
 
 const getSeverityColor = (incident: LiteIncident) =>
@@ -98,6 +100,8 @@ export function TableView({
   activeIncidentId,
   searchTerm,
   onSearchChange,
+  onExport,
+  isExporting = false,
 }: TableViewProps) {
   const [searchValue, setSearchValue] = useState(searchTerm ?? '');
   const debouncedSearchValue = useDebounce(searchValue, 300);
@@ -121,47 +125,6 @@ export function TableView({
   const showingEnd = totalCount === 0 ? 0 : showingStart + incidents.length - 1;
   const showEmptyState = !isLoading && !isError && incidents.length === 0;
   const showLoadingOverlay = isLoading || (isFetching && incidents.length === 0);
-
-  const handleExportCsv = () => {
-    if (incidents.length === 0) {
-      return;
-    }
-
-    const headers = [
-      'Incident Number',
-      'Status',
-      'Severity',
-      'Type',
-      'Reported At',
-      'Occurrence At',
-      'Location',
-      'Description',
-    ];
-
-    const rows = incidents.map((incident) => [
-      incident.id,
-      incident.status,
-      incident.severity,
-      incident.type,
-      incident.reportedAt ?? incident.timestamp,
-      incident.occurrenceAt ?? '—',
-      incident.location.address,
-      incident.description,
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `incidents_page_${page}_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleSortClick = (field: IncidentSortField) => {
     const nextDirection = sortBy === field ? (sortDirection === 'asc' ? 'desc' : 'asc') : 'desc';
@@ -224,8 +187,8 @@ export function TableView({
               <Loader2 className="h-4 w-4 animate-spin" /> Updating…
             </span>
           )}
-          <Button onClick={handleExportCsv} className="gap-2" disabled={incidents.length === 0}>
-            <Download className="h-4 w-4" /> Export CSV
+          <Button onClick={onExport} className="gap-2" disabled={incidents.length === 0 || isExporting}>
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV
           </Button>
         </div>
       </div>
