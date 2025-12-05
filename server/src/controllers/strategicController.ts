@@ -135,3 +135,18 @@ export const getHotspots = async (
     next(error);
   }
 };
+
+export const getZoneFrequency = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await strategicService.getZoneFrequency(
+      req.query as Record<string, string | string[] | undefined>
+    );
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};

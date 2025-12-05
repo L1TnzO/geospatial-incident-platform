@@ -309,3 +309,12 @@ export interface StrategicTimeOfDayResponse {
   night: number;
   total: number;
 }
+
+export interface StrategicZoneFrequencyResponse {
+  zones: {
+    name: string;
+    count: number;
+    percentage: number;
+  }[];
+  total: number;
+}

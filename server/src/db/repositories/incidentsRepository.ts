@@ -22,6 +22,7 @@ import {
   type PaginatedResult,
   type RecentIncidentSummary,
   type StationCoverageBuffer,
+  type ZoneFrequencyRow,
 } from '../types';
 import { geometryToFeature, parseGeometry, parseJsonColumn } from '../utils';
 
@@ -628,6 +629,28 @@ export class IncidentRepository {
       weatherConditionId,
       primaryStationId,
     };
+  }
+
+  public async getZoneFrequency(
+    filters: IncidentListFilters = {}
+  ): Promise<ZoneFrequencyRow[]> {
+    const baseQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+
+    applyFilters(baseQuery, filters);
+
+    const rows = await baseQuery
+      .select('i.city as zoneName')
+      .count('i.id as count')
+      .groupBy('i.city')
+      .orderBy('count', 'desc');
+
+    return rows.map((row) => ({
+      zoneName: String(row.zoneName || 'Unknown'),
+      count: row.count,
+    }));
   }
 
   public async listIncidents(

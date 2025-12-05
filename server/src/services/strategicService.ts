@@ -121,6 +121,15 @@ export interface TimeOfDayDistribution {
   total: number;
 }
 
+export interface ZoneFrequencyResponse {
+  zones: {
+    name: string;
+    count: number;
+    percentage: number;
+  }[];
+  total: number;
+}
+
 export interface QuarterlyTrendResponse {
   range: {
     start: string;
@@ -1638,6 +1647,33 @@ export class StrategicAnalyticsService {
         },
         groups,
       } satisfies PriorityScoreResponse;
+    });
+  }
+
+  public async getZoneFrequency(
+    query: Record<string, QueryValue>
+  ): Promise<ZoneFrequencyResponse> {
+    const filters = this.getFilters(query);
+    const cacheKey = buildCacheKey('strategic:zone-frequency', filters);
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getZoneFrequency(filters);
+
+      const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
+
+      const zones = rows.map((row) => {
+        const count = Number(row.count);
+        return {
+          name: row.zoneName,
+          count,
+          percentage: total > 0 ? clampPercentage((count / total) * 100) : 0,
+        };
+      });
+
+      return {
+        zones,
+        total,
+      };
     });
   }
 }
