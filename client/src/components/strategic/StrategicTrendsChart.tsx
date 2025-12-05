@@ -266,9 +266,7 @@ export function StrategicTrendsChart({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Trend Analysis</CardTitle>
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+
       </CardHeader>
       <CardContent>
         {/* Summary metrics */}

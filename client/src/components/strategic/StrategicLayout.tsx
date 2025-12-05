@@ -14,7 +14,7 @@ import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
-import { RefreshCw } from 'lucide-react';
+
 import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
 import { useDashboard } from '../../providers/dashboard-provider';
@@ -119,14 +119,7 @@ export function StrategicLayout() {
     console.log('Incident clicked:', incident);
   }, []);
 
-  // Refresh all strategic data
-  const handleRefreshAll = useCallback(() => {
-    dailyTrendQuery.refresh(true);
-    hotspotsQuery.refresh(true);
-    coverageQuery.refresh(true);
-    responseTimesQuery.refresh(true);
-    priorityZonesQuery.refresh(true);
-  }, [dailyTrendQuery, hotspotsQuery, coverageQuery, responseTimesQuery, priorityZonesQuery]);
+
 
   return (
     <div className="p-6">
@@ -152,10 +145,7 @@ export function StrategicLayout() {
                 <SelectItem value="1y">Last 12 Months</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={handleRefreshAll}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh All
-            </Button>
+
           </div>
         </div>
 
@@ -168,6 +158,7 @@ export function StrategicLayout() {
             isError={dailyTrendQuery.isError}
             error={dailyTrendQuery.error}
             onRefresh={() => dailyTrendQuery.refresh(true)}
+
             onPeriodClick={handlePeriodClick}
             comparisonLabel={comparisonLabel}
             timeRange={timeRange}
@@ -182,6 +173,7 @@ export function StrategicLayout() {
             isError={responseTimesQuery.isError}
             error={responseTimesQuery.error}
             onRefresh={() => responseTimesQuery.refresh(true)}
+
           />
           <PriorityZonesPanel
             data={priorityZonesQuery.data || null}
@@ -189,6 +181,7 @@ export function StrategicLayout() {
             isError={priorityZonesQuery.isError}
             error={priorityZonesQuery.error}
             onRefresh={() => priorityZonesQuery.refresh(true)}
+
             onViewOnMap={handleViewOnMap}
           />
         </div>
