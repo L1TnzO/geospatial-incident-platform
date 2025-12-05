@@ -105,7 +105,7 @@ make db-api-check
 Estas tablas **DEBEN** tener datos antes de cargar incidentes:
 
 1. **incident_types** - Tipos de incidentes (FIRE_STRUCTURE, FIRE_WILDLAND, etc.)
-2. **incident_severities** - Severidades (LOW, MODERATE, HIGH, CRITICAL, SEVERE)
+2. **incident_severities** - Severities (LOW, MODERATE, HIGH, CRITICAL, SEVERE)
 3. **incident_statuses** - Estados (REPORTED, DISPATCHED, ON_SCENE, RESOLVED, CANCELLED)
 4. **incident_sources** - Fuentes de reporte (911, FIRE_ALARM, etc.)
 5. **weather_conditions** - Condiciones climáticas (CLEAR, RAIN, SNOW, etc.)

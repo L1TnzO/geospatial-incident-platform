@@ -732,7 +732,7 @@ export function MapView({
 
               <div className="pt-2 border-t border-white/15">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-white/60 mb-1">
-                  Severidades
+                  Severities
                 </p>
                 <div className="grid gap-2 text-xs text-white/85">
                   {severityLegend.map(([label, color]) => (
