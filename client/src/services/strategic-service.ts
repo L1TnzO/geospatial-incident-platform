@@ -14,6 +14,7 @@ import type {
   StrategicCoverageResponse,
   StrategicResponseMetricsResponse,
   StrategicPriorityScoreResponse,
+  StrategicTimeOfDayResponse,
 } from '../types/api/strategic';
 import type { DailyTrendResponse, DashboardFilterParams } from '../types/api/dashboard';
 
@@ -82,6 +83,17 @@ export const fetchStrategicDailyTrend = async (
     return await apiClient.strategic.dailyTrend(params, { signal });
   } catch (error) {
     throw mapHttpError(error, 'Failed to fetch daily trend');
+  }
+};
+
+export const fetchStrategicTimeOfDay = async (
+  params: DashboardFilterParams = {},
+  signal?: AbortSignal,
+): Promise<StrategicTimeOfDayResponse> => {
+  try {
+    return await apiClient.strategic.timeOfDay(params, { signal });
+  } catch (error) {
+    throw mapHttpError(error, 'Failed to fetch time of day distribution');
   }
 };
 

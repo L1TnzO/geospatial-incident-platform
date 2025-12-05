@@ -7,11 +7,13 @@ import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
 import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
+import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
 import { useIncidentsContext } from '../../providers/incidents-provider';
 import { useStationsData } from '../../hooks/useStationsData';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
+import { StrategicTimeOfDayChart } from './StrategicTimeOfDayChart';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
 
@@ -48,6 +50,7 @@ export function StrategicLayout() {
   }), [filters, selectedType]);
 
   const dailyTrendQuery = useStrategicDailyTrend(trendFilters);
+  const timeOfDayQuery = useStrategicTimeOfDay(trendFilters);
 
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
@@ -179,8 +182,8 @@ export function StrategicLayout() {
           />
         </div>
 
-        {/* Response Times & Priority Zones - Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Response Times, Priority Zones & Time of Day */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <ResponseTimeChart
             data={responseTimesQuery.data || null}
             isLoading={responseTimesQuery.isLoading}
@@ -198,6 +201,7 @@ export function StrategicLayout() {
 
             onViewOnMap={handleViewOnMap}
           />
+          <StrategicTimeOfDayChart query={timeOfDayQuery} />
         </div>
 
         {/* Map with Overlays - Full Width */}

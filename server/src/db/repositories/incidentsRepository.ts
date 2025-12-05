@@ -1370,6 +1370,36 @@ export class IncidentRepository {
     }));
   }
 
+  public async getIncidentCountsByHourOfDay(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<{ hour: number; count: number }[]> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select<{ hour: number; total: string | number }[]>([
+        this.db.raw('EXTRACT(HOUR FROM i.reported_at) as hour'),
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw('EXTRACT(HOUR FROM i.reported_at)')
+      .orderByRaw('EXTRACT(HOUR FROM i.reported_at)');
+
+    applyFilters(query, filters);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as { hour: number; total: string | number }[];
+
+    return rows.map((row) => ({
+      hour: Number(row.hour),
+      count: coerceCount(row.total),
+    }));
+  }
+
   public async getSeverityDistribution(
     filters: IncidentListFilters
   ): Promise<IncidentSeverityBucket[]> {

@@ -302,3 +302,10 @@ export interface StrategicPriorityScoreResponse {
   };
   groups: PriorityScoreGroup[];
 }
+
+export interface StrategicTimeOfDayResponse {
+  morning: number;
+  afternoon: number;
+  night: number;
+  total: number;
+}

@@ -114,6 +114,13 @@ export interface DailyTrend {
   };
 }
 
+export interface TimeOfDayDistribution {
+  morning: number;
+  afternoon: number;
+  night: number;
+  total: number;
+}
+
 export interface QuarterlyTrendResponse {
   range: {
     start: string;
@@ -907,6 +914,75 @@ export class StrategicAnalyticsService {
           direction,
         },
       } satisfies DailyTrend;
+    });
+  }
+
+  public async getTimeOfDayDistribution(
+    query: Record<string, QueryValue>,
+    now: Date = new Date()
+  ): Promise<TimeOfDayDistribution> {
+    const filters = this.getFilters(query);
+
+    let range: { start: string; end: string };
+    let startDate: Date;
+    let endDate: Date;
+
+    if (filters.startDate && filters.endDate) {
+      startDate = new Date(filters.startDate);
+      startDate.setUTCHours(0, 0, 0, 0);
+      endDate = new Date(filters.endDate);
+      range = {
+        start: filters.startDate,
+        end: filters.endDate,
+      };
+    } else {
+      // Default to last 30 days
+      endDate = new Date(now);
+      const normalizedEnd = new Date(
+        Date.UTC(
+          endDate.getUTCFullYear(),
+          endDate.getUTCMonth(),
+          endDate.getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+      startDate = new Date(normalizedEnd.getTime() - 29 * DAY_MS);
+      startDate.setUTCHours(0, 0, 0, 0);
+
+      range = {
+        start: startDate.toISOString(),
+        end: normalizedEnd.toISOString(),
+      };
+    }
+
+    const cacheKey = buildCacheKey('strategic:timeOfDay', filters, range);
+
+    return this.withCache(cacheKey, async () => {
+      const countsByHour = await this.repository.getIncidentCountsByHourOfDay(filters, range);
+
+      let morning = 0;   // 06:00 - 11:59
+      let afternoon = 0; // 12:00 - 19:59
+      let night = 0;     // 20:00 - 05:59
+
+      for (const { hour, count } of countsByHour) {
+        if (hour >= 6 && hour < 12) {
+          morning += count;
+        } else if (hour >= 12 && hour < 20) {
+          afternoon += count;
+        } else {
+          night += count;
+        }
+      }
+
+      return {
+        morning,
+        afternoon,
+        night,
+        total: morning + afternoon + night,
+      };
     });
   }
 

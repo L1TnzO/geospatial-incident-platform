@@ -36,6 +36,7 @@ import type {
   StrategicCoverageResponse,
   StrategicResponseMetricsResponse,
   StrategicPriorityScoreResponse,
+  StrategicTimeOfDayResponse,
 } from '../types/api/strategic';
 
 export interface FetchIncidentsParams extends Record<string, unknown> {
@@ -299,6 +300,28 @@ export const apiClient = {
         }) as Promise<DailyTrendResponse>;
       }
       return http.get<DailyTrendResponse>('/strategic/trends/daily', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    timeOfDay: (
+      params: DashboardFilterParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicTimeOfDayResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicTimeOfDayResponse>('/strategic/trends/time-of-day', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicTimeOfDayResponse>;
+      }
+      return http.get<StrategicTimeOfDayResponse>('/strategic/trends/time-of-day', {
         ...requestOptions,
         query: params as Record<
           string,
