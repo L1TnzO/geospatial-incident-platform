@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -10,14 +10,9 @@ interface DashboardTypeDistributionChartProps {
   distributionQuery: UseDashboardTypeDistributionResult;
 }
 
-type DisplayMode = 'count' | 'percentage';
-
-const formatPercentage = (value: number) => `${value.toFixed(1)}%`;
-
 export function DashboardTypeDistributionChart({
   distributionQuery,
 }: DashboardTypeDistributionChartProps) {
-  const [mode, setMode] = useState<DisplayMode>('count');
   const { data, isLoading, isError, error, refresh, lastUpdated } = distributionQuery;
 
   const handleRefresh = async () => {
@@ -33,12 +28,8 @@ export function DashboardTypeDistributionChart({
             <Skeleton className="h-4 w-48" />
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div aria-hidden="true">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </div>
+        <CardContent className="h-[300px] flex items-center justify-center">
+          <Skeleton className="h-[250px] w-full" />
         </CardContent>
       </Card>
     );
@@ -82,7 +73,13 @@ export function DashboardTypeDistributionChart({
     );
   }
 
-  const maxCount = Math.max(...buckets.map((b) => b.count), 1);
+  // Prepare data for Recharts
+  const chartData = buckets.map((bucket) => ({
+    name: bucket.type.name,
+    count: bucket.count,
+    percentage: bucket.percentage,
+    percentageLabel: `${bucket.percentage.toFixed(1)}%`,
+  }));
 
   return (
     <Card>
@@ -92,48 +89,43 @@ export function DashboardTypeDistributionChart({
             <CardTitle>Incident Types</CardTitle>
             <CardDescription>Last 7 days · {total.toLocaleString()} incidents</CardDescription>
           </div>
-          <div className="flex gap-1">
-            <Button
-              variant={mode === 'count' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('count')}
-            >
-              Count
-            </Button>
-            <Button
-              variant={mode === 'percentage' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMode('percentage')}
-            >
-              Percentage
-            </Button>
-          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {buckets.map((bucket) => {
-          const value = mode === 'count' ? bucket.count : bucket.percentage;
-          const maxValue = mode === 'count' ? maxCount : 100;
-          const widthPercent = (value / maxValue) * 100;
-          const displayValue =
-            mode === 'count' ? bucket.count.toLocaleString() : formatPercentage(bucket.percentage);
-
-          return (
-            <div key={bucket.type.code} className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{bucket.type.name}</span>
-                <span className="text-muted-foreground">{displayValue}</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{ width: `${Math.max(widthPercent, 2)}%` }}
-                  aria-label={`${bucket.type.name}: ${bucket.count.toLocaleString()} incidents (${formatPercentage(bucket.percentage)})`}
-                />
-              </div>
-            </div>
-          );
-        })}
+      <CardContent>
+        <div style={{ width: '100%', height: 300 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" hide />
+              <YAxis
+                dataKey="name"
+                type="category"
+                width={100}
+                tick={{ fontSize: 12 }}
+                interval={0}
+              />
+              <Tooltip
+                formatter={(value: number, _name: string, props: any) => [
+                  `${value.toLocaleString()} (${props.payload.percentage.toFixed(1)}%)`,
+                  'Incidents',
+                ]}
+                cursor={{ fill: 'transparent' }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+              />
+              <Bar
+                dataKey="count"
+                fill="hsl(var(--primary))"
+                radius={4}
+                barSize={32}
+                background={{ fill: 'hsl(var(--muted))', radius: 4 }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
       <CardFooter className="flex items-center justify-between text-xs text-muted-foreground">
         {lastUpdated && <span>Updated {new Date(lastUpdated).toLocaleTimeString()}</span>}

@@ -1,16 +1,18 @@
-
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import type { UseDashboardDailyTrendResult } from '../../hooks/useDashboardDailyTrend';
+import { subMonths, subYears } from 'date-fns';
+
+type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
 
 interface DashboardDailyTrendChartProps {
   trendQuery: UseDashboardDailyTrendResult;
   timeRangeLabel: string;
   comparisonLabel: string;
-  timeRange: '24h' | '7d' | '30d';
+  timeRange: TimeRange;
 }
 
 const formatDate = (isoDate: string) =>
@@ -54,6 +56,22 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
         start.setDate(end.getDate() - 30);
         previousEnd.setDate(end.getDate() - 30);
         previousStart.setDate(end.getDate() - 60);
+        break;
+      case '3m':
+        {
+          const start3m = subMonths(end, 3);
+          start.setTime(start3m.getTime());
+          previousEnd.setTime(start3m.getTime());
+          previousStart.setTime(subMonths(start3m, 3).getTime());
+        }
+        break;
+      case '1y':
+        {
+          const start1y = subYears(end, 1);
+          start.setTime(start1y.getTime());
+          previousEnd.setTime(start1y.getTime());
+          previousStart.setTime(subYears(start1y, 1).getTime());
+        }
         break;
       default:
         start.setHours(end.getHours() - 24);

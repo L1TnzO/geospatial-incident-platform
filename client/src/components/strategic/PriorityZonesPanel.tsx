@@ -111,9 +111,7 @@ export function PriorityZonesPanel({
               ` • Decay: ${data.metadata.decayHalfLifeDays}d half-life`}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+
       </CardHeader>
       <CardContent>
         <div className="overflow-y-auto pr-4 border rounded-md" style={{ height: '400px' }}>

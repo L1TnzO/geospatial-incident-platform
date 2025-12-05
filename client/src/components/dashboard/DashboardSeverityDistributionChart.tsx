@@ -1,4 +1,4 @@
-
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -31,12 +31,8 @@ export function DashboardSeverityDistributionChart({
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-48" />
         </CardHeader>
-        <CardContent className="flex flex-col items-center space-y-4">
-          <Skeleton className="h-48 w-48 rounded-full" />
-          <div className="space-y-2 w-full">
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-          </div>
+        <CardContent className="h-[300px] flex items-center justify-center">
+          <Skeleton className="h-[250px] w-[250px] rounded-full" />
         </CardContent>
       </Card>
     );
@@ -82,18 +78,12 @@ export function DashboardSeverityDistributionChart({
     );
   }
 
-  // Build conic gradient segments
-  let cursor = 0;
-  const segments = buckets.map((bucket, index) => {
-    const start = cursor;
-    cursor += bucket.percentage;
-    const end = index === buckets.length - 1 ? 100 : Math.min(100, cursor);
-    return { start, end, bucket };
-  });
-
-  const gradientStops = segments
-    .map(({ start, end, bucket }) => `${bucket.severity.colorHex || '#6b7280'} ${start}% ${end}%`)
-    .join(', ');
+  const chartData = buckets.map((bucket) => ({
+    name: bucket.severity.name,
+    value: bucket.count,
+    color: bucket.severity.colorHex || '#6b7280',
+    percentage: bucket.percentage,
+  }));
 
   return (
     <Card>
@@ -105,56 +95,43 @@ export function DashboardSeverityDistributionChart({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col items-center space-y-6">
-        {/* Donut Chart */}
-        <div className="relative">
-          <div
-            className="h-48 w-48 rounded-full"
-            style={{
-              background: `conic-gradient(${gradientStops})`,
-            }}
-            role="img"
-            aria-label="Severity distribution donut chart"
-          >
-            {/* Center hole */}
-            <div className="absolute inset-0 m-auto h-32 w-32 rounded-full bg-background flex flex-col items-center justify-center">
-              <span className="text-3xl font-bold">{total.toLocaleString()}</span>
-              <span className="text-sm text-muted-foreground">Incidents</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="w-full space-y-2">
-          {buckets.map((bucket) => {
-            const percentageText = percentageFormatter.format(bucket.percentage);
-            return (
-              <div
-                key={bucket.severity.code}
-                className="flex items-center justify-between text-sm"
-                title={`${bucket.severity.name}: ${bucket.count.toLocaleString()} incidents (${percentageText}%)`}
+      <CardContent>
+        <div style={{ width: '100%', height: 300 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={2}
+                dataKey="value"
               >
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-3 w-3 rounded-sm"
-                    style={{ backgroundColor: bucket.severity.colorHex || '#6b7280' }}
-                    aria-hidden="true"
-                  />
-                  <span className="font-medium">{bucket.severity.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span>{bucket.count.toLocaleString()}</span>
-                  <span className="text-xs">·</span>
-                  <span>{percentageText}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, name: string, props: any) => [
+                  `${value.toLocaleString()} (${percentageFormatter.format(props.payload.percentage)}%)`,
+                  name,
+                ]}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+              />
+              <Legend
+                layout="vertical"
+                verticalAlign="middle"
+                align="right"
+                wrapperStyle={{ fontSize: '12px' }}
+              />
+            </PieChart >
+          </ResponsiveContainer >
+        </div >
+      </CardContent >
       <CardFooter className="text-xs text-muted-foreground justify-end">
         {lastUpdated && <span>Updated {new Date(lastUpdated).toLocaleTimeString()}</span>}
       </CardFooter>
-    </Card>
+    </Card >
   );
 }

@@ -8,12 +8,14 @@ SEED ?=
 FORMAT ?= csv
 OUTPUT_DIR ?= data/bulk_load_batch
 WINDOW_DAYS ?= 90
+SPAN_YEARS ?= 3
 START_DATETIME ?=
 UNITS_MIN ?= 1
 UNITS_MAX ?= 3
 ASSETS_PROBABILITY ?= 0.35
 NOTES_PROBABILITY ?= 0.55
 GEOHASH_PRECISION ?= 8
+MIN_STATIONS_PER_CITY ?= 1
 INCLUDE_UNITS ?= true
 INCLUDE_ASSETS ?= true
 INCLUDE_NOTES ?= true
@@ -68,11 +70,13 @@ data-generate-local:
 		--station-count $(STATION_COUNT) \
 		--output-format $(FORMAT) \
 		--window-days $(WINDOW_DAYS) \
+		--span-years $(SPAN_YEARS) \
 		--units-min $(UNITS_MIN) \
 		--units-max $(UNITS_MAX) \
 		--assets-probability $(ASSETS_PROBABILITY) \
 		--notes-probability $(NOTES_PROBABILITY) \
 		--geohash-precision $(GEOHASH_PRECISION) \
+		--min-stations-per-city $(MIN_STATIONS_PER_CITY) \
 		--city-coords-file $(CITY_COORDS) \
 		--region-lookup-file $(REGION_LOOKUP) \
 		$(if $(SEED),--seed $(SEED),) \
@@ -94,11 +98,13 @@ data-generate:
 			--station-count $(STATION_COUNT) \
 			--output-format $(FORMAT) \
 			--window-days $(WINDOW_DAYS) \
+			--span-years $(SPAN_YEARS) \
 			--units-min $(UNITS_MIN) \
 			--units-max $(UNITS_MAX) \
 			--assets-probability $(ASSETS_PROBABILITY) \
 			--notes-probability $(NOTES_PROBABILITY) \
 			--geohash-precision $(GEOHASH_PRECISION) \
+			--min-stations-per-city $(MIN_STATIONS_PER_CITY) \
 			--city-coords-file $(CITY_COORDS) \
 			--region-lookup-file $(REGION_LOOKUP) \
 			$(if $(SEED),--seed $(SEED),) \
@@ -107,6 +113,12 @@ data-generate:
 			$(if $(filter $(INCLUDE_ASSETS),false),--no-include-assets,) \
 			$(if $(filter $(INCLUDE_NOTES),false),--no-include-notes,) \
 			$(if $(filter $(VERBOSE),false),--no-verbose,)"
+
+data-generate-future:
+	$(MAKE) data-generate \
+		START_DATETIME="$$(date -u -d '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" \
+		SPAN_YEARS=4 \
+		INCIDENT_COUNT=$(INCIDENT_COUNT)
 
 logs-tail:
 	$(COMPOSE) logs --tail=50

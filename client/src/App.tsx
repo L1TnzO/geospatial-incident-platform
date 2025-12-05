@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
-// import { toast } from 'sonner';
-// import { LoginScreen } from './components/LoginScreen';
+import { toast } from 'sonner';
+import { LoginScreen } from './components/LoginScreen';
 import { MainNavigation } from './components/MainNavigation';
 import { CollapsibleSidebar } from './components/CollapsibleSidebar';
 import { MapView } from './components/MapView';
@@ -16,7 +16,7 @@ import { CreateIncidentPage } from './pages/CreateIncidentPage'; // <--- IMPORT 
 import { Toaster } from './components/ui/sonner';
 import { QueryProvider } from './providers/query-client-provider';
 import { AuthProvider } from './providers/auth-provider';
-// import { useAuth } from './hooks/useAuth';
+import { useAuth } from './hooks/useAuth';
 import { useIncidentFiltersStore } from './store/incident-filters-store';
 // import { useMapStore } from './store/map-store';
 import { useIncidentsTableData } from './hooks/useIncidentsData';
@@ -28,13 +28,10 @@ import type { IncidentSortField } from './types/api/incidents';
 import { isMobile } from './utils/platform';
 
 function AppRoutes() {
-  // TEMPORARILY BYPASS LOGIN FOR DEBUGGING
-  const user = { username: 'admin', role: 'admin' as const };
-  const logout = () => { };
-
+  const [showLogin, setShowLogin] = useState(false);
   const mobile = isMobile();
 
-  // const { user, isAuthenticated, login, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const openIncident = useIncidentDetailStore((state) => state.openIncident);
   const selectedIncident = useIncidentDetailStore((state) => state.selectedIncident);
 
@@ -109,10 +106,32 @@ function AppRoutes() {
     openIncident(incident);
   };
 
+  const handleLogin = async (username: string, password: string) => {
+    try {
+      await login(username, password);
+      setShowLogin(false);
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Invalid credentials. Use admin/admin or viewer/viewer.');
+    }
+  };
+
+  if (showLogin) {
+    return (
+      <>
+        <LoginScreen onLogin={handleLogin} onCancel={() => setShowLogin(false)} />
+        <Toaster />
+      </>
+    );
+  }
+
   return (
     <BrowserRouter>
       <div className="h-screen flex flex-col">
-        <MainNavigation user={user} onLogout={logout} />
+        <MainNavigation
+          user={user}
+          onLogin={() => setShowLogin(true)}
+          onLogout={logout}
+        />
 
         <Routes>
           <Route path="/" element={<Navigate to="/map" replace />} />
@@ -144,7 +163,7 @@ function AppRoutes() {
           <Route
             path="/table"
             element={
-              !mobile ? (
+              !mobile && user ? (
                 <div className="flex-1 flex overflow-hidden relative">
                   <CollapsibleSidebar />
                   <main className="flex-1 overflow-y-auto p-6 relative z-0">
@@ -180,9 +199,8 @@ function AppRoutes() {
           <Route
             path="/dashboard"
             element={
-              !mobile ? (
+              !mobile && user ? (
                 <div className="flex-1 flex overflow-hidden relative">
-                  <CollapsibleSidebar />
                   <main className="flex-1 flex flex-col relative z-0 overflow-hidden">
                     <DashboardPage />
                   </main>
@@ -195,9 +213,8 @@ function AppRoutes() {
           <Route
             path="/strategic"
             element={
-              !mobile ? (
+              !mobile && user ? (
                 <div className="flex-1 flex overflow-hidden relative">
-                  <CollapsibleSidebar />
                   <main className="flex-1 overflow-y-auto relative z-0">
                     <StrategicPage />
                   </main>
@@ -212,7 +229,7 @@ function AppRoutes() {
           <Route
             path="/report"
             element={
-              user.role === 'admin' && !mobile ? (
+              user?.role === 'admin' && !mobile ? (
                 <div className="flex-1 flex overflow-hidden relative">
                   <CollapsibleSidebar />
                   <main className="flex-1 overflow-hidden relative z-0">

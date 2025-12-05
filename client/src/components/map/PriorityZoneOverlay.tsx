@@ -63,9 +63,9 @@ export function PriorityZoneOverlay({
           style: {
             color: isHighlighted ? '#ffffff' : color,
             fillColor: color,
-            fillOpacity: isHighlighted ? 0.7 : 0.3,
-            weight: isHighlighted ? 4 : 2,
-            opacity: isHighlighted ? 1 : 0.7,
+            fillOpacity: isHighlighted ? 0.7 : 0.4,
+            weight: isHighlighted ? 4 : 3,
+            opacity: isHighlighted ? 1 : 0.8,
             dashArray: isHighlighted ? '10, 5' : undefined,
           },
         });

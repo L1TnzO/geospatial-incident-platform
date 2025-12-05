@@ -6,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 
 interface LoginScreenProps {
   onLogin: (username: string, password: string) => void;
+  onCancel: () => void;
 }
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
+export function LoginScreen({ onLogin, onCancel }: LoginScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -18,7 +19,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="fixed inset-0 z-50 w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <Card className="w-full max-w-md mx-4">
         <CardHeader className="space-y-1">
           <CardTitle className="text-center">FireSight</CardTitle>
@@ -50,9 +51,14 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                 required
               />
             </div>
-            <Button type="submit" className="w-full">
-              Login
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button type="submit" className="w-full">
+                Login
+              </Button>
+              <Button type="button" variant="outline" className="w-full" onClick={onCancel}>
+                Cancel
+              </Button>
+            </div>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Demo: admin/admin or viewer/viewer

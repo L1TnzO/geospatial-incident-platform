@@ -1,17 +1,18 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { MapPin, Table, LogOut, BarChart3, Target, AlertCircle } from 'lucide-react'; // <--- IMPORT NUEVO
+import { MapPin, Table, LogOut, BarChart3, Target, AlertCircle, LogIn } from 'lucide-react'; // <--- IMPORT NUEVO
 import { User } from '../types';
-import { useMediaQuery } from '../hooks/use-media-query';
+import { isMobile } from '../utils/platform';
 
 interface MainNavigationProps {
-  user: User;
+  user: User | null;
+  onLogin: () => void;
   onLogout: () => void;
 }
 
-export function MainNavigation({ user, onLogout }: MainNavigationProps) {
+export function MainNavigation({ user, onLogin, onLogout }: MainNavigationProps) {
   const location = useLocation();
-  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const mobile = isMobile();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -24,7 +25,7 @@ export function MainNavigation({ user, onLogout }: MainNavigationProps) {
         </div>
 
         <nav className="flex items-center gap-1 flex-1">
-          {isDesktop && (
+          {!mobile && user && (
             <>
               <Link to="/map">
                 <Button
@@ -87,13 +88,22 @@ export function MainNavigation({ user, onLogout }: MainNavigationProps) {
 
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
-            {isDesktop ? `${user.username} (${user.role})` : 'Guest'}
+            {user ? `${user.username} (${user.role})` : 'Guest Mode'}
           </span>
-          {isDesktop && (
-            <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2">
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
+          {!mobile && (
+            <>
+              {user ? (
+                <Button variant="ghost" size="sm" onClick={onLogout} className="gap-2">
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </Button>
+              ) : (
+                <Button variant="default" size="sm" onClick={onLogin} className="gap-2">
+                  <LogIn className="h-4 w-4" />
+                  Login
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

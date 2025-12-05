@@ -117,9 +117,7 @@ export function ResponseTimeChart({
             Top 15 {data.metadata.groupBy === 'station' ? 'stations' : 'zones'} by average response time
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
