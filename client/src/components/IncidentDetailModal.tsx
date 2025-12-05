@@ -4,7 +4,7 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Loader2, AlertTriangle, RefreshCw, ExternalLink, X } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
 import { useIncidentDetailStore } from '../store/incident-detail-store';
 import { useIncidentDetail } from '../hooks/useIncidentDetail';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
@@ -58,8 +58,8 @@ export function IncidentDetailModal() {
   const reportedAddress = coordinates?.address?.trim();
   const normalizedReportedAddress = reportedAddress &&
     !/unknown|unavailable|no data/i.test(reportedAddress)
-      ? reportedAddress
-      : '';
+    ? reportedAddress
+    : '';
 
   const reverseGeocodeQuery = useReverseGeocode({
     lat: hasCoordinates ? coordinates?.lat : undefined,
@@ -103,9 +103,9 @@ export function IncidentDetailModal() {
 
   const severityColor = incident?.severityColor
     ? {
-        backgroundColor: `${incident.severityColor}22`,
-        borderColor: incident.severityColor,
-      }
+      backgroundColor: `${incident.severityColor}22`,
+      borderColor: incident.severityColor,
+    }
     : undefined;
 
   return (
@@ -118,7 +118,7 @@ export function IncidentDetailModal() {
       }}
     >
       <DialogContent
-        className="flex flex-col p-0 gap-0 rounded-xl [&>[data-slot=dialog-close]]:hidden overflow-hidden"
+        className="flex flex-col p-0 gap-0 rounded-xl overflow-hidden"
         style={{
           width: '85vw',
           maxWidth: '600px',
@@ -139,10 +139,7 @@ export function IncidentDetailModal() {
                 {(isInitialLoading || isRefetching) && (
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 )}
-                <Button variant="ghost" size="icon" onClick={closeIncident} className="-mr-2">
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
-                </Button>
+
               </div>
             </div>
           </DialogHeader>
@@ -176,121 +173,121 @@ export function IncidentDetailModal() {
 
           {incident && !isInitialLoading && (
             <div className="space-y-6">
-            {/* Status and Severity - Prominent at top */}
-            <div className="flex items-center gap-4">
-              <Badge variant="outline" className="text-base py-1 px-3">
-                {incident.status}
-              </Badge>
-              <Badge variant="outline" style={severityColor} className="text-base py-1 px-3">
-                {incident.severity}
-              </Badge>
-            </div>
-
-            {/* Key Information Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-lg">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                  Time Reported
-                </p>
-                <p className="text-base font-medium">
-                  {formatDateTime(incident.reportedAt ?? incident.timestamp)}
-                </p>
+              {/* Status and Severity - Prominent at top */}
+              <div className="flex items-center gap-4">
+                <Badge variant="outline" className="text-base py-1 px-3">
+                  {incident.status}
+                </Badge>
+                <Badge variant="outline" style={severityColor} className="text-base py-1 px-3">
+                  {incident.severity}
+                </Badge>
               </div>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                  Time Occurred
-                </p>
-                <p className="text-base font-medium">{formatDateTime(incident.occurrenceAt)}</p>
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-                  Location
-                </p>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <p className="text-base font-medium">{locationLabel}</p>
-                  {googleMapsUrl && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
-                        Go to Location <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </Button>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span>
-                    Coordinates: {incident.location.lat.toFixed(4)},{' '}
-                    {incident.location.lng.toFixed(4)}
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Description</p>
-              <p className="text-base leading-relaxed">{incident.description}</p>
-            </div>
-
-            {/* Narrative - Most important for managers */}
-            {incident.narrative && (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">Incident Narrative</p>
-                <div className="bg-muted/30 p-4 rounded-lg">
-                  <p className="whitespace-pre-wrap text-base leading-relaxed">
-                    {incident.narrative}
+              {/* Key Information Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-lg">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                    Time Reported
+                  </p>
+                  <p className="text-base font-medium">
+                    {formatDateTime(incident.reportedAt ?? incident.timestamp)}
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* Response Units */}
-            {units.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Response Units</p>
-                <IncidentUnitsTable units={units} />
-              </div>
-            )}
-
-            {/* Assets */}
-            {assets.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Equipment & Assets</p>
-                <IncidentAssetsTable assets={assets} />
-              </div>
-            )}
-
-            {/* Field Notes */}
-            {notes.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-semibold">Field Notes</p>
-                <IncidentNotesList notes={notes} />
-              </div>
-            )}
-
-            {detailError && incident.metadata && (
-              <>
-                <Separator />
-                <div className="flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                  <div className="flex-1">
-                    <p className="font-medium text-destructive">Some details may be stale</p>
-                    <p className="text-muted-foreground">{detailError}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => detailQuery.refetch()}
-                  >
-                    <RefreshCw className="h-4 w-4" /> Retry
-                  </Button>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                    Time Occurred
+                  </p>
+                  <p className="text-base font-medium">{formatDateTime(incident.occurrenceAt)}</p>
                 </div>
-              </>
-            )}
-          </div>
-        )}
+                <div className="space-y-1 md:col-span-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                    Location
+                  </p>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="text-base font-medium">{locationLabel}</p>
+                    {googleMapsUrl && (
+                      <Button variant="outline" size="sm" asChild>
+                        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+                          Go to Location <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>
+                      Coordinates: {incident.location.lat.toFixed(4)},{' '}
+                      {incident.location.lng.toFixed(4)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold">Description</p>
+                <p className="text-base leading-relaxed">{incident.description}</p>
+              </div>
+
+              {/* Narrative - Most important for managers */}
+              {incident.narrative && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Incident Narrative</p>
+                  <div className="bg-muted/30 p-4 rounded-lg">
+                    <p className="whitespace-pre-wrap text-base leading-relaxed">
+                      {incident.narrative}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Response Units */}
+              {units.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Response Units</p>
+                  <IncidentUnitsTable units={units} />
+                </div>
+              )}
+
+              {/* Assets */}
+              {assets.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Equipment & Assets</p>
+                  <IncidentAssetsTable assets={assets} />
+                </div>
+              )}
+
+              {/* Field Notes */}
+              {notes.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold">Field Notes</p>
+                  <IncidentNotesList notes={notes} />
+                </div>
+              )}
+
+              {detailError && incident.metadata && (
+                <>
+                  <Separator />
+                  <div className="flex items-center gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <div className="flex-1">
+                      <p className="font-medium text-destructive">Some details may be stale</p>
+                      <p className="text-muted-foreground">{detailError}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => detailQuery.refetch()}
+                    >
+                      <RefreshCw className="h-4 w-4" /> Retry
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        
+
         <div className="p-6 pt-4 border-t shrink-0">
           <Button className="w-full md:w-auto md:ml-auto" onClick={closeIncident}>
             Close
