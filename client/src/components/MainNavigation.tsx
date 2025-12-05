@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { MapPin, Table, LogOut, BarChart3, Target } from 'lucide-react';
+import { MapPin, Table, LogOut, BarChart3, Target, AlertCircle } from 'lucide-react'; // <--- IMPORT NUEVO
 import { User } from '../types';
 import { useMediaQuery } from '../hooks/use-media-query';
 
@@ -67,6 +67,19 @@ export function MainNavigation({ user, onLogout }: MainNavigationProps) {
                     Strategic
                   </Button>
                 </Link>
+
+                {/* BOTÓN NUEVO REPORT */}
+                <Link to="/report">
+                  <Button
+                    variant={isActive('/report') ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    Report Incident
+                  </Button>
+                </Link>
+
               </div>
             </>
           )}

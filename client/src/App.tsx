@@ -8,10 +8,11 @@ import { CollapsibleSidebar } from './components/CollapsibleSidebar';
 import { MapView } from './components/MapView';
 import { TableView } from './components/TableView';
 import { IncidentDetailModal } from './components/IncidentDetailModal';
-import { IncidentForm } from './components/IncidentForm';
+// import { IncidentForm } from './components/IncidentForm'; // YA NO SE USA AQUÍ DIRECTAMENTE
 import { IncidentCreateDrawer } from './components/IncidentCreateDrawer';
 import { DashboardPage } from './pages/DashboardPage';
 import { StrategicPage } from './pages/StrategicPage';
+import { CreateIncidentPage } from './pages/CreateIncidentPage'; // <--- IMPORT NUEVO
 import { Toaster } from './components/ui/sonner';
 import { QueryProvider } from './providers/query-client-provider';
 import { AuthProvider } from './providers/auth-provider';
@@ -70,8 +71,6 @@ function AppRoutes() {
     renderLimit: filters.renderLimit,
   };
 
-  // const viewportCenter = useMapStore((state) => state.center);
-
   const incidentsData = useIncidentsContext();
   const incidentsTableData = useIncidentsTableData(fetchParams);
 
@@ -100,26 +99,8 @@ function AppRoutes() {
     setIncidentFilters({ sortBy, sortDirection, page: 1 });
   };
 
-  /* LOGIN TEMPORARILY DISABLED FOR DEBUGGING
-  if (!isAuthenticated || !user) {
-    const handleLogin = (username: string, password: string) => {
-      login(username, password).catch((error) => {
-        toast.error(error?.message ?? 'Invalid credentials. Use admin/admin or viewer/viewer.');
-      });
-    };
-
-    return (
-      <>
-        <LoginScreen onLogin={handleLogin} />
-        <Toaster />
-      </>
-    );
-  }
-  */
-
   const activeIncidentId =
     selectedIncident?.id ??
-    // fallback for legacy incident shape
     (selectedIncident && 'incidentNumber' in selectedIncident
       ? ((selectedIncident as unknown as { incidentNumber?: string }).incidentNumber ?? null)
       : null);
@@ -227,12 +208,16 @@ function AppRoutes() {
             }
           />
 
+          {/* RUTA NUEVA: REPORT */}
           <Route
-            path="/create"
+            path="/report"
             element={
               user.role === 'admin' && !mobile ? (
-                <div className="flex-1 overflow-y-auto">
-                  <IncidentForm />
+                <div className="flex-1 flex overflow-hidden relative">
+                  <CollapsibleSidebar />
+                  <main className="flex-1 overflow-hidden relative z-0">
+                    <CreateIncidentPage />
+                  </main>
                 </div>
               ) : (
                 <Navigate to="/map" replace />
@@ -240,6 +225,7 @@ function AppRoutes() {
             }
           />
 
+          {/* Se mantiene la compatibilidad con el Drawer por si se usa en móvil o mapa */}
           <Route path="*" element={<Navigate to="/map" replace />} />
         </Routes>
 

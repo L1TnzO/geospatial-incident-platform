@@ -11,6 +11,15 @@ import { useIncidentMetadataQuery } from '../hooks/useIncidentMetadataQuery';
 import { useCreateIncident } from '../hooks/useCreateIncident';
 import { useIncidentCreateStore } from '../store/incident-create-store';
 
+// <--- NUEVO: Opciones de estatus predefinidas
+const STATUS_OPTIONS = [
+  { code: 'REPORTED', label: 'Reported (Awaiting dispatch)' },
+  { code: 'DISPATCHED', label: 'Dispatched (Units en route)' },
+  { code: 'ON_SCENE', label: 'On Scene (Response underway)' },
+  { code: 'RESOLVED', label: 'Resolved (Closed)' },
+  { code: 'CANCELLED', label: 'Cancelled' },
+];
+
 export function IncidentForm() {
   const navigate = useNavigate();
   const metadataQuery = useIncidentMetadataQuery();
@@ -18,9 +27,12 @@ export function IncidentForm() {
   const { coordinates, close } = useIncidentCreateStore();
   const typeOptions = metadataQuery.data?.types ?? [];
   const severityOptions = metadataQuery.data?.severities ?? [];
+
   const [formData, setFormData] = useState({
     type: '',
     severity: '',
+    statusCode: 'REPORTED', // <--- NUEVO: Valor por defecto
+    isActive: 'true',       // <--- NUEVO: Manejamos como string para el Select, luego convertimos
     date: '',
     time: '',
     description: '',
@@ -31,30 +43,26 @@ export function IncidentForm() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Efecto para actualizar lat/lng cuando se selecciona en el mapa
+  if (coordinates && (formData.latitude !== coordinates.lat.toString() || formData.longitude !== coordinates.lng.toString())) {
+    setFormData(prev => ({
+      ...prev,
+      latitude: coordinates.lat.toString(),
+      longitude: coordinates.lng.toString()
+    }));
+  }
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.type) newErrors.type = 'Incident type is required';
     if (!formData.severity) newErrors.severity = 'Severity is required';
+    if (!formData.statusCode) newErrors.statusCode = 'Status is required'; // <--- NUEVO
     if (!formData.date) newErrors.date = 'Date is required';
     if (!formData.time) newErrors.time = 'Time is required';
     if (!formData.description) newErrors.description = 'Description is required';
-    if (!formData.latitude) newErrors.latitude = 'Latitude is required';
-    else if (
-      isNaN(Number(formData.latitude)) ||
-      Number(formData.latitude) < -90 ||
-      Number(formData.latitude) > 90
-    ) {
-      newErrors.latitude = 'Invalid latitude (-90 to 90)';
-    }
+    if (!formData.latitude) newErrors.latitude = 'Latitude is required (Pick on map)';
     if (!formData.longitude) newErrors.longitude = 'Longitude is required';
-    else if (
-      isNaN(Number(formData.longitude)) ||
-      Number(formData.longitude) < -180 ||
-      Number(formData.longitude) > 180
-    ) {
-      newErrors.longitude = 'Invalid longitude (-180 to 180)';
-    }
     if (!formData.address) newErrors.address = 'Address is required';
 
     setErrors(newErrors);
@@ -65,22 +73,27 @@ export function IncidentForm() {
     e.preventDefault();
 
     if (validate()) {
-      if (!coordinates) {
+      // Validación extra por seguridad
+      if (!formData.latitude || !formData.longitude) {
         toast.error('Please pick a location on the map.');
         return;
       }
 
       const payload = {
         incidentNumber: `INC-${Date.now()}`,
-        title: formData.description.slice(0, 120) || 'New incident',
+        title: formData.description.slice(0, 50) || 'New incident', // Título corto basado en descripción
         typeCode: formData.type,
         severityCode: formData.severity,
-        statusCode: 'OPEN',
+
+        // <--- NUEVO: Usamos los valores seleccionados
+        statusCode: formData.statusCode,
+        isActive: formData.isActive === 'true', // Convertimos string "true" a boolean true
+
         occurrenceAt: new Date(`${formData.date}T${formData.time}`).toISOString(),
         reportedAt: new Date().toISOString(),
         location: {
-          latitude: Number(coordinates.lat),
-          longitude: Number(coordinates.lng),
+          latitude: Number(formData.latitude),
+          longitude: Number(formData.longitude),
         },
         narrative: formData.description,
       };
@@ -92,8 +105,9 @@ export function IncidentForm() {
         },
         onSuccess: () => {
           toast.success('Incident created successfully!');
-          // close drawer
           close();
+          // Opcional: Redirigir al mapa general tras crear
+          // navigate('/map'); 
         },
       });
     } else {
@@ -102,22 +116,23 @@ export function IncidentForm() {
   };
 
   const handleCancel = () => {
-    // close drawer if open
     close();
     navigate('/map');
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="w-full max-w-3xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Create New Incident</CardTitle>
+          <CardTitle>Incident Details</CardTitle>
           <CardDescription>
-            Enter incident details with accurate information for proper record keeping
+            Complete the form to register a new incident in the system.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+
+            {/* Fila 1: Tipo y Severidad */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="type">Incident Type *</Label>
@@ -134,16 +149,8 @@ export function IncidentForm() {
                         {type.name}
                       </SelectItem>
                     ))}
-                    {!metadataQuery.isLoading && typeOptions.length === 0 && (
-                      <SelectItem value="" disabled>
-                        No incident types available
-                      </SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
-                {metadataQuery.isLoading && (
-                  <p className="text-xs text-muted-foreground">Loading incident types…</p>
-                )}
                 {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
               </div>
 
@@ -153,10 +160,7 @@ export function IncidentForm() {
                   value={formData.severity}
                   onValueChange={(value: string) => setFormData({ ...formData, severity: value })}
                 >
-                  <SelectTrigger
-                    id="severity"
-                    className={errors.severity ? 'border-destructive' : ''}
-                  >
+                  <SelectTrigger id="severity" className={errors.severity ? 'border-destructive' : ''}>
                     <SelectValue placeholder="Select severity" />
                   </SelectTrigger>
                   <SelectContent>
@@ -165,20 +169,54 @@ export function IncidentForm() {
                         {severity.name}
                       </SelectItem>
                     ))}
-                    {!metadataQuery.isLoading && severityOptions.length === 0 && (
-                      <SelectItem value="" disabled>
-                        No severities available
-                      </SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
-                {metadataQuery.isLoading && (
-                  <p className="text-xs text-muted-foreground">Loading severities…</p>
-                )}
                 {errors.severity && <p className="text-sm text-destructive">{errors.severity}</p>}
               </div>
             </div>
 
+            {/* <--- NUEVO: Fila 2: Estatus y Activo */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Current Status *</Label>
+                <Select
+                  value={formData.statusCode}
+                  onValueChange={(value: string) => setFormData({ ...formData, statusCode: value })}
+                >
+                  <SelectTrigger id="status" className={errors.statusCode ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status.code} value={status.code}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="active">Is Active? *</Label>
+                <Select
+                  value={formData.isActive}
+                  onValueChange={(value: string) => setFormData({ ...formData, isActive: value })}
+                >
+                  <SelectTrigger id="active">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Yes (Active)</SelectItem>
+                    <SelectItem value="false">No (Inactive)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  Inactive incidents might not appear on the main map by default.
+                </p>
+              </div>
+            </div>
+
+            {/* Fila 3: Fecha y Hora */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="date">Date *</Label>
@@ -189,7 +227,6 @@ export function IncidentForm() {
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   className={errors.date ? 'border-destructive' : ''}
                 />
-                {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
               </div>
 
               <div className="space-y-2">
@@ -201,73 +238,65 @@ export function IncidentForm() {
                   onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                   className={errors.time ? 'border-destructive' : ''}
                 />
-                {errors.time && <p className="text-sm text-destructive">{errors.time}</p>}
               </div>
             </div>
 
+            {/* Descripción */}
             <div className="space-y-2">
               <Label htmlFor="description">Description *</Label>
               <Textarea
                 id="description"
-                placeholder="Detailed description of the incident"
+                placeholder="Detailed description..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
+                rows={3}
                 className={errors.description ? 'border-destructive' : ''}
               />
-              {errors.description && (
-                <p className="text-sm text-destructive">{errors.description}</p>
-              )}
+              {errors.description && <p className="text-sm text-destructive">{errors.description}</p>}
             </div>
 
-            <div className="space-y-4">
-              <h3>Location Information</h3>
+            {/* Dirección y Coordenadas */}
+            <div className="space-y-4 pt-2 border-t">
+              <h3 className="text-sm font-medium">Location</h3>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Address *</Label>
+                <Label htmlFor="address">Address / Reference *</Label>
                 <Input
                   id="address"
-                  placeholder="Street address"
+                  placeholder="Street address or reference point"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className={errors.address ? 'border-destructive' : ''}
                 />
-                {errors.address && <p className="text-sm text-destructive">{errors.address}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude *</Label>
+                  <Label htmlFor="latitude">Latitude</Label>
                   <Input
                     id="latitude"
-                    type="number"
-                    step="0.0001"
-                    placeholder="e.g., 40.7128"
                     value={formData.latitude}
-                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                    className={errors.latitude ? 'border-destructive' : ''}
+                    readOnly
+                    className="bg-muted text-muted-foreground"
+                    placeholder="Pick on map ->"
                   />
-                  {errors.latitude && <p className="text-sm text-destructive">{errors.latitude}</p>}
+                  {errors.latitude && <p className="text-xs text-destructive">{errors.latitude}</p>}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude *</Label>
+                  <Label htmlFor="longitude">Longitude</Label>
                   <Input
                     id="longitude"
-                    type="number"
-                    step="0.0001"
-                    placeholder="e.g., -74.0060"
                     value={formData.longitude}
-                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                    className={errors.longitude ? 'border-destructive' : ''}
+                    readOnly
+                    className="bg-muted text-muted-foreground"
+                    placeholder="Pick on map ->"
                   />
-                  {errors.longitude && (
-                    <p className="text-sm text-destructive">{errors.longitude}</p>
-                  )}
                 </div>
               </div>
             </div>
 
+            {/* Botones */}
             <div className="flex gap-4 pt-4">
               <Button type="submit" className="flex-1">
                 Save Incident
