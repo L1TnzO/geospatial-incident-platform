@@ -235,7 +235,6 @@ function AppRoutes() {
             element={
               user?.role === 'admin' && !mobile ? (
                 <div className="flex-1 flex overflow-hidden relative">
-                  <CollapsibleSidebar />
                   <main className="flex-1 overflow-hidden relative z-0">
                     <CreateIncidentPage />
                   </main>
