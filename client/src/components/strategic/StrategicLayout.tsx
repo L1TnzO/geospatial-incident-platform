@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
@@ -10,7 +10,7 @@ import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
 import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
 import { useStrategicZoneFrequency } from '../../hooks/useStrategicZoneFrequency';
 import { useStrategicStationVolume } from '../../hooks/useStrategicStationVolume';
-import { useIncidentsContext } from '../../providers/incidents-provider';
+import { useIncidentsData } from '../../hooks/useIncidentsData';
 import { useStationsData } from '../../hooks/useStationsData';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
 import { ResponseTimeChart } from './ResponseTimeChart';
@@ -68,8 +68,14 @@ export function StrategicLayout() {
   });
 
   // Map data
-  // Use global filters for the map to show "truth" (same as main map)
-  const incidentsData = useIncidentsContext();
+  // Use local filters for the map to ensure independence from global filters
+  // This shares the cache if the params match, but doesn't react to global filter changes
+  const incidentsData = useIncidentsData({
+    ...filters,
+    isActive: undefined, // Force ALL incidents (active + inactive)
+    // Ensure we fetch enough data for the map
+    renderLimit: 2000,
+  });
   const stationsQuery = useStationsData({ isActive: true });
 
   const incidents = incidentsData.incidents;
@@ -139,6 +145,36 @@ export function StrategicLayout() {
   }, []);
 
 
+
+  // Local worker for strategic map clustering
+  const [worker, setWorker] = useState<Worker | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+
+  // Initialize worker
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('../../workers/incident-worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    setWorker(workerRef.current);
+
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  // Feed data to worker
+  useEffect(() => {
+    if (!worker) return;
+
+    worker.postMessage({
+      type: 'SET_DATA',
+      payload: {
+        incidents,
+        filters: {}, // No filters for strategic map (show all)
+      },
+    });
+  }, [incidents, worker]);
 
   return (
     <div className="p-6">
@@ -239,6 +275,7 @@ export function StrategicLayout() {
               priorityZones: showPriorityZones ? priorityZonesQuery.data?.groups || [] : [],
               highlightedZone,
             }}
+            worker={worker}
           />
         </div>
 

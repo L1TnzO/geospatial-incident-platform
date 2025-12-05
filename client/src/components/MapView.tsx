@@ -70,6 +70,7 @@ interface MapViewProps {
     highlightedZone?: PriorityScoreGroup | null;
   };
   useStrategicPreferences?: boolean;
+  worker?: Worker | null;
 }
 
 const roundCoordinate = (value: number): number => Math.round(value * 1_000_000) / 1_000_000;
@@ -264,6 +265,7 @@ export function MapView({
   stationsError,
   strategicOverlays,
   useStrategicPreferences = false,
+  worker,
 }: MapViewProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const center = useMapStore((state) => state.center);
@@ -500,8 +502,13 @@ export function MapView({
         <MapViewportController />
         <MapViewportTracker />
         <MapResizeHandler />
+        {/* Incident Clusters */}
         {showIncidents && (
-          <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
+          <IncidentClusterLayer
+            incidents={incidents}
+            onIncidentClick={onIncidentClick}
+            worker={worker}
+          />
         )}
         <StationLayer stations={fireStations} isVisible={showStations} />
 
