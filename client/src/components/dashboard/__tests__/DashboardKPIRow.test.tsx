@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DashboardKPIRow } from '../DashboardKPIRow';
@@ -35,7 +35,7 @@ const mockKpiData: Last24HoursKpiResponse = {
 
 describe('DashboardKPIRow', () => {
   const mockRefresh = vi.fn();
-  const mockExport = vi.fn();
+
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,7 +51,7 @@ describe('DashboardKPIRow', () => {
       lastUpdated: null,
     } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} onExport={mockExport} isExporting={false} />, {
+    render(<DashboardKPIRow kpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
       wrapper: createWrapper(),
     });
 
@@ -69,7 +69,7 @@ describe('DashboardKPIRow', () => {
       lastUpdated: null,
     } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} onExport={mockExport} isExporting={false} />, {
+    render(<DashboardKPIRow kpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
       wrapper: createWrapper(),
     });
 
@@ -91,7 +91,7 @@ describe('DashboardKPIRow', () => {
       lastUpdated: Date.now(),
     } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} onExport={mockExport} isExporting={false} />, {
+    render(<DashboardKPIRow kpiQuery={mockQuery} timeRangeLabel="Last 24 Hours" comparisonLabel="vs previous 24h" />, {
       wrapper: createWrapper(),
     });
 
@@ -100,42 +100,5 @@ describe('DashboardKPIRow', () => {
     expect(screen.getByText('+20.0%')).toBeInTheDocument();
   });
 
-  it('calls onExport when export button is clicked', async () => {
-    const user = userEvent.setup();
-    const mockQuery: UseDashboardLast24HoursKpiResult = {
-      data: mockKpiData,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refresh: mockRefresh,
-      lastUpdated: Date.now(),
-    } as unknown as UseDashboardLast24HoursKpiResult;
 
-    render(<DashboardKPIRow kpiQuery={mockQuery} onExport={mockExport} isExporting={false} />, {
-      wrapper: createWrapper(),
-    });
-
-    const exportButton = screen.getByRole('button', { name: /export csv/i });
-    await user.click(exportButton);
-
-    expect(mockExport).toHaveBeenCalled();
-  });
-
-  it('disables export button when exporting', () => {
-    const mockQuery: UseDashboardLast24HoursKpiResult = {
-      data: mockKpiData,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refresh: mockRefresh,
-      lastUpdated: Date.now(),
-    } as unknown as UseDashboardLast24HoursKpiResult;
-
-    render(<DashboardKPIRow kpiQuery={mockQuery} onExport={mockExport} isExporting={true} />, {
-      wrapper: createWrapper(),
-    });
-
-    const exportButton = screen.getByRole('button', { name: /exporting/i });
-    expect(exportButton).toBeDisabled();
-  });
 });

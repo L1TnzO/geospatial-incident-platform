@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useIncidentFiltersStore } from '../store/incident-filters-store';
+
 import type { DashboardFilterParams } from '../types/api/dashboard';
 import { subMonths, subYears } from 'date-fns';
 
@@ -119,11 +119,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
             startDate: start,
             endDate: end,
             isActive: isActive ? true : undefined,
-            // We can include other global filters here if needed (typeCodes, etc.)
-            // For now, mirroring previous behavior which included them
-            typeCodes: useIncidentFiltersStore.getState().typeCodes,
-            severityCodes: useIncidentFiltersStore.getState().severityCodes,
-            statusCodes: useIncidentFiltersStore.getState().statusCodes,
+            // Decoupled from global filters as requested
+            typeCodes: [],
+            severityCodes: [],
+            statusCodes: [],
         }),
         [start, end, isActive]
     );

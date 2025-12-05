@@ -203,7 +203,6 @@ function AppRoutes() {
             element={
               !mobile && user ? (
                 <div className="flex-1 flex overflow-hidden relative">
-                  <CollapsibleSidebar />
                   <main className="flex-1 flex flex-col relative z-0 overflow-hidden">
                     <DashboardPage />
                   </main>
@@ -218,7 +217,6 @@ function AppRoutes() {
             element={
               !mobile && user ? (
                 <div className="flex-1 flex overflow-hidden relative">
-                  <CollapsibleSidebar />
                   <main className="flex-1 overflow-y-auto relative z-0">
                     <StrategicPage />
                   </main>
