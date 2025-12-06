@@ -768,7 +768,7 @@ export function MapView({
                 aria-hidden="true"
                 className="inline-flex items-center justify-center w-6 h-6 text-xl leading-none shrink-0"
               >
-                🏚️
+                🏛️
               </span>
               {isControlPanelExpanded && (
                 <span className="ml-3 text-sm font-medium">Infrastructure</span>

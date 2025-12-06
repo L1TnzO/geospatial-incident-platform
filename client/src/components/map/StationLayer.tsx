@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { LayerGroup, Marker, Popup } from 'react-leaflet';
+import { useMemo, useState, useEffect } from 'react';
+import { LayerGroup, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { FireStation } from '../../types';
 
@@ -8,19 +8,50 @@ interface StationLayerProps {
   isVisible: boolean;
 }
 
-const createStationIcon = () =>
-  L.divIcon({
-    html: '<span>🚒</span>',
+/**
+ * Calculate station icon size based on zoom level.
+ * Invisible at country-level (zoom < 9), visible at city-level (zoom >= 9).
+ * Scales from 32px at zoom 9 to 52px at zoom 14+.
+ */
+const getZoomBasedSize = (zoom: number): number => {
+  const minZoom = 9;
+  const maxZoom = 14;
+  const minSize = 32;
+  const maxSize = 52;
+
+  if (zoom < minZoom) return 0; // Invisible
+  if (zoom >= maxZoom) return maxSize;
+
+  const normalizedZoom = (zoom - minZoom) / (maxZoom - minZoom);
+  return Math.round(minSize + (maxSize - minSize) * normalizedZoom);
+};
+
+const createStationIcon = (size: number) => {
+  const fontSize = Math.round(size * 0.7); // Font size ~70% of icon size
+  return L.divIcon({
+    html: `<span style="font-size: ${fontSize}px">🚒</span>`,
     className: 'station-marker',
-    iconSize: [34, 34],
-    iconAnchor: [17, 30],
-    popupAnchor: [0, -26],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size - 2],
+    popupAnchor: [0, -size + 4],
   });
+};
 
 const StationLayer = ({ stations, isVisible }: StationLayerProps) => {
-  const icon = useMemo(() => createStationIcon(), []);
+  const map = useMap();
+  const [zoom, setZoom] = useState(map.getZoom());
 
-  if (!isVisible) {
+  useEffect(() => {
+    const handleZoom = () => setZoom(map.getZoom());
+    map.on('zoomend', handleZoom);
+    return () => { map.off('zoomend', handleZoom); };
+  }, [map]);
+
+  const size = getZoomBasedSize(zoom);
+  const icon = useMemo(() => createStationIcon(size), [size]);
+
+  // Don't render if not visible or zoomed out too far
+  if (!isVisible || size === 0) {
     return null;
   }
 
@@ -58,3 +89,4 @@ const StationLayer = ({ stations, isVisible }: StationLayerProps) => {
 };
 
 export default StationLayer;
+

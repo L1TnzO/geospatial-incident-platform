@@ -14,13 +14,29 @@ interface IncidentClusterLayerProps {
   worker?: Worker | null;
 }
 
-const createClusterIcon = (count: number) =>
-  L.divIcon({
+/**
+ * Calculate cluster icon size based on incident count using logarithmic scaling.
+ * Base: 28px, maximum: 65px
+ * This creates visual hierarchy where larger clusters have more visual weight.
+ */
+const getClusterSize = (count: number): number => {
+  const minSize = 28;
+  const maxSize = 65;
+  // log10(10000) = 4, so we normalize by 4 for clusters up to ~10k
+  const logScale = Math.log10(Math.max(count, 1));
+  const normalizedScale = Math.min(logScale / 4, 1);
+  return Math.round(minSize + (maxSize - minSize) * normalizedScale);
+};
+
+const createClusterIcon = (count: number) => {
+  const size = getClusterSize(count);
+  return L.divIcon({
     html: `<span>${count.toLocaleString()}</span>`,
     className: 'map-cluster-icon',
-    iconSize: [48, 48],
-    iconAnchor: [24, 24],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+};
 
 const createIncidentIcon = (color: string) =>
   L.divIcon({
