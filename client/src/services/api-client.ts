@@ -38,6 +38,7 @@ import type {
   StrategicPriorityScoreResponse,
   StrategicTimeOfDayResponse,
   StrategicZoneFrequencyResponse,
+  StrategicIncidentProjectionResponse,
 } from '../types/api/strategic';
 
 export interface FetchIncidentsParams extends Record<string, unknown> {
@@ -477,6 +478,28 @@ export const apiClient = {
         }) as Promise<StrategicZoneFrequencyResponse>;
       }
       return http.get<StrategicZoneFrequencyResponse>('/strategic/zones/frequency', {
+        ...requestOptions,
+        query: params as Record<
+          string,
+          string | number | boolean | Array<string | number> | undefined
+        >,
+      });
+    },
+    projections: (
+      params: DashboardFilterParams = {},
+      options?: ApiClientOptions,
+    ): Promise<StrategicIncidentProjectionResponse> => {
+      const { raw, ...requestOptions } = options || {};
+      if (raw) {
+        return request<StrategicIncidentProjectionResponse>('/strategic/projections', {
+          ...requestOptions,
+          query: params as Record<
+            string,
+            string | number | boolean | Array<string | number> | undefined
+          >,
+        }) as Promise<StrategicIncidentProjectionResponse>;
+      }
+      return http.get<StrategicIncidentProjectionResponse>('/strategic/projections', {
         ...requestOptions,
         query: params as Record<
           string,

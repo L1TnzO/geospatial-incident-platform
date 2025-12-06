@@ -11,6 +11,7 @@ import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
 import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
 import { useStrategicZoneFrequency } from '../../hooks/useStrategicZoneFrequency';
 import { useStrategicStationVolume } from '../../hooks/useStrategicStationVolume';
+import { useStrategicProjections } from '../../hooks/useStrategicProjections';
 import { useIncidentsData } from '../../hooks/useIncidentsData';
 import { useStationsData } from '../../hooks/useStationsData';
 import { StrategicTrendsChart } from './StrategicTrendsChart';
@@ -20,6 +21,7 @@ import { StrategicTimeOfDayChart } from './StrategicTimeOfDayChart';
 import { ZoneFrequencyTable } from './ZoneFrequencyTable';
 import { StationVolumeChart } from './StationVolumeChart';
 import { HighResponseTimeZones } from './HighResponseTimeZones';
+import { IncidentProjectionTable } from './IncidentProjectionTable';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -61,6 +63,7 @@ export function StrategicLayout() {
   const timeOfDayQuery = useStrategicTimeOfDay(trendFilters);
   const zoneFrequencyQuery = useStrategicZoneFrequency(trendFilters);
   const stationVolumeQuery = useStrategicStationVolume(trendFilters);
+  const projectionsQuery = useStrategicProjections(trendFilters);
 
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
@@ -278,6 +281,7 @@ export function StrategicLayout() {
             onRefresh={() => stationVolumeQuery.refetch()}
           />
           <HighResponseTimeZones query={zoneResponseTimesQuery} />
+          <IncidentProjectionTable query={projectionsQuery} />
         </div>
 
         {/* Map with Overlays - Full Width */}

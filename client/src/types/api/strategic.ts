@@ -331,3 +331,19 @@ export interface StrategicStationVolumeResponse {
   }[];
   total: number;
 }
+
+export interface StrategicIncidentProjectionResponse {
+  periods: {
+    label: string;
+    months: number;
+    projectedCount: number;
+  }[];
+  metadata: {
+    baseStart: string;
+    baseEnd: string;
+    totalMonths: number;
+    trendSlope: number;
+    trendIntercept: number;
+    generatedAt: string;
+  };
+}

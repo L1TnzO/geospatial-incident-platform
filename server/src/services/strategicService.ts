@@ -624,6 +624,22 @@ const parseGroupByParam = (value: QueryValue, defaultValue: StrategicGroupBy): S
   throw HttpError.badRequest("Query parameter 'groupBy' must be either 'station', 'grid', or 'zone'.");
 };
 
+export interface IncidentProjectionResponse {
+  periods: {
+    label: string;
+    months: number;
+    projectedCount: number;
+  }[];
+  metadata: {
+    baseStart: string;
+    baseEnd: string;
+    totalMonths: number;
+    trendSlope: number;
+    trendIntercept: number;
+    generatedAt: string;
+  };
+}
+
 const parseHalfLifeParam = (value: QueryValue): number | null => {
   if (value === undefined) {
     return null;
@@ -1777,6 +1793,151 @@ export class StrategicAnalyticsService {
       }));
 
       return { stations, total };
+    });
+  }
+  public async getIncidentProjection(
+    query: Record<string, QueryValue>
+  ): Promise<IncidentProjectionResponse> {
+    // 1. Get Filters but explicitly ignore time range parameters for the dataset
+    const filters = this.getFilters(query);
+    const filtersWithoutTime = {
+      ...filters,
+      startDate: undefined,
+      endDate: undefined,
+    };
+
+    const cacheKey = buildCacheKey('strategic:projection', filtersWithoutTime);
+
+    return this.withCache(cacheKey, async () => {
+      // 2. Get the full time range of the data to fetch ALL history
+      const metadata = await this.repository.getIncidentMetadata();
+      const start = metadata.reportedRange.start;
+      const end = metadata.reportedRange.end;
+
+      if (!start || !end) {
+        // Fallback if no data
+        return {
+          periods: [
+            { label: '1 Month', months: 1, projectedCount: 0 },
+            { label: '3 Months', months: 3, projectedCount: 0 },
+            { label: '6 Months', months: 6, projectedCount: 0 },
+            { label: '1 Year', months: 12, projectedCount: 0 },
+            { label: '2 Years', months: 24, projectedCount: 0 },
+          ],
+          metadata: {
+            baseStart: new Date().toISOString(),
+            baseEnd: new Date().toISOString(),
+            totalMonths: 0,
+            trendSlope: 0,
+            trendIntercept: 0,
+            generatedAt: new Date().toISOString(),
+          },
+        };
+      }
+
+      // 3. Fetch monthly counts for the entire history
+      const range = { start, end };
+      const rows = await this.repository.getIncidentCountsByReportedMonth(filtersWithoutTime, range);
+
+      // 4. Prepare data for Linear Regression (Least Squares)
+      // x = month index (0, 1, 2...)
+      // y = incident count
+      const points: { x: number; y: number }[] = [];
+      let minDate = new Date(start).getTime();
+
+      // We need to fill in gaps with 0 if any months are missing?
+      // The current repository method returns months that have data.
+      // Ideally, we should iterate from start to end month by month.
+
+      const startDate = startOfMonth(new Date(start));
+      const endDate = endOfMonth(new Date(end));
+      const countMap = new Map<string, number>();
+
+      for (const row of rows) {
+        countMap.set(formatMonthKey(new Date(row.periodStart)), row.count);
+      }
+
+      let currentIndex = 0;
+      let iterDate = new Date(startDate);
+
+      while (iterDate <= endDate) {
+        const key = formatMonthKey(iterDate);
+        const count = countMap.get(key) ?? 0;
+        points.push({ x: currentIndex, y: count });
+
+        // Move to next month
+        iterDate = addMonths(iterDate, 1);
+        currentIndex++;
+      }
+
+      // 5. Calculate Linear Regression: y = mx + b
+      const n = points.length;
+      if (n < 2) {
+        // Not enough data points
+        return {
+          periods: [
+            { label: '1 Month', months: 1, projectedCount: 0 },
+            { label: '3 Months', months: 3, projectedCount: 0 },
+            { label: '6 Months', months: 6, projectedCount: 0 },
+            { label: '1 Year', months: 12, projectedCount: 0 },
+            { label: '2 Years', months: 24, projectedCount: 0 },
+          ],
+          metadata: {
+            baseStart: start,
+            baseEnd: end,
+            totalMonths: n,
+            trendSlope: 0,
+            trendIntercept: 0,
+            generatedAt: new Date().toISOString(),
+          },
+        };
+      }
+
+      let sumX = 0;
+      let sumY = 0;
+      let sumXY = 0;
+      let sumX2 = 0;
+
+      for (const p of points) {
+        sumX += p.x;
+        sumY += p.y;
+        sumXY += p.x * p.y;
+        sumX2 += p.x * p.x;
+      }
+
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const intercept = (sumY - slope * sumX) / n;
+
+      // 6. Project Future Values
+      // Next month is at index n.
+      const projectForMonths = (monthsToProject: number): number => {
+        let total = 0;
+        for (let i = 0; i < monthsToProject; i++) {
+          const futureX = n + i;
+          const predictedY = slope * futureX + intercept;
+          // You can't have negative incidents, floor at 0
+          total += Math.max(0, predictedY);
+        }
+        return Math.round(total);
+      };
+
+      return {
+        periods: [
+          { label: '1 Month', months: 1, projectedCount: projectForMonths(1) },
+          { label: '3 Months', months: 3, projectedCount: projectForMonths(3) },
+          { label: '6 Months', months: 6, projectedCount: projectForMonths(6) },
+          { label: '1 Year', months: 12, projectedCount: projectForMonths(12) },
+          { label: '2 Years', months: 24, projectedCount: projectForMonths(24) },
+        ],
+        metadata: {
+          baseStart: start,
+          baseEnd: end,
+          totalMonths: n,
+          trendSlope: Number(slope.toFixed(4)),
+          trendIntercept: Number(intercept.toFixed(4)),
+          generatedAt: new Date().toISOString(),
+        },
+      };
     });
   }
 }
