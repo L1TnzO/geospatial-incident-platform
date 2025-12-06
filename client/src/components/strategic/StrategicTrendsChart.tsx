@@ -5,10 +5,10 @@ import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import type { StrategicMonthlyTrendResponse } from '../../types/api/strategic';
 import type { DailyTrendResponse } from '../../types/api/dashboard';
-import { subMonths, subYears } from 'date-fns';
+import { subMonths, subYears, addDays } from 'date-fns';
 // import type { DateRange } from 'react-day-picker'; // This import is no longer needed
 
-type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
+type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y' | 'custom';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { IncidentLookupValue } from '../../types/api/incidents';
@@ -21,8 +21,11 @@ interface StrategicTrendsChartProps {
   error?: Error | null;
   onRefresh: () => void;
   onPeriodClick?: (period: string, startDate: string, endDate: string) => void;
+  onZoomOut?: () => void;
   comparisonLabel: string;
   timeRange: TimeRange;
+  customStart?: string;
+  customEnd?: string;
   selectedType: string | null;
   onTypeChange: (type: string | null) => void;
   incidentTypes: IncidentLookupValue[];
@@ -37,8 +40,11 @@ export function StrategicTrendsChart({
   error,
   onRefresh,
   onPeriodClick,
+  onZoomOut,
   comparisonLabel,
   timeRange,
+  customStart,
+  customEnd,
   selectedType,
   onTypeChange,
   incidentTypes,
@@ -76,6 +82,12 @@ export function StrategicTrendsChart({
           start.setTime(start1y.getTime());
         }
         break;
+      case 'custom':
+        if (customStart && customEnd) {
+          start.setTime(new Date(customStart).getTime());
+          end.setTime(new Date(customEnd).getTime());
+        }
+        break;
       default:
         start.setHours(end.getHours() - 24);
     }
@@ -105,16 +117,34 @@ export function StrategicTrendsChart({
 
     if (trendType === 'daily' && 'points' in data) {
       const dailyData = data as DailyTrendResponse;
+
+      // Heuristic to detect hourly data: check if we have multiple points on the same day or very close interval
+      // Or just check if duration between first and last point / count < 24h
+      const hasHourlyGranularity = dailyData.points.length > 1 &&
+        (new Date(dailyData.points[1].date).getTime() - new Date(dailyData.points[0].date).getTime() < 24 * 60 * 60 * 1000);
+
       return {
-        series: dailyData.points.map((p) => ({
-          label: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          count: p.count,
-          start: p.date,
-          end: p.date, // Daily points are single day
-          period: p.date,
-          change: null, // Daily points don't have individual change metrics in this response
-          percentage: null,
-        })),
+        isHourly: hasHourlyGranularity,
+        series: dailyData.points.map((p) => {
+          const date = new Date(p.date);
+          const label = hasHourlyGranularity
+            ? date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+            : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+          const pointEnd = hasHourlyGranularity
+            ? new Date(date.getTime() + 60 * 60 * 1000).toISOString() // Hourly point covers 1 hour
+            : addDays(date, 1).toISOString(); // Daily point covers 1 day
+
+          return {
+            label,
+            count: p.count,
+            start: p.date,
+            end: pointEnd,
+            period: p.date,
+            change: null,
+            percentage: null,
+          };
+        }),
         totals: {
           current: dailyData.trend.currentTotal,
           change: dailyData.trend.change,
@@ -124,6 +154,7 @@ export function StrategicTrendsChart({
     } else if ('series' in data) {
       const monthlyData = data as StrategicMonthlyTrendResponse;
       return {
+        isHourly: false,
         series: monthlyData.series.map((p) => ({
           label: p.label,
           count: p.count,
@@ -175,6 +206,9 @@ export function StrategicTrendsChart({
   }, [points]);
 
   const handlePointClick = (point: (typeof points)[0]) => {
+    if (normalizedData?.isHourly) {
+      return; // Disable interaction for hourly points
+    }
     if (onPeriodClick) {
       onPeriodClick(point.data.period, point.data.start, point.data.end);
     }
@@ -293,7 +327,6 @@ export function StrategicTrendsChart({
       </CardHeader>
       <CardContent>
         {/* Summary metrics */}
-        {/* Summary metrics */}
         <div className="mb-6 space-y-4">
           <div className="text-4xl font-bold">
             {normalizedData.totals?.current?.toLocaleString() || '0'}
@@ -330,6 +363,14 @@ export function StrategicTrendsChart({
             </p>
           </div>
         </div>
+
+        {timeRange === 'custom' && onZoomOut && (
+          <div className="mb-4">
+            <Button variant="outline" size="sm" onClick={onZoomOut} className="h-8">
+              ← Back to Overview
+            </Button>
+          </div>
+        )}
 
         {/* Chart */}
         <div className="overflow-x-auto">

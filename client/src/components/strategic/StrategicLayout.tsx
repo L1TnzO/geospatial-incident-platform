@@ -41,7 +41,7 @@ interface StrategicLayoutProps {
 }
 
 export function StrategicLayout({ hideMap = false, className }: StrategicLayoutProps) {
-  const { timeRange, setTimeRange, filters, comparisonLabel, isYoY, setIsYoY } = useDashboard();
+  const { timeRange, setTimeRange, filters, comparisonLabel, isYoY, setIsYoY, setCustomDateRange } = useDashboard();
 
   const {
     showIncidentsStrategic: showIncidents,
@@ -64,7 +64,8 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
   const trendFilters = useMemo(() => ({
     ...filters,
     typeCodes: selectedType ? [selectedType] : undefined,
-  }), [filters, selectedType]);
+    compare: (isYoY ? 'year' : 'previous') as 'year' | 'previous',
+  }), [filters, selectedType, isYoY]);
 
   const dailyTrendQuery = useStrategicDailyTrend(trendFilters);
   const timeOfDayQuery = useStrategicTimeOfDay(trendFilters);
@@ -125,11 +126,11 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
   // Note: DashboardProvider currently controls date ranges based on timeRange.
   // Manual date selection would require extending DashboardProvider to support 'custom' range.
   const handlePeriodClick = useCallback(
-    (_period: string, _startDate: string, _endDate: string) => {
-      console.log('Period clicked:', _period);
-      // setFilters({ startDate, endDate }); // Not supported by DashboardProvider yet
+    (_period: string, startDate: string, endDate: string) => {
+      // console.log('Period clicked:', _period);
+      setCustomDateRange(startDate, endDate);
     },
-    [],
+    [setCustomDateRange],
   );
 
   // Handle "View on Map" from priority zones
@@ -224,7 +225,7 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
               />
               <Label htmlFor="strategic-yoy-mode">Compare to Last Year</Label>
             </div>
-            <Select value={timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
+            <Select value={timeRange.startsWith('custom') ? 'custom' : timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select time range" />
               </SelectTrigger>
@@ -234,6 +235,7 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
                 <SelectItem value="30d">Last 30 Days</SelectItem>
                 <SelectItem value="3m">Last 3 Months</SelectItem>
                 <SelectItem value="1y">Last 12 Months</SelectItem>
+                <SelectItem value="custom" disabled>Custom Range</SelectItem>
               </SelectContent>
             </Select>
 
@@ -251,8 +253,11 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
             onRefresh={() => dailyTrendQuery.refresh(true)}
 
             onPeriodClick={handlePeriodClick}
+            onZoomOut={() => setTimeRange('30d')}
             comparisonLabel={comparisonLabel}
             timeRange={timeRange}
+            customStart={filters.startDate}
+            customEnd={filters.endDate}
             selectedType={selectedType}
             onTypeChange={setSelectedType}
             incidentTypes={metadataQuery.data?.types || []}

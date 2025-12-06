@@ -881,7 +881,9 @@ export class StrategicAnalyticsService {
 
     if (filters.startDate && filters.endDate) {
       startDate = new Date(filters.startDate);
-      startDate.setUTCHours(0, 0, 0, 0); // Align to UTC midnight to match DB bucketing
+      // We don't force align to midnight if the user provides specific timestamps, 
+      // but let's conform to existing logic unless we are in "hourly" mode?
+      // Actually, for consistency, let's keep the existing logic for > 48h, but for short ranges rely on precise times.
       endDate = new Date(filters.endDate);
       range = {
         start: filters.startDate,
@@ -910,49 +912,114 @@ export class StrategicAnalyticsService {
       };
     }
 
-    const cacheKey = buildCacheKey('strategic:dailyTrend', filters, range);
+    const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
+    const isHourly = durationMs <= 48 * 60 * 60 * 1000; // <= 48 hours
+
+    const cacheKey = buildCacheKey('strategic:dailyTrend', filters, { range, isHourly, compare: query.compare });
 
     return this.withCache(cacheKey, async () => {
       const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
 
-      const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
-      const countsByDate = new Map<string, number>();
-      for (const bucket of buckets) {
-        const dateOnly = formatDateOnly(new Date(bucket.date));
-        countsByDate.set(dateOnly, bucket.count);
-      }
+      let points: IncidentDailyCount[] = [];
+      let countsByDate = new Map<string, number>();
 
-      const points: IncidentDailyCount[] = [];
-      const dayCount = Math.ceil((new Date(range.end).getTime() - new Date(range.start).getTime()) / DAY_MS);
-      const safeDayCount = Math.min(dayCount, 365);
+      if (isHourly) {
+        const buckets = await this.repository.getIncidentCountsByReportedHour(baseFilters, range);
+        for (const bucket of buckets) {
+          countsByDate.set(new Date(bucket.date).toISOString(), bucket.count);
+        }
 
-      for (let i = 0; i <= safeDayCount; i += 1) {
-        const current = new Date(startDate.getTime() + i * DAY_MS);
-        if (current > new Date(range.end)) break;
+        const HOUR_MS = 60 * 60 * 1000;
+        const hourCount = Math.ceil(durationMs / HOUR_MS);
 
-        const dateKey = formatDateOnly(current);
-        points.push({
-          date: new Date(
-            Date.UTC(
-              current.getUTCFullYear(),
-              current.getUTCMonth(),
-              current.getUTCDate(),
-              0,
-              0,
-              0,
-              0
-            )
-          ).toISOString(),
-          count: countsByDate.get(dateKey) ?? 0,
-        });
+        // Start from the exact start time, flooring to the hour if needed, or just use range.start
+        // Let's use range.start as the anchor.
+        const startMillis = new Date(range.start).getTime();
+
+        // To align with DB "DATE_TRUNC('hour')", we should probably align the bucket keys.
+        // But simply iterating by hour from range.start is usually safe if range.start is aligned or if we just want "buckets relative to start".
+        // However, DB returns "2023-01-01 10:00:00".
+        // Let's iterate covering the range.
+
+        // We'll trust the DB returned exact hour timestamps (e.g. 10:00:00.000Z).
+        // So we should generate points aligned to hours.
+        const alignedStart = new Date(startMillis);
+        if (alignedStart.getUTCMinutes() > 0 || alignedStart.getUTCSeconds() > 0) {
+          // If the user selected 10:30, and we want hourly buckets...
+          // The DB truncates to the *hour*. So 10:30 -> 10:00.
+          // So for the chart, we should probably show from 10:00.
+          alignedStart.setUTCMinutes(0, 0, 0);
+        }
+
+        for (let i = 0; i <= hourCount + 1; i++) {
+          const current = new Date(alignedStart.getTime() + i * HOUR_MS);
+          if (current > new Date(range.end)) break;
+          if (current < new Date(range.start)) continue; // Don't show points before requested start (though alignment might push us back)
+
+          const isoKey = current.toISOString();
+          points.push({
+            date: isoKey,
+            count: countsByDate.get(isoKey) ?? 0
+          });
+        }
+      } else {
+        // Daily mode
+        const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
+        for (const bucket of buckets) {
+          const dateOnly = formatDateOnly(new Date(bucket.date));
+          countsByDate.set(dateOnly, bucket.count);
+        }
+
+        const dayCount = Math.ceil(durationMs / DAY_MS);
+        const safeDayCount = Math.min(dayCount, 365); // Cap at 1 year for daily points
+
+        // Align start to midnight for iteration, because daily counts are normalized to midnight
+        const iterStart = new Date(range.start);
+        iterStart.setUTCHours(0, 0, 0, 0);
+
+        for (let i = 0; i <= safeDayCount; i += 1) {
+          const current = new Date(iterStart.getTime() + i * DAY_MS);
+          // If we aligned to midnight, current might be slightly before range.start (e.g. range starts at 10 AM).
+          // Incident counts are for the whole day "yyyy-mm-dd".
+          // So if we include the day, we should include it.
+          // Check if this day is within the range (loosely).
+          // Actually, let's just output the days that "touch" the range.
+          if (current > new Date(range.end)) break;
+
+          const dateKey = formatDateOnly(current);
+          points.push({
+            date: new Date(
+              Date.UTC(
+                current.getUTCFullYear(),
+                current.getUTCMonth(),
+                current.getUTCDate(),
+                0,
+                0,
+                0,
+                0
+              )
+            ).toISOString(),
+            count: countsByDate.get(dateKey) ?? 0,
+          });
+        }
       }
 
       const currentTotal = points.reduce((sum, point) => sum + point.count, 0);
-      const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
-      const previousRange = {
-        start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
-        end: range.start,
-      };
+
+      const compare = query.compare as 'year' | 'previous' | undefined;
+      let previousRange: { start: string; end: string };
+
+      if (compare === 'year') {
+        previousRange = {
+          start: subYears(range.start, 1).toISOString(),
+          end: subYears(range.end, 1).toISOString(),
+        };
+      } else {
+        previousRange = {
+          start: new Date(new Date(range.start).getTime() - durationMs).toISOString(),
+          end: range.start,
+        };
+      }
 
       const { startDate: _sd2, endDate: _ed2, ...baseFilters2 } = filters;
       const previousTotal = await this.repository.countIncidentsByReportedRange(baseFilters2, previousRange);
@@ -2040,4 +2107,13 @@ export class StrategicAnalyticsService {
   }
 }
 
+
 export const strategicService = new StrategicAnalyticsService();
+
+function subYears(date: Date | string | number, amount: number): Date {
+
+  const d = new Date(date);
+  d.setUTCFullYear(d.getUTCFullYear() - amount);
+  return d;
+}
+

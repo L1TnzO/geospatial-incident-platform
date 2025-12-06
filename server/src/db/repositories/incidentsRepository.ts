@@ -1453,6 +1453,36 @@ export class IncidentRepository {
     }));
   }
 
+  public async getIncidentCountsByReportedHour(
+    filters: IncidentListFilters,
+    range: { start: string; end: string }
+  ): Promise<IncidentDailyCount[]> {
+    if (new Date(range.start).getTime() > new Date(range.end).getTime()) {
+      return [];
+    }
+
+    const query = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
+      .select<IncidentDailyCountRow[]>([
+        this.db.raw('DATE_TRUNC(\'hour\', i.reported_at) as "bucketDate"'),
+      ])
+      .count<{ total: string | number }>('i.id as total')
+      .groupByRaw("DATE_TRUNC('hour', i.reported_at)")
+      .orderByRaw("DATE_TRUNC('hour', i.reported_at)");
+
+    applyFilters(query, filters);
+    query.whereBetween('i.reported_at', [range.start, range.end]);
+
+    const rows = (await query) as unknown as IncidentDailyCountRow[];
+
+    return rows.map((row) => ({
+      date: new Date(row.bucketDate).toISOString(),
+      count: coerceCount(row.total),
+    }));
+  }
+
   public async getIncidentCountsByHourOfDay(
     filters: IncidentListFilters,
     range: { start: string; end: string }

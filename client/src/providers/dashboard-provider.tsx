@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { DashboardFilterParams } from '../types/api/dashboard';
 import { subMonths, subYears } from 'date-fns';
 
-type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
+export type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y' | 'custom';
 
 interface DashboardContextType {
     timeRange: TimeRange;
@@ -15,6 +15,7 @@ interface DashboardContextType {
     filters: DashboardFilterParams;
     timeRangeLabel: string;
     comparisonLabel: string;
+    setCustomDateRange: (start: string, end: string) => void;
 }
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -22,8 +23,13 @@ const DashboardContext = createContext<DashboardContextType | undefined>(undefin
 export function DashboardProvider({ children }: { children: ReactNode }) {
     const [timeRange, setTimeRange] = useState<TimeRange>(() => {
         const stored = localStorage.getItem('dashboard_timeRange');
+        // If stored is 'custom', we revert to '24h' on reload as we don't persist custom dates yet
+        // or check if it is a valid TimeRange excluding custom if we want simplicity
+        if (stored === 'custom') return '24h';
         return (stored as TimeRange) || '24h';
     });
+
+    const [customDateRange, setCustomRangeState] = useState<{ start: string; end: string } | null>(null);
 
     const [isYoY, setIsYoY] = useState(() => {
         const stored = localStorage.getItem('dashboard_isYoY');
@@ -38,7 +44,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     });
 
     useEffect(() => {
-        localStorage.setItem('dashboard_timeRange', timeRange);
+        if (timeRange !== 'custom') {
+            localStorage.setItem('dashboard_timeRange', timeRange);
+        }
     }, [timeRange]);
 
     useEffect(() => {
@@ -49,8 +57,17 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('dashboard_isActive', String(isActive));
     }, [isActive]);
 
+    const setCustomDateRange = (start: string, end: string) => {
+        setCustomRangeState({ start, end });
+        setTimeRange('custom');
+    };
+
     // Derived State: Date Range
     const { start, end } = useMemo(() => {
+        if (timeRange === 'custom' && customDateRange) {
+            return customDateRange;
+        }
+
         const now = new Date();
         // Round to nearest 5 minutes to stabilize query keys and leverage cache
         const coeff = 1000 * 60 * 5;
@@ -80,14 +97,19 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                     end: endDate.toISOString(),
                 };
             default:
-                startDate.setHours(endDate.getHours() - 24);
+                // Fallback to 24h if custom is selected but no date range provided (shouldn't happen with correct usage)
+                if (timeRange === 'custom') {
+                    startDate.setHours(endDate.getHours() - 24);
+                } else {
+                    startDate.setHours(endDate.getHours() - 24);
+                }
         }
 
         return {
             start: startDate.toISOString(),
             end: endDate.toISOString(),
         };
-    }, [timeRange]);
+    }, [timeRange, customDateRange]);
 
     // Derived State: Labels
     const timeRangeLabel = useMemo(() => {
@@ -102,6 +124,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 return 'Last 3 Months';
             case '1y':
                 return 'Last 12 Months';
+            case 'custom':
+                return 'Custom Range';
             default:
                 return 'Last 24 Hours';
         }
@@ -122,6 +146,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
                 return 'vs previous 3 months';
             case '1y':
                 return 'vs previous year';
+            case 'custom':
+                return 'vs previous period';
             default:
                 return 'vs previous 24h';
         }
@@ -152,6 +178,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         filters,
         timeRangeLabel,
         comparisonLabel,
+        setCustomDateRange
     };
 
     return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;
