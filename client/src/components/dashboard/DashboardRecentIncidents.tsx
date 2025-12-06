@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapPin, FileText } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -44,10 +45,12 @@ const toIncident = (incident: RecentIncident): LiteIncident => {
       lng: Number(lng) || 0,
       address: '',
     },
+    title: incident.title, // Aseguramos que el título viaje
     description: incident.title,
     status: incident.status.name,
     statusCode: incident.status.code,
     isActive: incident.isActive,
+    metadata: incident.metadata || {}, // Pasamos metadata si existe
   };
 };
 
@@ -56,23 +59,34 @@ export function DashboardRecentIncidents({ recentQuery }: DashboardRecentInciden
   const setView = useMapStore((state) => state.setView);
   const openIncident = useIncidentDetailStore((state) => state.openIncident);
 
+  const navigate = useNavigate();
+
   const handleViewOnMap = useCallback(
     (incident: RecentIncident) => {
       const coordinates = incident.location?.geometry?.coordinates;
       if (Array.isArray(coordinates) && coordinates.length >= 2) {
         const [longitude, latitude] = coordinates.map(Number);
         if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          setView([latitude, longitude], 14);
-          // Update selected incident in store for highlighting
+          // 1. Centrar el mapa (Zoom 16 para ver más cerca)
+          setView([latitude, longitude], 16);
+
+          // 2. Preparar el objeto incidente
           const legacyIncident = toIncident(incident);
+
+          // 3. CAMBIO CLAVE: Actualizamos el store manualmente.
+          // Seleccionamos el incidente (para que el mapa muestre el popup/highlight)
+          // PERO forzamos isOpen: false para que NO salga el modal gigante.
           useIncidentDetailStore.setState({
             selectedIncident: legacyIncident,
-            isOpen: false,
+            isOpen: false
           });
+
+          // 4. Redirigir al mapa
+          navigate('/map');
         }
       }
     },
-    [setView],
+    [setView, navigate],
   );
 
   const handleOpenDetails = useCallback(
@@ -88,6 +102,7 @@ export function DashboardRecentIncidents({ recentQuery }: DashboardRecentInciden
         }
       }
 
+      // Aquí sí usamos openIncident porque queremos ver el detalle completo
       openIncident(legacyIncident);
     },
     [openIncident, setView],

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, useMapEvents, Popup } from 'react-leaflet';
 import {
   type Map as LeafletMap,
   type LeafletEvent,
@@ -8,6 +8,7 @@ import {
 } from 'leaflet';
 import { Button } from './ui/button';
 import { useIncidentCreateStore } from '../store/incident-create-store';
+import { useIncidentDetailStore } from '../store/incident-detail-store';
 import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import {
@@ -39,7 +40,6 @@ import type {
   PriorityScoreGroup,
 } from '../types/api/strategic';
 import { useMediaQuery } from '../hooks/use-media-query';
-import { useAuth } from '../hooks/useAuth';
 import '../styles/map/map.css';
 
 const SEVERITY_ORDER = ['Critical', 'High', 'Medium', 'Low'];
@@ -70,7 +70,6 @@ interface MapViewProps {
     highlightedZone?: PriorityScoreGroup | null;
   };
   useStrategicPreferences?: boolean;
-  worker?: Worker | null;
 }
 
 const roundCoordinate = (value: number): number => Math.round(value * 1_000_000) / 1_000_000;
@@ -83,9 +82,7 @@ const toMapBounds = (bounds: LatLngBounds): MapBounds => ({
 });
 
 const boundsAreEqual = (a: MapBounds | null, b: MapBounds | null): boolean => {
-  if (!a || !b) {
-    return a === b;
-  }
+  if (!a || !b) return a === b;
   return (
     Math.abs(a.north - b.north) < 0.00001 &&
     Math.abs(a.south - b.south) < 0.00001 &&
@@ -126,12 +123,99 @@ const TILE_LAYERS: Record<
 
 const BASE_LAYER_SEQUENCE: BaseLayer[] = ['street', 'topographic', 'satellite'];
 
+// --- POPUP ---
+const SelectedIncidentPopup = () => {
+  const { selectedIncident, isOpen, openIncident, closeIncident } = useIncidentDetailStore();
+
+  if (!selectedIncident || isOpen) return null;
+
+  const lat = selectedIncident.location?.lat;
+  const lng = selectedIncident.location?.lng;
+
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+
+  return (
+    <Popup
+      position={[lat, lng]}
+      closeButton={true}
+      autoPan={false}
+      autoPanPadding={[50, 50]} // Margen para que no quede pegado al borde
+      offset={[0, -30]} // Ajuste vertical para el pin
+      eventHandlers={{
+        remove: () => {
+          setTimeout(() => closeIncident(), 100);
+        }
+      }}
+    >
+      <div className="text-sm min-w-[200px]">
+        <div className="font-bold mb-1 border-b pb-1">
+          {selectedIncident.title || selectedIncident.id}
+        </div>
+        <div className="text-xs text-muted-foreground mb-2">
+          {selectedIncident.type} • {selectedIncident.severity}
+        </div>
+        <Button
+          size="sm"
+          variant="default"
+          className="w-full h-7 text-xs"
+          onClick={() => openIncident(selectedIncident)}
+        >
+          View Full Details
+        </Button>
+      </div>
+    </Popup>
+  );
+};
+
+// --- ARREGLO: ENFOCADOR AUTOMÁTICO ROBUSTO ---
+const MapAutoFocuser = () => {
+  const map = useMap();
+  const selectedIncident = useIncidentDetailStore((state) => state.selectedIncident);
+  // Importamos setView del store para sincronizar ambos mundos
+  const setStoreView = useMapStore((state) => state.setView);
+
+  const hasFocusedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selectedIncident && selectedIncident.location) {
+      const { lat, lng } = selectedIncident.location;
+      const incidentId = selectedIncident.id || selectedIncident.incidentNumber;
+
+      if (
+        typeof lat === 'number' &&
+        typeof lng === 'number' &&
+        incidentId !== hasFocusedRef.current
+      ) {
+        // Usamos un pequeño timeout para asegurar que el mapa ya calculó su tamaño
+        // Esto soluciona el problema de "primera carga fallida"
+        setTimeout(() => {
+          map.invalidateSize(); // Forzamos recálculo de tamaño
+          map.setView([lat, lng], 16, { animate: true });
+          setStoreView([lat, lng], 16); // Actualizamos el store global también
+        }, 100);
+
+        hasFocusedRef.current = incidentId;
+      }
+    }
+  }, [map, selectedIncident, setStoreView]);
+
+  return null;
+};
+
 const MapViewportController = () => {
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
   const map = useMap();
 
+  // Flag para evitar conflictos inmediatos con el AutoFocuser
+  const isFirstRender = useRef(true);
+
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
     const currentCenter = map.getCenter();
     const currentZoom = map.getZoom();
     const [targetLat, targetLng] = center;
@@ -141,7 +225,7 @@ const MapViewportController = () => {
     const zoomChanged = currentZoom !== zoom;
 
     if (latDelta > 0.0001 || lngDelta > 0.0001 || zoomChanged) {
-      map.setView({ lat: targetLat, lng: targetLng }, zoom, { animate: false });
+      map.setView({ lat: targetLat, lng: targetLng }, zoom, { animate: true });
     }
   }, [center, zoom, map]);
 
@@ -184,18 +268,14 @@ const MapViewportTracker = () => {
 
   useMapEvents({
     movestart: (event: LeafletEvent) => {
-      if (isUserGestureEvent(event)) {
-        markUserAdjusted();
-      }
+      if (isUserGestureEvent(event)) markUserAdjusted();
     },
     zoomstart: (event: LeafletEvent) => {
-      if (isUserGestureEvent(event)) {
-        markUserAdjusted();
-      }
+      if (isUserGestureEvent(event)) markUserAdjusted();
     },
-    mousedown: () => {
-      markUserAdjusted();
-    },
+    mousedown: () => markUserAdjusted(),
+    touchstart: () => markUserAdjusted(),
+    wheel: () => markUserAdjusted(),
     moveend: updateStoreFromMap,
     zoomend: updateStoreFromMap,
   });
@@ -240,12 +320,12 @@ const MapResizeHandler = () => {
     const observer = new ResizeObserver(() => {
       map.invalidateSize();
     });
-
     observer.observe(container);
 
-    return () => {
-      observer.disconnect();
-    };
+    // Forzamos un invalidate inicial por si acaso
+    setTimeout(() => map.invalidateSize(), 200);
+
+    return () => observer.disconnect();
   }, [map]);
 
   return null;
@@ -265,13 +345,14 @@ export function MapView({
   stationsError,
   strategicOverlays,
   useStrategicPreferences = false,
-  worker,
 }: MapViewProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
   const resetView = useMapStore((state) => state.resetView);
   const hasUserAdjusted = useMapStore((state) => state.hasUserAdjusted);
+  const openCreateDrawer = useIncidentCreateStore((state) => state.open);
+
   const {
     baseLayer,
     setBaseLayer,
@@ -297,8 +378,6 @@ export function MapView({
         : state.showPriorityZones,
     })),
   );
-
-  const { user } = useAuth();
 
   const severityLegend = useMemo(() => {
     const entries = new Map<string, string>();
@@ -333,53 +412,33 @@ export function MapView({
   const isControlPanelExpanded = isDesktop ? isDesktopExpanded : isMobileExpanded;
 
   useEffect(() => {
-    if (isDesktop) {
-      setIsDesktopExpanded(true);
-    }
+    if (isDesktop) setIsDesktopExpanded(true);
   }, [isDesktop]);
 
   const toggleControlPanel = () => {
-    if (isDesktop) {
-      setIsDesktopExpanded((prev) => !prev);
-    } else {
-      setIsMobileExpanded((prev) => !prev);
-    }
+    if (isDesktop) setIsDesktopExpanded((prev) => !prev);
+    else setIsMobileExpanded((prev) => !prev);
   };
 
   const ensurePanelExpanded = () => {
     if (!isControlPanelExpanded) {
-      if (isDesktop) {
-        setIsDesktopExpanded(true);
-      } else {
-        setIsMobileExpanded(true);
-      }
+      if (isDesktop) setIsDesktopExpanded(true);
+      else setIsMobileExpanded(true);
     }
   };
   const controlPanelAriaLabel = isControlPanelExpanded ? 'Collapse menu' : 'Expand menu';
 
-  const handleZoomIn = () => {
-    mapRef.current?.zoomIn();
-  };
+  const handleZoomIn = () => mapRef.current?.zoomIn();
+  const handleZoomOut = () => mapRef.current?.zoomOut();
 
-  const handleZoomOut = () => {
-    mapRef.current?.zoomOut();
-  };
-
-  // Incident creation mode: if user is selecting a location, clicking the map will set draft coordinates
   const cancelLocationSelection = useIncidentCreateStore((state) => state.cancelLocationSelection);
-  const completeLocationSelection = useIncidentCreateStore(
-    (state) => state.completeLocationSelection,
-  );
+  const completeLocationSelection = useIncidentCreateStore((state) => state.completeLocationSelection);
   const isSelectingLocation = useIncidentCreateStore((state) => state.isSelectingLocation);
 
   const targetCompletionPercent = useMemo(() => {
-    if (counts.limit <= 0) {
-      return 0;
-    }
+    if (counts.limit <= 0) return 0;
     const ratio = counts.rendered / counts.limit;
-    if (!Number.isFinite(ratio)) {
-      return 0;
-    }
+    if (!Number.isFinite(ratio)) return 0;
     return Math.max(0, Math.min(100, Math.round(ratio * 100)));
   }, [counts.limit, counts.rendered]);
 
@@ -389,7 +448,6 @@ export function MapView({
         if (!isSelectingLocation) return;
         const { lat, lng } = ev.latlng;
         completeLocationSelection({ lat, lng });
-        // stop selection mode
         cancelLocationSelection();
       },
     });
@@ -406,44 +464,22 @@ export function MapView({
   };
 
   const baseLayerOptions = useMemo(
-    () =>
-      BASE_LAYER_SEQUENCE.map((layer) => ({
-        id: layer,
-        label: TILE_LAYERS[layer].label,
-      })),
+    () => BASE_LAYER_SEQUENCE.map((layer) => ({ id: layer, label: TILE_LAYERS[layer].label })),
     [],
   );
 
   useEffect(() => {
-    if (!isMapReady || !mapRef.current || !incidentsBounds || hasUserAdjusted) {
-      return;
-    }
-
-    if (!incidentsBounds.isValid()) {
-      return;
-    }
-
-    if (!incidentsBoundsSignature || incidentsBoundsSignature === lastFitSignature) {
-      return;
-    }
+    if (!isMapReady || !mapRef.current || !incidentsBounds || hasUserAdjusted) return;
+    if (!incidentsBounds.isValid()) return;
+    if (!incidentsBoundsSignature || incidentsBoundsSignature === lastFitSignature) return;
 
     const map = mapRef.current;
     map.fitBounds(incidentsBounds, { padding: [48, 48], maxZoom: 14 });
     setLastFitSignature(incidentsBoundsSignature);
-  }, [
-    hasUserAdjusted,
-    incidentsBounds,
-    incidentsBoundsSignature,
-    isMapReady,
-    lastFitSignature,
-  ]);
-
-  // Render the picker when selecting a location (mounted directly inside MapContainer)
+  }, [hasUserAdjusted, incidentsBounds, incidentsBoundsSignature, isMapReady, lastFitSignature]);
 
   useEffect(() => {
-    if (!incidentsBoundsSignature && lastFitSignature !== null) {
-      setLastFitSignature(null);
-    }
+    if (!incidentsBoundsSignature && lastFitSignature !== null) setLastFitSignature(null);
   }, [incidentsBoundsSignature, lastFitSignature]);
 
   return (
@@ -496,23 +532,20 @@ export function MapView({
         maxZoom={19}
         zoomControl={false}
         className="h-full w-full"
-        preferCanvas={true}
       >
         <BaseLayerTile layer={baseLayer} />
         <MapViewportController />
         <MapViewportTracker />
+
+        {/* --- COMPONENTE DE ENFOQUE AUTOMÁTICO --- */}
+        <MapAutoFocuser />
+
         <MapResizeHandler />
-        {/* Incident Clusters */}
         {showIncidents && (
-          <IncidentClusterLayer
-            incidents={incidents}
-            onIncidentClick={onIncidentClick}
-            worker={worker}
-          />
+          <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
         )}
         <StationLayer stations={fireStations} isVisible={showStations} />
 
-        {/* Strategic overlays */}
         {strategicOverlays && (
           <>
             <HotspotOverlay
@@ -533,6 +566,8 @@ export function MapView({
             />
           </>
         )}
+
+        <SelectedIncidentPopup />
 
         <MapInstanceBinder mapRef={mapRef} onReady={handleMapReady} />
         {isSelectingLocation && <Picker />}
@@ -622,6 +657,21 @@ export function MapView({
           </div>
 
           <div className={`flex flex-col gap-1 ${isControlPanelExpanded ? 'w-full' : ''}`}>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
+                }`}
+              onClick={openCreateDrawer}
+              aria-label="Create Incident"
+            >
+              <Plus className="h-5 w-5 shrink-0" />
+              {isControlPanelExpanded && (
+                <span className="ml-3 text-sm font-medium">Create Incident</span>
+              )}
+            </Button>
+
             <Button
               variant="ghost"
               size="sm"
@@ -739,7 +789,7 @@ export function MapView({
 
               <div className="pt-2 border-t border-white/15">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-white/60 mb-1">
-                  Severities
+                  Severidades
                 </p>
                 <div className="grid gap-2 text-xs text-white/85">
                   {severityLegend.map(([label, color]) => (
@@ -761,7 +811,7 @@ export function MapView({
         </Card>
       </div>
 
-      {!isDesktop && user && (
+      {!isDesktop && (
         <div className="absolute bottom-6 right-4 z-[1000]">
           <Button
             size="icon"
