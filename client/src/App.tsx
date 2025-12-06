@@ -13,6 +13,7 @@ import { IncidentCreateDrawer } from './components/IncidentCreateDrawer';
 import { DashboardPage } from './pages/DashboardPage';
 import { StrategicPage } from './pages/StrategicPage';
 import { CreateIncidentPage } from './pages/CreateIncidentPage'; // <--- IMPORT NUEVO
+import { ConsolidatedReportPage } from './pages/ConsolidatedReportPage';
 import { Toaster } from './components/ui/sonner';
 import { QueryProvider } from './providers/query-client-provider';
 import { AuthProvider } from './providers/auth-provider';
@@ -225,6 +226,21 @@ function AppRoutes() {
                 <div className="flex-1 flex overflow-hidden relative">
                   <main className="flex-1 overflow-y-auto relative z-0">
                     <StrategicPage />
+                  </main>
+                </div>
+              ) : (
+                <Navigate to="/map" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/consolidated-report"
+            element={
+              !mobile && user ? (
+                <div className="flex-1 flex overflow-hidden relative">
+                  <main className="flex-1 overflow-y-auto relative z-0 bg-background">
+                    <ConsolidatedReportPage />
                   </main>
                 </div>
               ) : (

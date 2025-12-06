@@ -35,7 +35,12 @@ import { useDashboard } from '../../providers/dashboard-provider';
 
 import { useIncidentMetadataQuery } from '../../hooks/useIncidentMetadataQuery';
 
-export function StrategicLayout() {
+interface StrategicLayoutProps {
+  hideMap?: boolean;
+  className?: string;
+}
+
+export function StrategicLayout({ hideMap = false, className }: StrategicLayoutProps) {
   const { timeRange, setTimeRange, filters, comparisonLabel, isYoY, setIsYoY } = useDashboard();
 
   const {
@@ -200,7 +205,7 @@ export function StrategicLayout() {
   }, [incidents, worker, filters.startDate, filters.endDate]);
 
   return (
-    <div className="p-6">
+    <div className={`p-6 ${className || ''}`}>
       <div className="max-w-[1600px] mx-auto space-y-6">
         {/* Header with refresh */}
         <div className="flex items-center justify-between">
@@ -289,53 +294,57 @@ export function StrategicLayout() {
         </div>
 
         {/* Map with Overlays - Full Width */}
-        <div className="rounded-lg overflow-hidden border" style={{ height: '600px' }}>
-          <MapView
-            incidents={incidents}
-            fireStations={fireStations}
-            onIncidentClick={handleIncidentClick}
-            isLoading={incidentsData.isLoading}
-            isFetching={incidentsData.isFetching}
-            isError={incidentsData.isError}
-            error={incidentsData.error}
-            onRetry={incidentsData.refresh}
-            counts={mapCounts}
-            stationsLoading={stationsQuery.isLoading}
-            stationsError={stationsQuery.error}
-            useStrategicPreferences={true}
-            strategicOverlays={{
-              hotspots: showHotspots ? hotspotsQuery.data?.cells || [] : [],
-              coverage: showCoverage ? coverageQuery.data?.features || [] : [],
-              priorityZones: showPriorityZones ? priorityZonesQuery.data?.groups || [] : [],
-              highlightedZone,
-            }}
-            worker={worker}
-          />
-        </div>
+        {!hideMap && (
+          <div className="rounded-lg overflow-hidden border" style={{ height: '600px' }}>
+            <MapView
+              incidents={incidents}
+              fireStations={fireStations}
+              onIncidentClick={handleIncidentClick}
+              isLoading={incidentsData.isLoading}
+              isFetching={incidentsData.isFetching}
+              isError={incidentsData.isError}
+              error={incidentsData.error}
+              onRetry={incidentsData.refresh}
+              counts={mapCounts}
+              stationsLoading={stationsQuery.isLoading}
+              stationsError={stationsQuery.error}
+              useStrategicPreferences={true}
+              strategicOverlays={{
+                hotspots: showHotspots ? hotspotsQuery.data?.cells || [] : [],
+                coverage: showCoverage ? coverageQuery.data?.features || [] : [],
+                priorityZones: showPriorityZones ? priorityZonesQuery.data?.groups || [] : [],
+                highlightedZone,
+              }}
+              worker={worker}
+            />
+          </div>
+        )}
 
         {/* Overlay controls */}
-        <div className="flex items-center gap-4 justify-center">
-          <Button
-            variant={showIncidents ? 'default' : 'outline'}
-            size="sm"
-            onClick={toggleIncidents}
-          >
-            {showIncidents ? 'Hide' : 'Show'} Incidents
-          </Button>
-          <Button variant={showHotspots ? 'default' : 'outline'} size="sm" onClick={toggleHotspots}>
-            {showHotspots ? 'Hide' : 'Show'} Hotspots
-          </Button>
-          <Button variant={showCoverage ? 'default' : 'outline'} size="sm" onClick={toggleCoverage}>
-            {showCoverage ? 'Hide' : 'Show'} Coverage
-          </Button>
-          <Button
-            variant={showPriorityZones ? 'default' : 'outline'}
-            size="sm"
-            onClick={togglePriorityZones}
-          >
-            {showPriorityZones ? 'Hide' : 'Show'} Priority Zones
-          </Button>
-        </div>
+        {!hideMap && (
+          <div className="flex items-center gap-4 justify-center">
+            <Button
+              variant={showIncidents ? 'default' : 'outline'}
+              size="sm"
+              onClick={toggleIncidents}
+            >
+              {showIncidents ? 'Hide' : 'Show'} Incidents
+            </Button>
+            <Button variant={showHotspots ? 'default' : 'outline'} size="sm" onClick={toggleHotspots}>
+              {showHotspots ? 'Hide' : 'Show'} Hotspots
+            </Button>
+            <Button variant={showCoverage ? 'default' : 'outline'} size="sm" onClick={toggleCoverage}>
+              {showCoverage ? 'Hide' : 'Show'} Coverage
+            </Button>
+            <Button
+              variant={showPriorityZones ? 'default' : 'outline'}
+              size="sm"
+              onClick={togglePriorityZones}
+            >
+              {showPriorityZones ? 'Hide' : 'Show'} Priority Zones
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

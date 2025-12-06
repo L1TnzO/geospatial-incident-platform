@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { MapPin, Table, LogOut, BarChart3, Target, AlertCircle, LogIn } from 'lucide-react'; // <--- IMPORT NUEVO
+import { MapPin, Table, LogOut, BarChart3, Target, AlertCircle, LogIn, FileText } from 'lucide-react'; // <--- IMPORT NUEVO
 import { User } from '../types';
 import { isMobile } from '../utils/platform';
 
@@ -66,6 +66,17 @@ export function MainNavigation({ user, onLogin, onLogout }: MainNavigationProps)
                   >
                     <Target className="h-4 w-4" />
                     Strategic
+                  </Button>
+                </Link>
+
+                <Link to="/consolidated-report">
+                  <Button
+                    variant={isActive('/consolidated-report') ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Summary Report
                   </Button>
                 </Link>
 

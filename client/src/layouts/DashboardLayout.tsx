@@ -49,7 +49,7 @@ function DashboardHeader() {
   );
 }
 
-function DashboardContent() {
+export function DashboardContent({ className }: { className?: string }) {
   const { filters, timeRangeLabel, comparisonLabel, timeRange } = useDashboard();
 
   // Initialize all dashboard hooks with filters from context
@@ -61,7 +61,7 @@ function DashboardContent() {
   const recentIncidentsQuery = useDashboardRecentIncidents({ ...filters, limit: 20 });
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className={`flex-1 overflow-y-auto ${className || ''}`}>
       <div className="container mx-auto p-6 space-y-8">
         {/* KPI Row with Export */}
         <section>
