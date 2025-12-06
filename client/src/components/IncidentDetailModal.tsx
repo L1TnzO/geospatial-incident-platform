@@ -73,11 +73,9 @@ export function IncidentDetailModal() {
     reverseGeocodeQuery.data?.shortLabel || reverseGeocodeQuery.data?.displayName || '';
 
   const locationLabel = (() => {
-    // 1. Prioridad: Dirección generada por el nuevo formulario
     const metaAddress = (incident?.metadata as any)?.generated_address;
     if (metaAddress) return metaAddress;
 
-    // 2. Fallback: Geocoding inverso
     if (reverseGeocodeQuery.isLoading && hasCoordinates) {
       return 'Loading location…';
     }
@@ -91,16 +89,15 @@ export function IncidentDetailModal() {
     ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
     : null;
 
-  // --- ADAPTADORES DE DATOS (HYBRID LOGIC) ---
+  // --- ADAPTADORES DE DATOS ---
   const meta = (incident?.metadata as any) || {};
 
-  // Unidades: Soporta formato nuevo (metadata) y viejo (root array)
   const units: IncidentUnitSummary[] = useMemo(() => {
     if (incident?.units && incident.units.length > 0) return incident.units;
     if (meta.response_units && Array.isArray(meta.response_units)) {
       return meta.response_units.map((u: any) => ({
         stationCode: u.station_code,
-        stationName: u.station_code, // Nombre fallback si no existe
+        stationName: u.station_code,
         assignmentRole: u.role,
         dispatchedAt: u.dispatched_at,
         clearedAt: u.cleared_at
@@ -109,11 +106,8 @@ export function IncidentDetailModal() {
     return [];
   }, [incident?.units, meta.response_units]);
 
-  // Activos: Soporta formato nuevo (Array obj) y viejo (String o Array simple)
   const assets: IncidentAssetSummary[] = useMemo(() => {
     if (incident?.assets && incident.assets.length > 0) return incident.assets;
-
-    // Nuevo
     if (meta.equipment_assets && Array.isArray(meta.equipment_assets)) {
       return meta.equipment_assets.map((a: any) => ({
         assetIdentifier: a.assetIdentifier,
@@ -122,7 +116,6 @@ export function IncidentDetailModal() {
         notes: a.notes
       }));
     }
-    // Viejo (String simple)
     if (typeof meta.equipment_assets === 'string' && meta.equipment_assets.length > 0) {
       return [{
         assetIdentifier: 'Legacy Assets',
@@ -134,11 +127,8 @@ export function IncidentDetailModal() {
     return [];
   }, [incident?.assets, meta.equipment_assets]);
 
-  // Notas: Soporta formato nuevo (Con autor) y viejo (String simple)
   const notes: IncidentNoteSummary[] = useMemo(() => {
     if (incident?.notes && incident.notes.length > 0) return incident.notes;
-
-    // Nuevo
     if (meta.field_notes && Array.isArray(meta.field_notes)) {
       return meta.field_notes.map((n: any) => ({
         author: n.author || 'Operator',
@@ -146,20 +136,10 @@ export function IncidentDetailModal() {
         createdAt: n.createdAt || new Date().toISOString()
       }));
     }
-    // Viejo
-    if (typeof meta.field_notes === 'string' && meta.field_notes.length > 0) {
-      return [{
-        author: 'Field Report',
-        note: meta.field_notes,
-        createdAt: incident?.updatedAt || new Date().toISOString()
-      }];
-    }
     return [];
   }, [incident?.notes, meta.field_notes]);
 
-  // --- LÓGICA DE TÍTULOS ---
   const displayTitle = (incident as any)?.title || (incident as any)?.description || incident?.id || 'Incident';
-  // Renderizamos descripción solo si existe el título o la descripción antigua
   const renderDescription = (incident as any)?.title || (incident as any)?.description;
 
   const isInitialLoading = detailQuery.isLoading && !detailQuery.data;
@@ -172,7 +152,6 @@ export function IncidentDetailModal() {
     return null;
   }
 
-  // --- AQUÍ ESTABA EL ERROR ---
   const severityColor = incident?.severityColor
     ? {
       backgroundColor: `${incident.severityColor}22`,
@@ -190,7 +169,7 @@ export function IncidentDetailModal() {
       }}
     >
       <DialogContent
-        className="flex flex-col p-0 gap-0 rounded-xl [&>[data-slot=dialog-close]]:hidden overflow-hidden"
+        className="flex flex-col p-0 gap-0 rounded-xl overflow-hidden"
         style={{
           width: '85vw',
           maxWidth: '600px',
@@ -201,8 +180,8 @@ export function IncidentDetailModal() {
         <div className="p-6 pb-2 shrink-0">
           <DialogHeader>
             <div className="flex items-start justify-between gap-3">
+              {/* <--- CORRECCIÓN AQUÍ: Agregué el '<' faltante */}
               <DialogTitle className="flex flex-col gap-1 text-left">
-                {/* Título Grande */}
                 <span className="text-xl md:text-2xl font-bold break-words">{displayTitle}</span>
                 <span className="text-sm font-normal text-muted-foreground">
                   {incident?.type?.name || (incident as any)?.type || 'Incident Details'}
@@ -212,10 +191,7 @@ export function IncidentDetailModal() {
                 {(isInitialLoading || isRefetching) && (
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 )}
-                <Button variant="ghost" size="icon" onClick={closeIncident} className="-mr-2">
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
-                </Button>
+                {/* La X por defecto del DialogContent se encarga de cerrar */}
               </div>
             </div>
           </DialogHeader>
@@ -250,7 +226,6 @@ export function IncidentDetailModal() {
           {incident && !isInitialLoading && (
             <div className="space-y-6">
 
-              {/* Header Grid */}
               <div className="flex items-center gap-4">
                 <Badge variant="outline" className="text-base py-1 px-3">
                   {incident.status?.name || (incident as any).status}
@@ -289,11 +264,13 @@ export function IncidentDetailModal() {
                       </Button>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span>
-                      Coordinates: {lat.toFixed(4)}, {lng.toFixed(4)}
-                    </span>
-                  </div>
+                  {incident.location && (
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span>
+                        Coordinates: {lat.toFixed(4)}, {lng.toFixed(4)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -319,7 +296,7 @@ export function IncidentDetailModal() {
                 </div>
               )}
 
-              {/* Units */}
+              {/* Response Units */}
               {units.length > 0 && (
                 <div className="space-y-3">
                   <p className="text-sm font-semibold">Response Units</p>
@@ -335,7 +312,7 @@ export function IncidentDetailModal() {
                 </div>
               )}
 
-              {/* Notes */}
+              {/* Field Notes */}
               {notes.length > 0 && (
                 <div className="space-y-3">
                   <p className="text-sm font-semibold">Field Notes</p>
