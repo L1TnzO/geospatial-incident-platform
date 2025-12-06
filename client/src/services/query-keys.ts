@@ -10,6 +10,9 @@ export const queryKeys = {
   stations: {
     all: ['stations'] as const,
   },
+  infrastructure: {
+    all: ['infrastructure'] as const,
+  },
   dashboard: {
     all: ['dashboard'] as const,
     kpiLast24Hours: (params?: Record<string, unknown>) =>

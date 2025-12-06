@@ -23,7 +23,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { Incident, FireStation } from '../types';
+import { Incident, FireStation, ObsoleteInfrastructure } from '../types';
 import { useMapPreferencesStore, type BaseLayer } from '../store/map-preferences-store';
 import { useMapStore, type MapBounds } from '../store/map-store';
 import '@/lib/leaflet';
@@ -31,6 +31,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { computeIncidentBounds, resolveSeverityColor } from './map/utils';
 import IncidentClusterLayer from './map/IncidentClusterLayer';
 import StationLayer from './map/StationLayer';
+import ObsoleteInfrastructureLayer from './map/ObsoleteInfrastructureLayer';
 import { HotspotOverlay } from './map/HotspotOverlay';
 import { CoverageOverlay } from './map/CoverageOverlay';
 import { PriorityZoneOverlay } from './map/PriorityZoneOverlay';
@@ -54,6 +55,7 @@ interface MapCounts {
 interface MapViewProps {
   incidents: Incident[];
   fireStations: FireStation[];
+  infrastructure: ObsoleteInfrastructure[];
   onIncidentClick: (incident: Incident) => void;
   isLoading: boolean;
   isFetching: boolean;
@@ -63,6 +65,8 @@ interface MapViewProps {
   counts: MapCounts;
   stationsLoading: boolean;
   stationsError?: string;
+  infrastructureLoading: boolean;
+  infrastructureError?: string;
   strategicOverlays?: {
     hotspots: HotspotCell[];
     coverage: CoverageBufferFeature[];
@@ -334,6 +338,7 @@ const MapResizeHandler = () => {
 export function MapView({
   incidents,
   fireStations,
+  infrastructure,
   onIncidentClick,
   isLoading,
   isFetching,
@@ -343,6 +348,8 @@ export function MapView({
   counts,
   stationsLoading,
   stationsError,
+  infrastructureLoading,
+  infrastructureError,
   strategicOverlays,
   useStrategicPreferences = false,
 }: MapViewProps) {
@@ -358,6 +365,8 @@ export function MapView({
     setBaseLayer,
     showStations,
     toggleStations,
+    showInfrastructure,
+    toggleInfrastructure,
     showIncidents,
     showHotspots,
     showCoverage,
@@ -370,6 +379,8 @@ export function MapView({
       toggleStations: useStrategicPreferences
         ? state.toggleStationsStrategic
         : state.toggleStations,
+      showInfrastructure: state.showInfrastructure,
+      toggleInfrastructure: state.toggleInfrastructure,
       showIncidents: useStrategicPreferences ? state.showIncidentsStrategic : state.showIncidents,
       showHotspots: useStrategicPreferences ? state.showHotspotsStrategic : state.showHotspots,
       showCoverage: useStrategicPreferences ? state.showCoverageStrategic : state.showCoverage,
@@ -523,6 +534,14 @@ export function MapView({
             </div>
           </Card>
         )}
+        {infrastructureError && (
+          <Card className="map-card map-card--error" role="alert">
+            <div className="map-card__row">
+              <AlertTriangle className="map-card__icon" />
+              <span className="map-card__message">{infrastructureError}</span>
+            </div>
+          </Card>
+        )}
       </div>
 
       <MapContainer
@@ -545,6 +564,7 @@ export function MapView({
           <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
         )}
         <StationLayer stations={fireStations} isVisible={showStations} />
+        <ObsoleteInfrastructureLayer infrastructure={infrastructure} isVisible={showInfrastructure} />
 
         {strategicOverlays && (
           <>
@@ -734,6 +754,28 @@ export function MapView({
             </Button>
             {isControlPanelExpanded && !isDesktop && stationsLoading && (
               <span className="text-[11px] text-white/70 pl-1">Loading stations…</span>
+            )}
+
+            <Button
+              variant={showInfrastructure ? 'secondary' : 'ghost'}
+              size="sm"
+              className={`justify-start h-9 rounded-lg text-white ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
+                } ${showInfrastructure ? 'bg-white/15' : 'hover:bg-white/10'}`}
+              onClick={toggleInfrastructure}
+              aria-label="Toggle obsolete infrastructure"
+            >
+              <span
+                aria-hidden="true"
+                className="inline-flex items-center justify-center w-6 h-6 text-xl leading-none shrink-0"
+              >
+                🏚️
+              </span>
+              {isControlPanelExpanded && (
+                <span className="ml-3 text-sm font-medium">Infrastructure</span>
+              )}
+            </Button>
+            {isControlPanelExpanded && !isDesktop && infrastructureLoading && (
+              <span className="text-[11px] text-white/70 pl-1">Loading infra…</span>
             )}
 
             <Button

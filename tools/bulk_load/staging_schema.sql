@@ -78,3 +78,15 @@ CREATE TABLE staging.incident_notes (
   note TEXT,
   created_at TEXT
 );
+
+CREATE TABLE staging.obsolete_infrastructure (
+  infra_code TEXT,
+  description TEXT,
+  status TEXT,
+  location_lat TEXT,
+  location_lng TEXT,
+  location_wkt TEXT,
+  incident_number TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);

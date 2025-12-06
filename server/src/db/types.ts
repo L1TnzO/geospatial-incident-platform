@@ -218,3 +218,13 @@ export interface DistrictMostFrequentTypeRow {
   typeName: string;
   count: number;
 }
+
+export interface ObsoleteInfrastructure {
+  infraCode: string;
+  description: string | null;
+  status: 'ACTIVE' | 'BURNED' | 'DEMOLISHED' | string;
+  location: GeoJsonPoint;
+  incidentNumber?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

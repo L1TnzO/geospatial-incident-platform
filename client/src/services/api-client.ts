@@ -11,6 +11,7 @@ import type {
   IncidentSyncStatus,
 } from '../types/api/incidents';
 import type { StationListResponse } from '../types/api/stations';
+import type { InfrastructureListResponse } from '../types/api/infrastructure';
 import type {
   DashboardExportParams,
   DashboardFilterParams,
@@ -142,6 +143,12 @@ export const apiClient = {
         query: {
           isActive,
         },
+      }),
+  },
+  infrastructure: {
+    list: (params: { signal?: AbortSignal } = {}) =>
+      http.get<InfrastructureListResponse>('/infrastructure', {
+        signal: params.signal,
       }),
   },
   dashboard: {

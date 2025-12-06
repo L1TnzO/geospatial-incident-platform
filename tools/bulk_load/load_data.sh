@@ -67,8 +67,9 @@ INCIDENTS_CSV="$DATA_DIR/incidents.csv"
 UNITS_CSV="$DATA_DIR/incident_units.csv"
 ASSETS_CSV="$DATA_DIR/incident_assets.csv"
 NOTES_CSV="$DATA_DIR/incident_notes.csv"
+INFRA_CSV="$DATA_DIR/obsolete_infrastructure.csv"
 
-for file in "$STATIONS_CSV" "$INCIDENTS_CSV" "$UNITS_CSV" "$ASSETS_CSV" "$NOTES_CSV"; do
+for file in "$STATIONS_CSV" "$INCIDENTS_CSV" "$UNITS_CSV" "$ASSETS_CSV" "$NOTES_CSV" "$INFRA_CSV"; do
   if [[ ! -f "$file" ]]; then
     echo "ERROR: Expected file '$file' not found." >&2
     exit 1
@@ -102,6 +103,7 @@ copy_into_staging() {
 \copy staging.incident_units FROM '$UNITS_CSV' WITH (FORMAT csv, HEADER true, NULL '')
 \copy staging.incident_assets FROM '$ASSETS_CSV' WITH (FORMAT csv, HEADER true, NULL '')
 \copy staging.incident_notes FROM '$NOTES_CSV' WITH (FORMAT csv, HEADER true, NULL '')
+\copy staging.obsolete_infrastructure FROM '$INFRA_CSV' WITH (FORMAT csv, HEADER true, NULL '')
 SQL
 }
 

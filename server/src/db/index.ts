@@ -15,3 +15,8 @@ export {
   stationRepository,
   type StationFilters,
 } from './repositories/stationsRepository';
+export {
+  InfrastructureRepository,
+  infrastructureRepository,
+} from './repositories/infrastructureRepository';
+

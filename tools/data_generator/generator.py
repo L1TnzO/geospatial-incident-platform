@@ -128,6 +128,17 @@ _EXPECTED_COLUMNS: dict[str, list[str]] = {
     "note",
     "created_at",
   ],
+  "obsolete_infrastructure": [
+    "infra_code",
+    "description",
+    "status",
+    "location_lat",
+    "location_lng",
+    "location_wkt",
+    "incident_number",
+    "created_at",
+    "updated_at",
+  ],
 }
 
 
@@ -158,6 +169,7 @@ class GeneratedData:
   incident_units: pd.DataFrame
   incident_assets: pd.DataFrame
   incident_notes: pd.DataFrame
+  obsolete_infrastructure: pd.DataFrame
 
 
 _URBAN_WEIGHT_MAP: dict[str, float] = {
@@ -695,11 +707,58 @@ def _generate_station_rows(
   return pd.DataFrame(rows)
 
 
+def _generate_obsolete_infrastructure_rows(
+  config: SyntheticDataConfig,
+  rng: random.Random,
+  communes: Sequence[CommuneRecord],
+) -> list[dict]:
+  rows: list[dict] = []
+  
+  # Generate some infrastructure items, say 2x the number of stations
+  count = config.station_count * 2
+  
+  # Helper to pick location
+  def get_location():
+    if communes:
+      c = rng.choice(communes)
+      return _random_geo_point(c.lat, c.lng, max_km=5.0, rng=rng)
+    return _random_geo_point(47.6062, -122.3321, max_km=20, rng=rng)
+
+  for i in range(count):
+    lat, lng = get_location()
+    
+    status = "ACTIVE"
+    # Description
+    desc = rng.choice([
+      "Abandoned factory complex",
+      "Decommissioned power substation",
+      "Old timber storage yard",
+      "Derelict warehouse",
+      "Unmaintained fuel depot",
+      "Ruined mill structure"
+    ])
+
+    rows.append({
+      "infra_code": f"INF-{i:06d}",
+      "description": desc,
+      "status": status,
+      "location_lat": lat,
+      "location_lng": lng,
+      "location_wkt": _render_wkt(lat, lng),
+      "incident_number": None,
+      "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+      "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    })
+  
+  return rows
+
+
 def _generate_incident_rows(
   config: SyntheticDataConfig,
   rng: random.Random,
   stations_df: pd.DataFrame,
-) -> tuple[pd.DataFrame, list[dict], list[dict]]:
+  infrastructure_rows: list[dict],
+) -> tuple[pd.DataFrame, list[dict], list[dict], list[dict]]:
   incident_rows: list[dict] = []
   unit_rows: list[dict] = []
   assets_rows: list[dict] = []
@@ -719,7 +778,26 @@ def _generate_incident_rows(
     anchor_lng = base_station.get("anchor_lng", base_station["location_lng"])
     is_urban_station = bool(base_station.get("is_urban", False))
     jitter_radius = 2.5 if is_urban_station else 9.5
-    lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=jitter_radius, rng=rng)
+
+    # Interaction with obsolete infrastructure
+    linked_infra = None
+    # 5% chance to be caused by obsolete infrastructure if available
+    # But limit burned infrastructure to 30% of total to ensure visual variety
+    if infrastructure_rows and rng.random() < 0.05:
+      # Find an ACTIVE infra
+      candidates = [infra for infra in infrastructure_rows if infra["status"] == "ACTIVE"]
+      burned_count = sum(1 for infra in infrastructure_rows if infra["status"] == "BURNED")
+      max_burned = int(len(infrastructure_rows) * 0.3)  # Max 30% can be burned
+      
+      if candidates and burned_count < max_burned:
+        linked_infra = rng.choice(candidates)
+        lat = linked_infra["location_lat"]
+        lng = linked_infra["location_lng"]
+        linked_infra["status"] = "BURNED"
+      else:
+        lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=jitter_radius, rng=rng)
+    else:
+      lat, lng = _random_geo_point(anchor_lat, anchor_lng, max_km=jitter_radius, rng=rng)
 
     occurrence_at = _sample_occurrence_timestamp(now, config, rng, month_weights)
     season_label = _season_from_month(occurrence_at.month)
@@ -778,6 +856,9 @@ def _generate_incident_rows(
       resolved_at = None
 
     incident_number = f"INC-{occurrence_at:%Y%m%d}-{idx:07d}" if config.incident_count >= 1_000_000 else f"INC-{occurrence_at:%Y%m%d}-{idx:06d}"
+
+    if linked_infra:
+      linked_infra["incident_number"] = incident_number
 
     casualty_weights = [0.87, 0.08, 0.04, 0.01]
     if severity_lookup.code in {"CRITICAL", "SEVERE"}:
@@ -918,11 +999,13 @@ def generate_dataset(config: SyntheticDataConfig) -> GeneratedData:
 
   communes = _load_commune_records(config)
   stations_df = _generate_station_rows(config, rng, communes)
-  incidents_df, unit_rows, asset_rows, note_rows = _generate_incident_rows(config, rng, stations_df)
+  infra_rows = _generate_obsolete_infrastructure_rows(config, rng, communes)
+  incidents_df, unit_rows, asset_rows, note_rows = _generate_incident_rows(config, rng, stations_df, infra_rows)
 
   unit_df = pd.DataFrame(unit_rows)
   assets_df = pd.DataFrame(asset_rows)
   notes_df = pd.DataFrame(note_rows)
+  infra_df = pd.DataFrame(infra_rows)
 
   return GeneratedData(
     stations=stations_df,
@@ -930,6 +1013,7 @@ def generate_dataset(config: SyntheticDataConfig) -> GeneratedData:
     incident_units=unit_df,
     incident_assets=assets_df,
     incident_notes=notes_df,
+    obsolete_infrastructure=infra_df,
   )
 
 
@@ -970,5 +1054,7 @@ def persist_dataset(dataset: GeneratedData, config: SyntheticDataConfig) -> list
     _save_frame(dataset.incident_assets, "incident_assets")
   if config.include_notes:
     _save_frame(dataset.incident_notes, "incident_notes")
+  
+  _save_frame(dataset.obsolete_infrastructure, "obsolete_infrastructure")
 
   return save_paths

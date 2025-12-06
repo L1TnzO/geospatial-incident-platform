@@ -42,6 +42,9 @@ interface MapPreferencesState {
   togglePriorityZones: () => void;
   setShowPriorityZonesStrategic: (value: boolean) => void;
   togglePriorityZonesStrategic: () => void;
+  showInfrastructure: boolean;
+  setShowInfrastructure: (value: boolean) => void;
+  toggleInfrastructure: () => void;
 }
 
 const STORAGE_KEY = 'gip-map-preferences';
@@ -83,6 +86,7 @@ export const useMapPreferencesStore = create<MapPreferencesState>()(
       showCoverageStrategic: false,
       showPriorityZones: false,
       showPriorityZonesStrategic: false,
+      showInfrastructure: false,
       setShowStations: (value: boolean) => set({ showStations: value }),
       toggleStations: () =>
         set((state: MapPreferencesState) => ({
@@ -144,11 +148,16 @@ export const useMapPreferencesStore = create<MapPreferencesState>()(
         set((state: MapPreferencesState) => ({
           showPriorityZonesStrategic: !state.showPriorityZonesStrategic,
         })),
+      setShowInfrastructure: (value: boolean) => set({ showInfrastructure: value }),
+      toggleInfrastructure: () =>
+        set((state: MapPreferencesState) => ({
+          showInfrastructure: !state.showInfrastructure,
+        })),
     }),
     {
       name: STORAGE_KEY,
       storage: createJSONStorage<MapPreferencesState>(resolveStorage),
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number): MapPreferencesState => {
         // Migration from version 1 to 2: Add strategic-specific preferences
         if (version === 1) {
@@ -192,6 +201,18 @@ export const useMapPreferencesStore = create<MapPreferencesState>()(
             togglePriorityZones: state.togglePriorityZones ?? (() => { }),
             setShowPriorityZonesStrategic: state.setShowPriorityZonesStrategic ?? (() => { }),
             togglePriorityZonesStrategic: state.togglePriorityZonesStrategic ?? (() => { }),
+            showInfrastructure: false,
+            setShowInfrastructure: (() => { }),
+            toggleInfrastructure: (() => { }),
+          };
+        }
+        if (version === 2) {
+          const state = persistedState as MapPreferencesState;
+          return {
+            ...state,
+            showInfrastructure: false,
+            setShowInfrastructure: (() => { }),
+            toggleInfrastructure: (() => { }),
           };
         }
         return persistedState as MapPreferencesState;
@@ -215,5 +236,6 @@ export const resetMapPreferencesStore = () => {
     showCoverageStrategic: false,
     showPriorityZones: false,
     showPriorityZonesStrategic: false,
+    showInfrastructure: false,
   });
 };

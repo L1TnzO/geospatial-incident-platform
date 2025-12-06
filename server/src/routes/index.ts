@@ -4,6 +4,7 @@ import incidentsRouter from './incidents';
 import dashboardRouter from './dashboard';
 import stationsRouter from './stations';
 import strategicRouter from './strategic';
+import infrastructureRouter from './infrastructure';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ const mountRoutes = (prefix: string) => {
 	router.use(`${normalizedPrefix}/dashboard`, dashboardRouter);
 	router.use(`${normalizedPrefix}/stations`, stationsRouter);
 	router.use(`${normalizedPrefix}/strategic`, strategicRouter);
+	router.use(`${normalizedPrefix}/infrastructure`, infrastructureRouter);
 };
 
 // Expose routes under both /api and root for environments with different reverse proxies.

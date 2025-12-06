@@ -23,6 +23,7 @@ import { useIncidentFiltersStore } from './store/incident-filters-store';
 import { useIncidentsTableData } from './hooks/useIncidentsData';
 import { useIncidentDetailStore } from './store/incident-detail-store';
 import { useStationsData } from './hooks/useStationsData';
+import { useInfrastructureData } from './hooks/useInfrastructureData';
 import { IncidentsProvider, useIncidentsContext } from './providers/incidents-provider';
 import { useIncidentExport } from './hooks/useIncidentExport';
 import type { Incident } from './types';
@@ -77,6 +78,7 @@ function AppRoutes() {
   const { exportData, isExporting } = useIncidentExport();
 
   const stationsData = useStationsData({ isActive: filters.isActive ?? true });
+  const infrastructureData = useInfrastructureData();
 
   const counts = useMemo(
     () => ({
@@ -150,6 +152,7 @@ function AppRoutes() {
                   <MapView
                     incidents={incidentsData.incidents}
                     fireStations={stationsData.stations}
+                    infrastructure={infrastructureData.infrastructure}
                     onIncidentClick={handleIncidentClick}
                     isLoading={incidentsData.isLoading}
                     isFetching={incidentsData.isFetching}
@@ -159,6 +162,8 @@ function AppRoutes() {
                     counts={counts}
                     stationsLoading={stationsData.isLoading}
                     stationsError={stationsData.error}
+                    infrastructureLoading={infrastructureData.isLoading}
+                    infrastructureError={infrastructureData.error}
                   />
                 </main>
               </div>

@@ -299,3 +299,36 @@
     border-width: 1px;
   }
 }
+
+/* Infrastructure markers */
+.infra-marker-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.infra-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.3));
+}
+
+.infra-marker__building {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.infra-marker__fire {
+  position: absolute;
+  bottom: -4px;
+  right: -6px;
+  font-size: 0.85rem;
+  line-height: 1;
+  animation: infra-fire-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes infra-fire-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}

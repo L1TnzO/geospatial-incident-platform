@@ -187,6 +187,7 @@ db-verify:
 		UNION ALL SELECT 'incident_units', COUNT(*) FROM incident_units \
 		UNION ALL SELECT 'incident_assets', COUNT(*) FROM incident_assets \
 		UNION ALL SELECT 'incident_notes', COUNT(*) FROM incident_notes \
+		UNION ALL SELECT 'obsolete_infrastructure', COUNT(*) FROM obsolete_infrastructure \
 		ORDER BY table_name;"
 
 db-api-check:

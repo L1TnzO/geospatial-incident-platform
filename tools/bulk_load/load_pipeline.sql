@@ -6,7 +6,9 @@ TRUNCATE TABLE
   incident_assets,
   incident_units,
   incidents,
-  stations
+  incidents,
+  stations,
+  obsolete_infrastructure
 RESTART IDENTITY CASCADE;
 
 WITH parsed_stations AS (
@@ -231,13 +233,36 @@ SELECT
 FROM staging.incident_notes inote
 JOIN staging_incident_map im ON im.incident_number = inote.incident_number;
 
+INSERT INTO obsolete_infrastructure (
+  infra_code,
+  description,
+  status,
+  location,
+  incident_id,
+  created_at,
+  updated_at
+)
+SELECT
+  oi.infra_code,
+  oi.description,
+  oi.status,
+  ST_SetSRID(ST_GeomFromText(oi.location_wkt), 4326) AS location,
+  im.id AS incident_id,
+  NULLIF(oi.created_at, '')::TIMESTAMPTZ,
+  NULLIF(oi.updated_at, '')::TIMESTAMPTZ
+FROM staging.obsolete_infrastructure oi
+LEFT JOIN staging_incident_map im ON im.incident_number = oi.incident_number;
+
+
 COMMIT;
 
 ANALYZE stations;
 ANALYZE incidents;
 ANALYZE incident_units;
 ANALYZE incident_assets;
+ANALYZE incident_assets;
 ANALYZE incident_notes;
+ANALYZE obsolete_infrastructure;
 
 \echo '--- Load summary ---'
 SELECT 'stations' AS table_name, COUNT(*) AS row_count FROM stations
@@ -249,4 +274,6 @@ UNION ALL
 SELECT 'incident_assets', COUNT(*) FROM incident_assets
 UNION ALL
 SELECT 'incident_notes', COUNT(*) FROM incident_notes
+UNION ALL
+SELECT 'obsolete_infrastructure', COUNT(*) FROM obsolete_infrastructure
 ORDER BY table_name;

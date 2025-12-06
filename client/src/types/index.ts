@@ -56,7 +56,21 @@ export interface FireStation {
   location: {
     lat: number;
     lng: number;
+    location: {
+      lat: number;
+      lng: number;
+    };
+  }
+
+export interface ObsoleteInfrastructure {
+  id: string;
+  description: string;
+  status: string;
+  location: {
+    lat: number;
+    lng: number;
   };
+  incidentNumber?: string;
 }
 
 export interface User {
