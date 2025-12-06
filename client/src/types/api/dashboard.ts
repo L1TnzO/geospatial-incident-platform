@@ -80,6 +80,7 @@ export interface DailyTrendSummary {
 
 export interface DailyTrendResponse {
   points: DailyTrendPoint[];
+  previousPoints?: DailyTrendPoint[];
   trend: DailyTrendSummary;
 }
 

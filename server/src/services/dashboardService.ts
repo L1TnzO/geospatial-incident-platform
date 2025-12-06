@@ -46,6 +46,7 @@ export interface TypeDistribution {
 
 export interface DailyTrend {
   points: IncidentDailyCount[];
+  previousPoints: IncidentDailyCount[];
   trend: {
     currentTotal: number;
     previousTotal: number;
@@ -657,37 +658,76 @@ export class DashboardService {
     return this.withCache(cacheKey, refresh, async () => {
       const { startDate: _sd, endDate: _ed, ...baseFilters } = filters;
 
-      const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
+      const durationMs = new Date(range.end).getTime() - new Date(range.start).getTime();
+      const isHourly = durationMs <= 48 * 60 * 60 * 1000;
+      const HOUR_MS = 60 * 60 * 1000;
+
+      let buckets: IncidentDailyCount[];
+      if (isHourly) {
+        buckets = await this.repository.getIncidentCountsByReportedHour(baseFilters, range);
+      } else {
+        buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters, range);
+      }
+
       const countsByDate = new Map<string, number>();
       for (const bucket of buckets) {
-        const dateOnly = formatDateOnly(new Date(bucket.date));
-        countsByDate.set(dateOnly, bucket.count);
+        // For hourly, we need full ISO string or at least hour precision. 
+        // formatDateOnly is YYYY-MM-DD.
+        // Let's use ISO string for map key to be safe and simple
+        const key = isHourly ? new Date(bucket.date).toISOString() : formatDateOnly(new Date(bucket.date));
+        countsByDate.set(key, bucket.count);
       }
 
       const points: IncidentDailyCount[] = [];
-      const dayCount = Math.ceil((new Date(range.end).getTime() - new Date(range.start).getTime()) / DAY_MS);
-      // Limit points to prevent excessive loops if range is huge, though DB query handles filtering
-      const safeDayCount = Math.min(dayCount, 365);
 
-      for (let i = 0; i <= safeDayCount; i += 1) {
-        const current = new Date(startDate.getTime() + i * DAY_MS);
-        if (current > new Date(range.end)) break;
+      if (isHourly) {
+        const hourCount = Math.ceil(durationMs / HOUR_MS);
+        // Align start to hour
+        const startHour = new Date(startDate); // startDate was set to 00:00:00 for daily, we might want to respect exact start for hourly? 
+        // Existing logic for `startDate`: 
+        // if filters provided: new Date(filters.startDate) + setUTCHours(0,0,0,0) -> This forces daily alignment.
+        // If I am in hourly mode, I shouldn't force setUTCHours(0) if the user provided specific start/end timestamps.
+        // However, the `getDailyTrend` method at the top does:
+        // startDate.setUTCHours(0, 0, 0, 0); 
+        // I need to change that earlier in the function if I want precise hourly starts.
+        // But for now let's assume "Zoom to Day" sets start/end to 00:00 -> 23:59 of that day, so aligning to 00:00 is fine.
 
-        const dateKey = formatDateOnly(current);
-        points.push({
-          date: new Date(
-            Date.UTC(
-              current.getUTCFullYear(),
-              current.getUTCMonth(),
-              current.getUTCDate(),
-              0,
-              0,
-              0,
-              0
-            )
-          ).toISOString(),
-          count: countsByDate.get(dateKey) ?? 0,
-        });
+        for (let i = 0; i <= hourCount; i += 1) {
+          const current = new Date(startDate.getTime() + i * HOUR_MS);
+          if (current > new Date(range.end)) break;
+
+          // IMPORTANT: The DB truncates to hour (e.g. 10:00:00.000). 
+          // My loop generates 10:00:00.000.
+          // key must match.
+          const key = current.toISOString();
+          points.push({
+            date: key,
+            count: countsByDate.get(key) ?? 0,
+          });
+        }
+      } else {
+        const dayCount = Math.ceil(durationMs / DAY_MS);
+        const safeDayCount = Math.min(dayCount, 365);
+        for (let i = 0; i <= safeDayCount; i += 1) {
+          const current = new Date(startDate.getTime() + i * DAY_MS);
+          if (current > new Date(range.end)) break;
+
+          const dateKey = formatDateOnly(current);
+          points.push({
+            date: new Date(
+              Date.UTC(
+                current.getUTCFullYear(),
+                current.getUTCMonth(),
+                current.getUTCDate(),
+                0,
+                0,
+                0,
+                0
+              )
+            ).toISOString(),
+            count: countsByDate.get(dateKey) ?? 0,
+          });
+        }
       }
 
       // Trend calculation logic (current range vs previous range)
@@ -717,6 +757,66 @@ export class DashboardService {
       // We can use countIncidentsByReportedRange which is efficient.
       const previousTotal = await this.repository.countIncidentsByReportedRange(baseFilters2, previousRange);
 
+      // Fetch previous points data
+      let previousBuckets: IncidentDailyCount[];
+      if (isHourly) {
+        previousBuckets = await this.repository.getIncidentCountsByReportedHour(baseFilters2, previousRange);
+      } else {
+        previousBuckets = await this.repository.getIncidentCountsByReportedDay(baseFilters2, previousRange);
+      }
+
+      const previousCountsByDate = new Map<string, number>();
+      for (const bucket of previousBuckets) {
+        const key = isHourly ? new Date(bucket.date).toISOString() : formatDateOnly(new Date(bucket.date));
+        previousCountsByDate.set(key, bucket.count);
+      }
+
+      const previousPoints: IncidentDailyCount[] = [];
+      const previousDurationMs = new Date(previousRange.end).getTime() - new Date(previousRange.start).getTime();
+
+      if (isHourly) {
+        const previousHourCount = Math.ceil(previousDurationMs / HOUR_MS);
+        const prevStart = new Date(previousRange.start);
+
+        for (let i = 0; i <= previousHourCount; i += 1) {
+          const current = new Date(prevStart.getTime() + i * HOUR_MS);
+          if (current > new Date(previousRange.end)) break;
+
+          const key = current.toISOString();
+          previousPoints.push({
+            date: key,
+            count: previousCountsByDate.get(key) ?? 0,
+          });
+        }
+      } else {
+        const previousDayCount = Math.ceil(previousDurationMs / DAY_MS);
+        const safePreviousDayCount = Math.min(previousDayCount, 365);
+        const previousStartParams = new Date(previousRange.start);
+        // Align to UTC midnight
+        previousStartParams.setUTCHours(0, 0, 0, 0);
+
+        for (let i = 0; i <= safePreviousDayCount; i += 1) {
+          const current = new Date(previousStartParams.getTime() + i * DAY_MS);
+          if (current > new Date(previousRange.end)) break;
+
+          const dateKey = formatDateOnly(current);
+          previousPoints.push({
+            date: new Date(
+              Date.UTC(
+                current.getUTCFullYear(),
+                current.getUTCMonth(),
+                current.getUTCDate(),
+                0,
+                0,
+                0,
+                0
+              )
+            ).toISOString(),
+            count: previousCountsByDate.get(dateKey) ?? 0,
+          });
+        }
+      }
+
       const change = currentTotal - previousTotal;
       const percentageChange =
         previousTotal === 0 ? null : clampPercentage((change / previousTotal) * 100);
@@ -724,6 +824,7 @@ export class DashboardService {
 
       return {
         points,
+        previousPoints,
         trend: {
           currentTotal,
           previousTotal,

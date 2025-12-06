@@ -7,14 +7,14 @@ import { useStrategicHotspots } from '../../hooks/useStrategicHotspots';
 import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
-import { useStrategicDailyTrend } from '../../hooks/useStrategicDailyTrend';
+
 import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
 import { useStrategicZoneFrequency } from '../../hooks/useStrategicZoneFrequency';
 import { useStrategicStationVolume } from '../../hooks/useStrategicStationVolume';
 import { useStrategicProjections } from '../../hooks/useStrategicProjections';
 import { useIncidentsData } from '../../hooks/useIncidentsData';
 import { useStationsData } from '../../hooks/useStationsData';
-import { StrategicTrendsChart } from './StrategicTrendsChart';
+
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
 import { StrategicTimeOfDayChart } from './StrategicTimeOfDayChart';
@@ -26,14 +26,12 @@ import { DistrictFrequentIncidentsTable } from './DistrictFrequentIncidentsTable
 import { useStrategicDistrictFrequentIncidents } from '../../hooks/useStrategicDistrictFrequentIncidents';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
-import { Checkbox } from '../ui/checkbox';
-import { Label } from '../ui/label';
 
 import type { Incident } from '../../types';
 import type { PriorityScoreGroup } from '../../types/api/strategic';
 import { useDashboard } from '../../providers/dashboard-provider';
 
-import { useIncidentMetadataQuery } from '../../hooks/useIncidentMetadataQuery';
+
 
 interface StrategicLayoutProps {
   hideMap?: boolean;
@@ -41,7 +39,7 @@ interface StrategicLayoutProps {
 }
 
 export function StrategicLayout({ hideMap = false, className }: StrategicLayoutProps) {
-  const { timeRange, setTimeRange, filters, comparisonLabel, isYoY, setIsYoY, setCustomDateRange } = useDashboard();
+  const { timeRange, setTimeRange, filters, isYoY } = useDashboard();
 
   const {
     showIncidentsStrategic: showIncidents,
@@ -55,19 +53,15 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
   } = useMapPreferencesStore();
   const { setView } = useMapStore();
   const [highlightedZone, setHighlightedZone] = useState<PriorityScoreGroup | null>(null);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
 
-  const metadataQuery = useIncidentMetadataQuery();
 
   // Strategic data hooks
   // Use daily trend for all dashboard time ranges (24h, 7d, 30d)
   const trendFilters = useMemo(() => ({
     ...filters,
-    typeCodes: selectedType ? [selectedType] : undefined,
     compare: (isYoY ? 'year' : 'previous') as 'year' | 'previous',
-  }), [filters, selectedType, isYoY]);
+  }), [filters, isYoY]);
 
-  const dailyTrendQuery = useStrategicDailyTrend(trendFilters);
   const timeOfDayQuery = useStrategicTimeOfDay(trendFilters);
   const zoneFrequencyQuery = useStrategicZoneFrequency(trendFilters);
   const stationVolumeQuery = useStrategicStationVolume(trendFilters);
@@ -125,13 +119,7 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
   // Handle trend period click - update date filters
   // Note: DashboardProvider currently controls date ranges based on timeRange.
   // Manual date selection would require extending DashboardProvider to support 'custom' range.
-  const handlePeriodClick = useCallback(
-    (_period: string, startDate: string, endDate: string) => {
-      // console.log('Period clicked:', _period);
-      setCustomDateRange(startDate, endDate);
-    },
-    [setCustomDateRange],
-  );
+
 
   // Handle "View on Map" from priority zones
   const handleViewOnMap = useCallback(
@@ -217,14 +205,7 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="strategic-yoy-mode"
-                checked={isYoY}
-                onCheckedChange={(checked: boolean | 'indeterminate') => setIsYoY(checked === true)}
-              />
-              <Label htmlFor="strategic-yoy-mode">Compare to Last Year</Label>
-            </div>
+
             <Select value={timeRange.startsWith('custom') ? 'custom' : timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select time range" />
@@ -243,27 +224,7 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
         </div>
 
         {/* Trend Analysis - Full Width */}
-        <div>
-          <StrategicTrendsChart
-            data={dailyTrendQuery.data || null}
-            trendType="daily"
-            isLoading={dailyTrendQuery.isLoading}
-            isError={dailyTrendQuery.isError}
-            error={dailyTrendQuery.error}
-            onRefresh={() => dailyTrendQuery.refresh(true)}
 
-            onPeriodClick={handlePeriodClick}
-            onZoomOut={() => setTimeRange('30d')}
-            comparisonLabel={comparisonLabel}
-            timeRange={timeRange}
-            customStart={filters.startDate}
-            customEnd={filters.endDate}
-            selectedType={selectedType}
-            onTypeChange={setSelectedType}
-            incidentTypes={metadataQuery.data?.types || []}
-            isYoY={isYoY}
-          />
-        </div>
 
         {/* Response Times, Priority Zones & Time of Day */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">

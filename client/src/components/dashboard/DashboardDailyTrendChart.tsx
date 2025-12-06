@@ -1,12 +1,17 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import type { UseDashboardDailyTrendResult } from '../../hooks/useDashboardDailyTrend';
 import { subMonths, subYears } from 'date-fns';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { useState, useMemo } from 'react';
+import { useDashboard } from '../../providers/dashboard-provider';
+import { Button } from '../ui/button';
 
-type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y';
+type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y' | 'custom';
+
 
 interface DashboardDailyTrendChartProps {
   trendQuery: UseDashboardDailyTrendResult;
@@ -16,21 +21,30 @@ interface DashboardDailyTrendChartProps {
   isYoY: boolean;
 }
 
-const formatDate = (isoDate: string) =>
-  new Date(isoDate).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-
-const formatLongDate = (isoDate: string) =>
-  new Date(isoDate).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
 
 export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, comparisonLabel, timeRange, isYoY }: DashboardDailyTrendChartProps) {
   const { data, isLoading, isError, error, refresh, lastUpdated } = trendQuery;
+  const { setCustomDateRange, setTimeRange: setGlobalTimeRange } = useDashboard();
+  const [showPreviousPeriod, setShowPreviousPeriod] = useState(false);
+
+  const isHourly = useMemo(() => {
+    if (timeRange === '24h') return true;
+    if (data?.points && data.points.length > 1) {
+      const diff = new Date(data.points[1].date).getTime() - new Date(data.points[0].date).getTime();
+      return diff < 23 * 60 * 60 * 1000;
+    }
+    return false;
+  }, [timeRange, data]);
+
+  const handlePointClick = (dateStr: string) => {
+    if (isHourly) return;
+    const date = new Date(dateStr);
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+    setCustomDateRange(start.toISOString(), end.toISOString());
+  };
 
   const formatWindow = (start: Date, end: Date): string => {
     return `${start.toLocaleString()} – ${end.toLocaleString()}`;
@@ -99,8 +113,17 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-48" />
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-48 w-full" />
+        <CardContent className="space-y-6">
+          {/* Back Button */}
+          {timeRange === 'custom' && (
+            <div className="mb-2">
+              <Button variant="outline" size="sm" onClick={() => setGlobalTimeRange('30d')} className="h-8">
+                ← Back to Overview
+              </Button>
+            </div>
+          )}
+
+          <div className="h-[300px] w-full" />
           <div className="flex gap-4">
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
@@ -157,20 +180,46 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
   const usableHeight = height - paddingY * 2;
 
   // Calculate Y-axis range
+  // Calculate Y-axis range
   const counts = points.map((p) => p.count);
-  const minimum = Math.min(...counts);
-  const maximum = Math.max(...counts);
-  const yRange = maximum === minimum ? 1 : maximum - minimum;
+  const previousCounts = (showPreviousPeriod && !isHourly && data?.previousPoints) ? data.previousPoints.map(p => p.count) : [];
+
+  // Yes, otherwise they might go out of bounds.
+
+  const allCounts = [...counts, ...previousCounts];
+  const effectiveMin = allCounts.length ? Math.min(...allCounts) : 0;
+  const effectiveMax = allCounts.length ? Math.max(...allCounts) : 0;
+
+  const yRange = effectiveMax === effectiveMin ? 1 : effectiveMax - effectiveMin;
 
   // Map points to SVG coordinates
   const svgPoints = points.map((point, index) => {
     const x = paddingX + (index / Math.max(points.length - 1, 1)) * usableWidth;
-    const y = paddingY + (1 - (point.count - minimum) / yRange) * usableHeight;
-    return { ...point, x, y };
+    const y = paddingY + (1 - (point.count - effectiveMin) / yRange) * usableHeight;
+
+    const dateObj = new Date(point.date);
+    const label = isHourly
+      ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+    return { ...point, x, y, label };
   });
+
+  const svgPreviousPoints = (showPreviousPeriod && !isHourly && data?.previousPoints)
+    ? data.previousPoints.map((point, index) => {
+      // Assume same length/alignment for simplicity as per previous component
+      const x = paddingX + (index / Math.max((data.previousPoints?.length || 1) - 1, 1)) * usableWidth;
+      const y = paddingY + (1 - (point.count - effectiveMin) / yRange) * usableHeight;
+      return { ...point, x, y };
+    })
+    : [];
 
   // Build path for the line
   const pathD = svgPoints
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ');
+
+  const previousPathD = svgPreviousPoints
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
     .join(' ');
 
@@ -207,9 +256,30 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
               {formatWindow(currentWindow.start, currentWindow.end)}
             </p>
           </div>
+          {!isHourly && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="dashboard-show-previous"
+                checked={showPreviousPeriod}
+                onCheckedChange={(checked: boolean | 'indeterminate') => setShowPreviousPeriod(checked === true)}
+              />
+              <Label htmlFor="dashboard-show-previous" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Compare
+              </Label>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Back Button */}
+        {timeRange === 'custom' && (
+          <div className="mb-2">
+            <Button variant="outline" size="sm" onClick={() => setGlobalTimeRange('30d')} className="h-8">
+              ← Back to Overview
+            </Button>
+          </div>
+        )}
+
         {/* SVG Chart */}
         <div className="w-full overflow-x-auto">
           <svg
@@ -228,6 +298,37 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
             {/* Area fill */}
             <path d={areaPathD} fill="url(#trendArea)" />
 
+            {/* Previous Period Ghost Line */}
+            {showPreviousPeriod && previousPathD && (
+              <>
+                <path
+                  d={previousPathD}
+                  fill="none"
+                  stroke="hsl(var(--muted-foreground))"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  strokeOpacity="0.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {svgPreviousPoints.map((point) => (
+                  <g key={`prev-${point.date}`}>
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={3}
+                      fill="hsl(var(--muted-foreground))"
+                      opacity="0.5"
+                    >
+                      <title>
+                        Previous Period: {point.count.toLocaleString()} incidents
+                      </title>
+                    </circle>
+                  </g>
+                ))}
+              </>
+            )}
+
             {/* Line path */}
             <path
               d={pathD}
@@ -239,24 +340,37 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
             />
 
             {/* Points */}
-            {svgPoints.map((point) => (
+            {svgPoints.map((point, index) => (
               <g key={point.date}>
                 <circle
                   cx={point.x}
                   cy={point.y}
-                  r={3}
+                  r={4}
                   fill="hsl(var(--primary))"
-                  className="hover:r-5 transition-all cursor-pointer"
+                  className={isHourly ? "cursor-default" : "cursor-pointer hover:r-6 transition-all"}
+                  onClick={() => handlePointClick(point.date)}
                 >
                   <title>
-                    {formatLongDate(point.date)}: {point.count.toLocaleString()} incidents
+                    {point.label}: {point.count.toLocaleString()} incidents
                   </title>
                 </circle>
+                {/* X-axis labels (show sparsely) */}
+                {index % Math.ceil(points.length / 10) === 0 && (
+                  <text
+                    x={point.x}
+                    y={height - 5}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fill="hsl(var(--muted-foreground))"
+                  >
+                    {point.label}
+                  </text>
+                )}
               </g>
             ))}
 
-            {/* Highlight last 7 days */}
-            {highlightPoints.length > 1 && (
+            {/* Highlight last 7 days (only in daily view) */}
+            {!isHourly && highlightPoints.length > 1 && (
               <path
                 d={highlightPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')}
                 fill="none"
@@ -266,38 +380,6 @@ export function DashboardDailyTrendChart({ trendQuery, timeRangeLabel, compariso
                 opacity="0.7"
               />
             )}
-
-            {/* X-axis labels */}
-            <text
-              x={svgPoints[0].x}
-              y={height - 8}
-              fontSize="11"
-              fill="currentColor"
-              textAnchor="start"
-              opacity="0.6"
-            >
-              {formatDate(points[0].date)}
-            </text>
-            <text
-              x={svgPoints[Math.floor(svgPoints.length / 2)].x}
-              y={height - 8}
-              fontSize="11"
-              fill="currentColor"
-              textAnchor="middle"
-              opacity="0.6"
-            >
-              {formatDate(points[Math.floor(points.length / 2)].date)}
-            </text>
-            <text
-              x={svgPoints[svgPoints.length - 1].x}
-              y={height - 8}
-              fontSize="11"
-              fill="currentColor"
-              textAnchor="end"
-              opacity="0.6"
-            >
-              {formatDate(points[points.length - 1].date)}
-            </text>
           </svg>
         </div>
 

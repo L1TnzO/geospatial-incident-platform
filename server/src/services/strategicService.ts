@@ -107,6 +107,7 @@ export interface QuarterlyTrendPoint {
 
 export interface DailyTrend {
   points: IncidentDailyCount[];
+  previousPoints: IncidentDailyCount[];
   trend: {
     currentTotal: number;
     previousTotal: number;
@@ -1024,6 +1025,67 @@ export class StrategicAnalyticsService {
       const { startDate: _sd2, endDate: _ed2, ...baseFilters2 } = filters;
       const previousTotal = await this.repository.countIncidentsByReportedRange(baseFilters2, previousRange);
 
+      let previousPoints: IncidentDailyCount[] = [];
+      const previousCountsByDate = new Map<string, number>();
+
+      if (isHourly) {
+        const buckets = await this.repository.getIncidentCountsByReportedHour(baseFilters2, previousRange);
+        for (const bucket of buckets) {
+          previousCountsByDate.set(new Date(bucket.date).toISOString(), bucket.count);
+        }
+
+        const startMillis = new Date(previousRange.start).getTime();
+        const alignedStart = new Date(startMillis);
+        if (alignedStart.getUTCMinutes() > 0 || alignedStart.getUTCSeconds() > 0) {
+          alignedStart.setUTCMinutes(0, 0, 0);
+        }
+
+        const HOUR_MS = 60 * 60 * 1000;
+        const hourCount = Math.ceil(durationMs / HOUR_MS);
+
+        for (let i = 0; i <= hourCount + 1; i++) {
+          const current = new Date(alignedStart.getTime() + i * HOUR_MS);
+          if (current > new Date(previousRange.end)) break;
+          if (current < new Date(previousRange.start)) continue;
+
+          const isoKey = current.toISOString();
+          previousPoints.push({
+            date: isoKey,
+            count: previousCountsByDate.get(isoKey) ?? 0
+          });
+        }
+      } else {
+        const buckets = await this.repository.getIncidentCountsByReportedDay(baseFilters2, previousRange);
+        for (const bucket of buckets) {
+          const dateOnly = formatDateOnly(new Date(bucket.date));
+          previousCountsByDate.set(dateOnly, bucket.count);
+        }
+
+        const dayCount = Math.ceil(durationMs / DAY_MS);
+        const safeDayCount = Math.min(dayCount, 365);
+
+        const iterStart = new Date(previousRange.start);
+        iterStart.setUTCHours(0, 0, 0, 0);
+
+        for (let i = 0; i <= safeDayCount; i += 1) {
+          const current = new Date(iterStart.getTime() + i * DAY_MS);
+          if (current > new Date(previousRange.end)) break;
+
+          const dateKey = formatDateOnly(current);
+          previousPoints.push({
+            date: new Date(
+              Date.UTC(
+                current.getUTCFullYear(),
+                current.getUTCMonth(),
+                current.getUTCDate(),
+                0, 0, 0, 0
+              )
+            ).toISOString(),
+            count: previousCountsByDate.get(dateKey) ?? 0,
+          });
+        }
+      }
+
       const change = currentTotal - previousTotal;
       const percentageChange =
         previousTotal === 0 ? null : clampPercentage((change / previousTotal) * 100);
@@ -1031,6 +1093,7 @@ export class StrategicAnalyticsService {
 
       return {
         points,
+        previousPoints,
         trend: {
           currentTotal,
           previousTotal,

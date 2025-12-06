@@ -4,13 +4,16 @@ import { Button } from '../ui/button';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import type { StrategicMonthlyTrendResponse } from '../../types/api/strategic';
-import type { DailyTrendResponse } from '../../types/api/dashboard';
+import type { DailyTrendResponse, DailyTrendPoint } from '../../types/api/dashboard';
 import { subMonths, subYears, addDays } from 'date-fns';
 // import type { DateRange } from 'react-day-picker'; // This import is no longer needed
 
 type TimeRange = '24h' | '7d' | '30d' | '3m' | '1y' | 'custom';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { useState } from 'react';
 import type { IncidentLookupValue } from '../../types/api/incidents';
 
 interface StrategicTrendsChartProps {
@@ -30,6 +33,7 @@ interface StrategicTrendsChartProps {
   onTypeChange: (type: string | null) => void;
   incidentTypes: IncidentLookupValue[];
   isYoY: boolean;
+  previousPoints?: DailyTrendPoint[];
 }
 
 export function StrategicTrendsChart({
@@ -49,7 +53,10 @@ export function StrategicTrendsChart({
   onTypeChange,
   incidentTypes,
   isYoY,
+  previousPoints,
 }: StrategicTrendsChartProps) {
+  const [showPreviousPeriod, setShowPreviousPeriod] = useState(false);
+
   const formatWindow = (start: Date, end: Date): string => {
     return `${start.toLocaleString()} – ${end.toLocaleString()}`;
   };
@@ -175,9 +182,16 @@ export function StrategicTrendsChart({
   }, [data, trendType]);
 
   const maxCount = useMemo(() => {
-    if (!normalizedData?.series) return 0;
-    return Math.max(...normalizedData.series.map((point) => point.count));
-  }, [normalizedData]);
+    let max = 0;
+    if (normalizedData?.series) {
+      max = Math.max(...normalizedData.series.map((point) => point.count));
+    }
+    if (showPreviousPeriod && previousPoints) {
+      const prevMax = Math.max(...previousPoints.map(p => p.count));
+      max = Math.max(max, prevMax);
+    }
+    return max;
+  }, [normalizedData, showPreviousPeriod, previousPoints]);
 
   const chartHeight = 280;
   const chartPadding = useMemo(() => ({ top: 20, right: 20, bottom: 40, left: 50 }), []);
@@ -195,6 +209,25 @@ export function StrategicTrendsChart({
     });
   }, [normalizedData, maxCount, plotWidth, plotHeight, chartPadding]);
 
+  const previousChartPoints = useMemo(() => {
+    if (!showPreviousPeriod || !previousPoints || !normalizedData?.series) return [];
+
+    // We align previous points by index to current points
+    const stepX = plotWidth / (normalizedData.series.length - 1 || 1);
+
+    // We take the minimum length to avoid out of bounds, though they should match
+    const length = Math.min(normalizedData.series.length, previousPoints.length);
+
+    const chartPoints = [];
+    for (let i = 0; i < length; i++) {
+      const x = chartPadding.left + i * stepX;
+      const count = previousPoints[i].count;
+      const y = chartPadding.top + plotHeight - (count / (maxCount || 1)) * plotHeight;
+      chartPoints.push({ x, y, count });
+    }
+    return chartPoints;
+  }, [showPreviousPeriod, previousPoints, normalizedData, maxCount, plotWidth, plotHeight, chartPadding]);
+
   const pathD = useMemo(() => {
     if (points.length === 0) return '';
     const firstPoint = points[0];
@@ -204,6 +237,16 @@ export function StrategicTrendsChart({
     }
     return path;
   }, [points]);
+
+  const previousPathD = useMemo(() => {
+    if (previousChartPoints.length === 0) return '';
+    const firstPoint = previousChartPoints[0];
+    let path = `M ${firstPoint.x} ${firstPoint.y}`;
+    for (let i = 1; i < previousChartPoints.length; i++) {
+      path += ` L ${previousChartPoints[i].x} ${previousChartPoints[i].y}`;
+    }
+    return path;
+  }, [previousChartPoints]);
 
   const handlePointClick = (point: (typeof points)[0]) => {
     if (normalizedData?.isHourly) {
@@ -309,21 +352,35 @@ export function StrategicTrendsChart({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Trend Analysis</CardTitle>
-        <Select value={selectedType || 'all'} onValueChange={(val: string) => onTypeChange(val === 'all' ? null : val)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="All Incident Types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Incident Types</SelectItem>
-            {incidentTypes.map((type) => (
-              <SelectItem key={type.code} value={type.code}>
-                {type.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Incident Trend Analysis</CardTitle>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="chart-show-previous"
+                checked={showPreviousPeriod}
+                onCheckedChange={(checked) => setShowPreviousPeriod(checked as boolean)}
+              />
+              <Label htmlFor="chart-show-previous" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Show Previous Period
+              </Label>
+            </div>
+            <Select value={selectedType || 'all'} onValueChange={(val: string) => onTypeChange(val === 'all' ? null : val)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All Incident Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Incident Types</SelectItem>
+                {incidentTypes.map((type) => (
+                  <SelectItem key={type.code} value={type.code}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {/* Summary metrics */}
@@ -407,6 +464,29 @@ export function StrategicTrendsChart({
                 </g>
               );
             })}
+
+            {/* Previous Period Line path (Ghost) */}
+            {previousPathD && (
+              <path
+                d={previousPathD}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeDasharray="4 4"
+                className="text-muted-foreground opacity-50"
+              />
+            )}
+
+            {/* Previous Period Data points (Ghost) */}
+            {previousChartPoints.map((point, i) => (
+              <circle
+                key={`prev-${i}`}
+                cx={point.x}
+                cy={point.y}
+                r="3"
+                className="fill-muted-foreground opacity-50 stroke-background hover:r-5 transition-all cursor-default"
+              />
+            ))}
 
             {/* Line path */}
             <path

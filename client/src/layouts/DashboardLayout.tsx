@@ -50,7 +50,7 @@ function DashboardHeader() {
 }
 
 export function DashboardContent({ className }: { className?: string }) {
-  const { filters, timeRangeLabel, comparisonLabel, timeRange } = useDashboard();
+  const { filters, timeRangeLabel, comparisonLabel, timeRange, isYoY } = useDashboard();
 
   // Initialize all dashboard hooks with filters from context
   const kpiQuery = useDashboardLast24HoursKpi(filters);
@@ -99,7 +99,7 @@ export function DashboardContent({ className }: { className?: string }) {
             timeRangeLabel={timeRangeLabel}
             comparisonLabel={comparisonLabel}
             timeRange={timeRange}
-            isYoY={useDashboard().isYoY}
+            isYoY={isYoY}
           />
         </section>
 
