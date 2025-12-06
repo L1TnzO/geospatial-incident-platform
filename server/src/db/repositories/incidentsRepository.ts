@@ -200,6 +200,7 @@ interface HotspotAggregateRow {
   geometry: unknown;
   centroidCoordinates: unknown;
   incidentCount: number;
+  mostFrequentType: string;
 }
 
 interface RawHotspotAggregateRow {
@@ -207,6 +208,7 @@ interface RawHotspotAggregateRow {
   geometry: unknown;
   centroidCoordinates: unknown;
   incidentCount: number | string;
+  mostFrequentType: string;
 }
 
 interface ResponseMetricStationRow {
@@ -1645,7 +1647,11 @@ export class IncidentRepository {
       .leftJoin('incident_types as it', 'i.type_id', 'it.id')
       .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
       .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id')
-      .select(['i.id as incidentId', this.db.raw('ST_Transform(i.location, 3857) as geom')]);
+      .select([
+        'i.id as incidentId',
+        'it.name as typeName',
+        this.db.raw('ST_Transform(i.location, 3857) as geom'),
+      ]);
 
     applyFilters(filteredQuery, filters);
 
@@ -1653,6 +1659,7 @@ export class IncidentRepository {
       .with('filtered', filteredQuery)
       .with('binned', (qb) => {
         qb.select([
+          'typeName',
           this.db.raw('geom'),
           this.db.raw('FLOOR(ST_X(geom) / ?) as cell_x', [cellSize]),
           this.db.raw('FLOOR(ST_Y(geom) / ?) as cell_y', [cellSize]),
@@ -1673,6 +1680,7 @@ export class IncidentRepository {
           [cellSize, cellSize]
         ),
         this.db.raw('COUNT(*)::int as "incidentCount"'),
+        this.db.raw('mode() WITHIN GROUP (ORDER BY "typeName") as "mostFrequentType"'),
       ])
       .groupBy(['cell_x', 'cell_y'])
       .orderBy('incidentCount', 'desc')) as RawHotspotAggregateRow[];
@@ -1683,6 +1691,7 @@ export class IncidentRepository {
       centroidCoordinates: row.centroidCoordinates,
       incidentCount:
         typeof row.incidentCount === 'number' ? row.incidentCount : Number(row.incidentCount),
+      mostFrequentType: row.mostFrequentType || 'Unknown',
     }));
   }
 

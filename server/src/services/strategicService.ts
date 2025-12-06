@@ -232,6 +232,7 @@ export interface HotspotCell {
   };
   incidentCount: number;
   intensity: number;
+  mostFrequentType: string;
 }
 
 export interface HotspotResponse {
@@ -1430,6 +1431,7 @@ export class StrategicAnalyticsService {
           },
           incidentCount: row.incidentCount,
           intensity: Number(intensity.toFixed(4)),
+          mostFrequentType: row.mostFrequentType,
         } satisfies HotspotCell;
       });
 

@@ -63,13 +63,15 @@ export function HotspotOverlay({
   const onEachFeature = (feature: any, layer: L.Layer) => {
     if (!feature.properties) return;
 
-    const { incidentCount, intensity, centroid } = feature.properties;
+    const { incidentCount, intensity, centroid, mostFrequentType } = feature.properties;
 
     const tooltipContent = `
       <div>
         <strong>Hotspot</strong>
         <br />
         Incidents: ${incidentCount}
+        <br />
+        Most Frequent: ${mostFrequentType}
         <br />
         Intensity: ${(intensity * 100).toFixed(1)}%
         <br />

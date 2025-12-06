@@ -190,6 +190,7 @@ export interface HotspotCell {
   cellId: string;
   incidentCount: number;
   intensity: number; // 0-1, normalized to max cell count
+  mostFrequentType: string;
   centroid: GeometryPoint;
   geometry: GeoJSON.Feature<GeoJSON.Polygon>;
 }

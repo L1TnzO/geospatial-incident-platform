@@ -107,8 +107,8 @@ export function GeospatialAnalysis({ incidents, fireStations }: GeospatialAnalys
       ...zone,
       priorityIndex: Math.round(
         zone.incidents * 0.4 +
-          zone.highSeverity * 2 * 0.4 +
-          (zone.avgResponseTime > 5 ? zone.avgResponseTime * 0.2 : 0)
+        zone.highSeverity * 2 * 0.4 +
+        (zone.avgResponseTime > 5 ? zone.avgResponseTime * 0.2 : 0)
       ),
     }))
     .sort((a, b) => b.priorityIndex - a.priorityIndex);
@@ -194,6 +194,18 @@ export function GeospatialAnalysis({ incidents, fireStations }: GeospatialAnalys
               {showHotspots &&
                 hotspots.map((hotspot, idx) => {
                   const { x, y } = latLngToXY(hotspot.lat, hotspot.lng);
+
+                  // Calculate most frequent type
+                  const typeCounts = hotspot.incidents.reduce((typeAcc, inc) => {
+                    typeAcc[inc.type] = (typeAcc[inc.type] || 0) + 1;
+                    return typeAcc;
+                  }, {} as Record<string, number>);
+
+                  const mostFrequentType = Object.entries(typeCounts).reduce((a, b) =>
+                    typeCounts[a] > typeCounts[b[0]] ? a : b[0],
+                    Object.keys(typeCounts)[0]
+                  );
+
                   return (
                     <div
                       key={`hotspot-${idx}`}
@@ -206,7 +218,7 @@ export function GeospatialAnalysis({ incidents, fireStations }: GeospatialAnalys
                         backgroundColor: '#dc2626',
                         transform: 'translate(-50%, -50%)',
                       }}
-                      title={`Hotspot: ${hotspot.count} incidents`}
+                      title={`Hotspot: ${hotspot.count} incidents\nMost Frequent: ${mostFrequentType}`}
                     />
                   );
                 })}
@@ -399,9 +411,8 @@ export function GeospatialAnalysis({ incidents, fireStations }: GeospatialAnalys
               {zonesWithPriority.map((zone) => (
                 <div
                   key={zone.id}
-                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    selectedZone === zone.id ? 'border-primary bg-muted' : 'hover:bg-muted/50'
-                  }`}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedZone === zone.id ? 'border-primary bg-muted' : 'hover:bg-muted/50'
+                    }`}
                   onClick={() => handleZoneSelect(zone.id)}
                 >
                   <div className="flex items-center justify-between mb-2">
