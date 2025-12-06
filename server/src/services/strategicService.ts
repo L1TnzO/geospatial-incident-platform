@@ -636,6 +636,7 @@ export interface IncidentProjectionResponse {
     totalMonths: number;
     trendSlope: number;
     trendIntercept: number;
+    seasonalityDetected: boolean;
     generatedAt: string;
   };
 }
@@ -1806,7 +1807,7 @@ export class StrategicAnalyticsService {
       endDate: undefined,
     };
 
-    const cacheKey = buildCacheKey('strategic:projection', filtersWithoutTime);
+    const cacheKey = buildCacheKey('strategic:projection:seasonal', filtersWithoutTime);
 
     return this.withCache(cacheKey, async () => {
       // 2. Get the full time range of the data to fetch ALL history
@@ -1815,40 +1816,22 @@ export class StrategicAnalyticsService {
       const end = metadata.reportedRange.end;
 
       if (!start || !end) {
-        // Fallback if no data
-        return {
-          periods: [
-            { label: '1 Month', months: 1, projectedCount: 0 },
-            { label: '3 Months', months: 3, projectedCount: 0 },
-            { label: '6 Months', months: 6, projectedCount: 0 },
-            { label: '1 Year', months: 12, projectedCount: 0 },
-            { label: '2 Years', months: 24, projectedCount: 0 },
-          ],
-          metadata: {
-            baseStart: new Date().toISOString(),
-            baseEnd: new Date().toISOString(),
-            totalMonths: 0,
-            trendSlope: 0,
-            trendIntercept: 0,
-            generatedAt: new Date().toISOString(),
-          },
-        };
+        return this.getEmptyProjection();
       }
 
       // 3. Fetch monthly counts for the entire history
       const range = { start, end };
       const rows = await this.repository.getIncidentCountsByReportedMonth(filtersWithoutTime, range);
 
-      // 4. Prepare data for Linear Regression (Least Squares)
-      // x = month index (0, 1, 2...)
-      // y = incident count
-      const points: { x: number; y: number }[] = [];
-      let minDate = new Date(start).getTime();
+      if (rows.length < 12) {
+        // Not enough data for reliable seasonality (need at least a full year approx)
+        // Fallback to simple regression or return empty?
+        // Let's try simple regression if data is scant, but better to just proceed with partial data if needed.
+        // For robustness, we'll execute the same logic, it just won't be very seasonal.
+      }
 
-      // We need to fill in gaps with 0 if any months are missing?
-      // The current repository method returns months that have data.
-      // Ideally, we should iterate from start to end month by month.
-
+      // 4. Organize Data Points
+      const points: { x: number; y: number; date: Date; monthIndex: number }[] = [];
       const startDate = startOfMonth(new Date(start));
       const endDate = endOfMonth(new Date(end));
       const countMap = new Map<string, number>();
@@ -1863,42 +1846,62 @@ export class StrategicAnalyticsService {
       while (iterDate <= endDate) {
         const key = formatMonthKey(iterDate);
         const count = countMap.get(key) ?? 0;
-        points.push({ x: currentIndex, y: count });
+        points.push({
+          x: currentIndex,
+          y: count,
+          date: new Date(iterDate),
+          monthIndex: iterDate.getUTCMonth() // 0-11
+        });
 
-        // Move to next month
         iterDate = addMonths(iterDate, 1);
         currentIndex++;
       }
 
-      // 5. Calculate Linear Regression: y = mx + b
       const n = points.length;
       if (n < 2) {
-        // Not enough data points
-        return {
-          periods: [
-            { label: '1 Month', months: 1, projectedCount: 0 },
-            { label: '3 Months', months: 3, projectedCount: 0 },
-            { label: '6 Months', months: 6, projectedCount: 0 },
-            { label: '1 Year', months: 12, projectedCount: 0 },
-            { label: '2 Years', months: 24, projectedCount: 0 },
-          ],
-          metadata: {
-            baseStart: start,
-            baseEnd: end,
-            totalMonths: n,
-            trendSlope: 0,
-            trendIntercept: 0,
-            generatedAt: new Date().toISOString(),
-          },
-        };
+        return this.getEmptyProjection(start, end, n);
       }
 
+      // 5. Calculate Seasonal Indices
+      // Group by month index (0=Jan, etc)
+      const monthBuckets: number[][] = Array.from({ length: 12 }, () => []);
+      let grandTotal = 0;
+
+      for (const p of points) {
+        monthBuckets[p.monthIndex].push(p.y);
+        grandTotal += p.y;
+      }
+
+      const overallAverage = grandTotal / n;
+      const seasonalIndices: number[] = new Array(12).fill(1.0);
+
+      // Only apply seasonality if we have > 12 months of data, otherwise indices are 1.0 (flat)
+      const hasSeasonality = n >= 12;
+
+      if (hasSeasonality && overallAverage > 0) {
+        for (let m = 0; m < 12; m++) {
+          const values = monthBuckets[m];
+          if (values.length > 0) {
+            const monthAvg = values.reduce((a, b) => a + b, 0) / values.length;
+            seasonalIndices[m] = monthAvg / overallAverage;
+          }
+        }
+      }
+
+      // 6. Deseasonalize the Data
+      // Y_deseasonalized = Y_actual / Seasonal_Index
+      const deseasonalizedPoints = points.map(p => ({
+        x: p.x,
+        y: seasonalIndices[p.monthIndex] > 0 ? p.y / seasonalIndices[p.monthIndex] : p.y
+      }));
+
+      // 7. Linear Regression on Deseasonalized Data
       let sumX = 0;
       let sumY = 0;
       let sumXY = 0;
       let sumX2 = 0;
 
-      for (const p of points) {
+      for (const p of deseasonalizedPoints) {
         sumX += p.x;
         sumY += p.y;
         sumXY += p.x * p.y;
@@ -1908,15 +1911,30 @@ export class StrategicAnalyticsService {
       const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
       const intercept = (sumY - slope * sumX) / n;
 
-      // 6. Project Future Values
-      // Next month is at index n.
+      // 8. Project Future Values & Re-seasonalize
+      // Future Trend = Slope * FutureX + Intercept
+      // Future Forecast = Future Trend * Seasonal_Index
       const projectForMonths = (monthsToProject: number): number => {
         let total = 0;
+        // Start from next index: n
+        const startX = n;
+        // We need the month index for the future points
+        // The last point was at points[n-1]. 
+        // next month index = (points[n-1].monthIndex + 1) % 12
+        let currentMonthIndex = (points[n - 1].monthIndex + 1) % 12;
+
         for (let i = 0; i < monthsToProject; i++) {
-          const futureX = n + i;
-          const predictedY = slope * futureX + intercept;
-          // You can't have negative incidents, floor at 0
-          total += Math.max(0, predictedY);
+          const futureX = startX + i;
+          const trendY = slope * futureX + intercept;
+
+          // Re-seasonalize
+          const seasonalIndex = seasonalIndices[currentMonthIndex];
+          const forecastY = trendY * seasonalIndex;
+
+          total += Math.max(0, forecastY);
+
+          // Advance month index
+          currentMonthIndex = (currentMonthIndex + 1) % 12;
         }
         return Math.round(total);
       };
@@ -1935,10 +1953,32 @@ export class StrategicAnalyticsService {
           totalMonths: n,
           trendSlope: Number(slope.toFixed(4)),
           trendIntercept: Number(intercept.toFixed(4)),
+          seasonalityDetected: hasSeasonality,
           generatedAt: new Date().toISOString(),
         },
       };
     });
+  }
+
+  private getEmptyProjection(start = new Date().toISOString(), end = new Date().toISOString(), totalMonths = 0) {
+    return {
+      periods: [
+        { label: '1 Month', months: 1, projectedCount: 0 },
+        { label: '3 Months', months: 3, projectedCount: 0 },
+        { label: '6 Months', months: 6, projectedCount: 0 },
+        { label: '1 Year', months: 12, projectedCount: 0 },
+        { label: '2 Years', months: 24, projectedCount: 0 },
+      ],
+      metadata: {
+        baseStart: start,
+        baseEnd: end,
+        totalMonths,
+        trendSlope: 0,
+        trendIntercept: 0,
+        seasonalityDetected: false,
+        generatedAt: new Date().toISOString(),
+      },
+    };
   }
 }
 

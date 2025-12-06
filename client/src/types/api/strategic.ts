@@ -344,6 +344,7 @@ export interface StrategicIncidentProjectionResponse {
     totalMonths: number;
     trendSlope: number;
     trendIntercept: number;
+    seasonalityDetected: boolean;
     generatedAt: string;
   };
 }

@@ -75,9 +75,14 @@ export function IncidentProjectionTable({ query }: IncidentProjectionTableProps)
                                 {isPositiveTrend ? "Rising Trend" : "Falling Trend"}
                             </Badge>
                         )}
+                        {metadata.seasonalityDetected && (
+                            <Badge variant="outline" className="ml-2">
+                                Seasonality Adjusted
+                            </Badge>
+                        )}
                     </div>
                     <CardDescription>
-                        Estimated incident counts based on linear regression of historical data ({metadata.totalMonths} months).
+                        Estimated incident counts based on {metadata.seasonalityDetected ? "seasonal trend decomposition" : "linear regression"} of historical data ({metadata.totalMonths} months).
                     </CardDescription>
                 </div>
             </CardHeader>
