@@ -348,3 +348,12 @@ export interface StrategicIncidentProjectionResponse {
     generatedAt: string;
   };
 }
+
+export interface StrategicDistrictFrequentIncidentsResponse {
+  items: {
+    district: string;
+    mostFrequentType: string;
+    count: number;
+    percentage: number;
+  }[];
+}

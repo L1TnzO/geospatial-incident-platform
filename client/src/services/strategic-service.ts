@@ -16,6 +16,7 @@ import type {
   StrategicPriorityScoreResponse,
   StrategicTimeOfDayResponse,
   StrategicIncidentProjectionResponse,
+  StrategicDistrictFrequentIncidentsResponse,
 } from '../types/api/strategic';
 import type { DailyTrendResponse, DashboardFilterParams } from '../types/api/dashboard';
 
@@ -172,5 +173,16 @@ export const fetchIncidentProjections = async (
     return await apiClient.strategic.projections(params, { signal });
   } catch (error) {
     throw mapHttpError(error, 'Failed to fetch incident projections');
+  }
+};
+
+export const fetchDistrictFrequentIncidents = async (
+  params: DashboardFilterParams = {},
+  signal?: AbortSignal,
+): Promise<StrategicDistrictFrequentIncidentsResponse> => {
+  try {
+    return await apiClient.strategic.districtFrequentIncidents(params, { signal });
+  } catch (error) {
+    throw mapHttpError(error, 'Failed to fetch district frequent incidents');
   }
 };

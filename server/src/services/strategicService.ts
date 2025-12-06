@@ -5,6 +5,7 @@ import {
   type StationCoverageBuffer,
   type IncidentDailyCount,
   type ResponseMetricRow,
+  type DistrictMostFrequentTypeRow,
 } from '../db';
 import type { Feature, Polygon } from 'geojson';
 import { incidentService, type IncidentFilterOptions } from './incidentsService';
@@ -139,6 +140,15 @@ export interface StationVolumeResponse {
     percentage: number;
   }[];
   total: number;
+}
+
+export interface DistrictFrequentIncidentsResponse {
+  items: {
+    district: string;
+    mostFrequentType: string;
+    count: number;
+    percentage: number;
+  }[];
 }
 
 export interface QuarterlyTrendResponse {
@@ -1979,6 +1989,52 @@ export class StrategicAnalyticsService {
         generatedAt: new Date().toISOString(),
       },
     };
+  }
+
+
+  public async getDistrictFrequentIncidentTypes(
+    query: Record<string, QueryValue>
+  ): Promise<DistrictFrequentIncidentsResponse> {
+    const filters = this.getFilters(query);
+    const cacheKey = buildCacheKey('strategic:districtFreq', filters);
+
+    return this.withCache(cacheKey, async () => {
+      const rows = await this.repository.getMostFrequentIncidentTypesByDistrict(filters);
+
+      const districtMap = new Map<string, DistrictMostFrequentTypeRow[]>();
+      for (const row of rows) {
+        if (!districtMap.has(row.district)) {
+          districtMap.set(row.district, []);
+        }
+        districtMap.get(row.district)!.push(row);
+      }
+
+      const items: DistrictFrequentIncidentsResponse['items'] = [];
+      for (const [district, districtRows] of districtMap.entries()) {
+        const total = districtRows.reduce((sum, r) => sum + r.count, 0);
+        // Find max
+        let maxRow = districtRows[0];
+        for (let i = 1; i < districtRows.length; i++) {
+          if (districtRows[i].count > maxRow.count) {
+            maxRow = districtRows[i];
+          }
+        }
+
+        if (maxRow) {
+          items.push({
+            district,
+            mostFrequentType: maxRow.typeName,
+            count: maxRow.count,
+            percentage: total > 0 ? clampPercentage((maxRow.count / total) * 100) : 0,
+          });
+        }
+      }
+
+      // Sort by count descending
+      items.sort((a, b) => b.count - a.count);
+
+      return { items };
+    });
   }
 }
 

@@ -12,6 +12,7 @@ import {
   getZoneFrequency,
   getStationIncidentCounts,
   getIncidentProjection,
+  getDistrictFrequentIncidentTypes,
 } from '../controllers/strategicController';
 
 const router = Router();
@@ -28,5 +29,6 @@ router.get('/hotspots', getHotspots);
 router.get('/zones/frequency', getZoneFrequency);
 router.get('/stations/volume', getStationIncidentCounts);
 router.get('/projections', getIncidentProjection);
+router.get('/district-frequent-incidents', getDistrictFrequentIncidentTypes);
 
 export default router;

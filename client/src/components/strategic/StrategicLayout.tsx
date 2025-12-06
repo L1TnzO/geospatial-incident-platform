@@ -22,6 +22,8 @@ import { ZoneFrequencyTable } from './ZoneFrequencyTable';
 import { StationVolumeChart } from './StationVolumeChart';
 import { HighResponseTimeZones } from './HighResponseTimeZones';
 import { IncidentProjectionTable } from './IncidentProjectionTable';
+import { DistrictFrequentIncidentsTable } from './DistrictFrequentIncidentsTable';
+import { useStrategicDistrictFrequentIncidents } from '../../hooks/useStrategicDistrictFrequentIncidents';
 import { MapView } from '../MapView';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -64,6 +66,7 @@ export function StrategicLayout() {
   const zoneFrequencyQuery = useStrategicZoneFrequency(trendFilters);
   const stationVolumeQuery = useStrategicStationVolume(trendFilters);
   const projectionsQuery = useStrategicProjections(trendFilters);
+  const districtFrequentIncidentsQuery = useStrategicDistrictFrequentIncidents(trendFilters);
 
   const hotspotsQuery = useStrategicHotspots({ resolution: 4, ...filters });
   const coverageQuery = useStrategicCoverage(filters);
@@ -282,6 +285,7 @@ export function StrategicLayout() {
           />
           <HighResponseTimeZones query={zoneResponseTimesQuery} />
           <IncidentProjectionTable query={projectionsQuery} />
+          <DistrictFrequentIncidentsTable query={districtFrequentIncidentsQuery} />
         </div>
 
         {/* Map with Overlays - Full Width */}

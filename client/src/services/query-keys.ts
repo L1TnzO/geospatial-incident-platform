@@ -43,6 +43,14 @@ export const queryKeys = {
       ['strategic', 'response-metrics', params ? JSON.stringify(params) : 'default'] as const,
     priorityScores: (params?: Record<string, unknown>) =>
       ['strategic', 'priority-scores', params ? JSON.stringify(params) : 'default'] as const,
+    districtFrequentIncidents: (params?: Record<string, unknown>) =>
+      ['strategic', 'district-frequent-incidents', params ? JSON.stringify(params) : 'default'] as const,
+    projections: (params?: Record<string, unknown>) =>
+      ['strategic', 'projections', params ? JSON.stringify(params) : 'default'] as const,
+    zoneFrequency: (params?: Record<string, unknown>) =>
+      ['strategic', 'zone-frequency', params ? JSON.stringify(params) : 'default'] as const,
+    stationVolume: (params?: Record<string, unknown>) =>
+      ['strategic', 'station-volume', params ? JSON.stringify(params) : 'default'] as const,
   },
   location: {
     reverseGeocode: (lat?: number, lng?: number) =>

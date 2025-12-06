@@ -212,3 +212,9 @@ export interface RecentIncidentSummary {
     name: string;
   } | null;
 }
+
+export interface DistrictMostFrequentTypeRow {
+  district: string;
+  typeName: string;
+  count: number;
+}

@@ -23,6 +23,7 @@ import {
   type RecentIncidentSummary,
   type StationCoverageBuffer,
   type ZoneFrequencyRow,
+  type DistrictMostFrequentTypeRow,
 } from '../types';
 import { geometryToFeature, parseGeometry, parseJsonColumn } from '../utils';
 
@@ -682,6 +683,30 @@ export class IncidentRepository {
     return rows.map((row) => ({
       stationCode: String(row.stationCode),
       stationName: String(row.stationName || row.stationCode),
+      count: Number(row.count),
+    }));
+  }
+
+  public async getMostFrequentIncidentTypesByDistrict(
+    filters: IncidentListFilters = {}
+  ): Promise<DistrictMostFrequentTypeRow[]> {
+    const baseQuery = this.db('incidents as i')
+      .leftJoin('incident_types as it', 'i.type_id', 'it.id')
+      .leftJoin('incident_severities as isv', 'i.severity_id', 'isv.id')
+      .leftJoin('incident_statuses as ist', 'i.status_id', 'ist.id');
+
+    applyFilters(baseQuery, filters);
+
+    const rows = await baseQuery
+      .select('i.city as district', 'it.name as typeName')
+      .count('i.id as count')
+      .whereNotNull('i.city')
+      .groupBy('i.city', 'it.name')
+      .orderBy('count', 'desc');
+
+    return rows.map((row) => ({
+      district: String(row.district),
+      typeName: String(row.typeName || 'Unknown'),
       count: Number(row.count),
     }));
   }
