@@ -1,9 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { subYears, startOfDay, endOfDay } from 'date-fns';
+// import { subYears, startOfDay, endOfDay } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
-import { HISTORICAL_RENDER_LIMIT_MAX } from '../../store/incident-filters-store';
 import { useStrategicHotspots } from '../../hooks/useStrategicHotspots';
 import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
@@ -83,25 +82,14 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
   });
 
 
-  // Map data
-  // Use local filters for the map to ensure independence from global filters
-  // Fetch a larger dataset (e.g., 1 year) to allow client-side filtering in the worker
-  // We align the dates to the start/end of the day to ensure the cache key remains stable
-  // across navigations and reloads within the same day.
-  // The Delta Sync mechanism in useIncidentsData will still ensure we get the latest updates.
   const mapFilters = useMemo(() => {
-    const now = new Date();
     // Explicitly destructure to remove isActive property so it doesn't leak into the spread
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { isActive: _ignore, ...cleanFilters } = filters;
 
     return {
       ...cleanFilters,
-      startDate: subYears(startOfDay(now), 1).toISOString(),
-      endDate: endOfDay(now).toISOString(),
-      isActive: undefined, // Force ALL incidents (active + inactive)
-      renderLimit: HISTORICAL_RENDER_LIMIT_MAX, // Explicitly request high limit to override default
-      _context: 'strategic-map', // Force independent cache key to prevent collision with main map
+      isActive: undefined, // Force ALL incidents (active + inactive) based on repository definition
     };
   }, [filters]); // Re-fetch only if filters object changes
 
