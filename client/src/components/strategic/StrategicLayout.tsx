@@ -199,30 +199,37 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
     <div className={`p-6 ${className || ''}`}>
       <div className="max-w-[1600px] mx-auto space-y-6">
         {/* Header with refresh */}
-        <div className="flex items-center justify-between">
-          <div>
+        {/* Sticky Controls Layer */}
+        <div className="sticky top-0 z-50 flex justify-end pointer-events-none -mt-6 pt-6 pb-2">
+          <div className="pointer-events-auto bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-xl border shadow-sm">
+            <div className="flex items-center gap-4">
+              <Select value={timeRange.startsWith('custom') ? 'custom' : timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select time range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="24h">Last 24 Hours</SelectItem>
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="30d">Last 30 Days</SelectItem>
+                  <SelectItem value="3m">Last 3 Months</SelectItem>
+                  <SelectItem value="1y">Last 12 Months</SelectItem>
+                  <SelectItem value="custom" disabled>Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Title Layer (Underneath/Scrolling) */}
+        <div className="flex items-center justify-between -mt-16 mb-6">
+          <div className="relative z-0">
             <h1 className="text-3xl font-bold">Strategic Analytics</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Long-range planning insights and geographic analysis
             </p>
           </div>
-          <div className="flex items-center gap-4">
-
-            <Select value={timeRange.startsWith('custom') ? 'custom' : timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Select time range" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">Last 24 Hours</SelectItem>
-                <SelectItem value="7d">Last 7 Days</SelectItem>
-                <SelectItem value="30d">Last 30 Days</SelectItem>
-                <SelectItem value="3m">Last 3 Months</SelectItem>
-                <SelectItem value="1y">Last 12 Months</SelectItem>
-                <SelectItem value="custom" disabled>Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
-
-          </div>
+          {/* Spacer to prevent overlap if screen is small */}
+          <div className="w-[200px] h-10 invisible"></div>
         </div>
 
         {/* Trend Analysis - Full Width */}

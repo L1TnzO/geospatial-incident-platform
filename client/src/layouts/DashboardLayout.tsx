@@ -24,7 +24,7 @@ function DashboardHeader() {
   } = useDashboard();
 
   return (
-    <div className="flex justify-end mb-4 items-center gap-4">
+    <div className="flex justify-end mb-4 items-center gap-4 sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4 -mt-6">
       <div className="flex items-center space-x-2">
         <Checkbox
           id="yoy-mode"
@@ -64,9 +64,8 @@ export function DashboardContent({ className }: { className?: string }) {
     <div className={`flex-1 overflow-y-auto ${className || ''}`}>
       <div className="container mx-auto p-6 space-y-8">
         {/* KPI Row with Export */}
+        <DashboardHeader />
         <section>
-          <DashboardHeader />
-
           <DashboardKPIRow
             kpiQuery={kpiQuery}
             highSeverityKpiQuery={highSeverityKpiQuery}
