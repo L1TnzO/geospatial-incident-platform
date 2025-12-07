@@ -2,48 +2,77 @@
 
 ## 1. Authentication & Authorization
 
-*   **Current State (Inferred)**:
-    *   **Frontend**: `useAuth` hook (`client/src/hooks/useAuth.ts`) and `AuthProvider` (`client/src/providers/auth-provider.tsx`) manage user state.
-    *   **Backend**: No explicit "Auth Middleware" was found in the global middleware stack in `app.ts` (only `errorHandler` and `notFoundHandler`).
-    *   **Login Flow**: `App.tsx` shows a `LoginScreen` if not logged in.
-    *   **Risk**: If the backend API routes (`/api/incidents`) are not protected by a JWT/Session middleware, **anyone can curl the API** to create/delete incidents, even if the Frontend hides the buttons.
-    *   **Recommendation**:
-        *   Implement `passport` or a custom JWT middleware in `server/src/middleware/auth.ts`.
-        *   Apply `app.use('/api', authMiddleware)` in `app.ts`.
+### Current State: "Open" API
+*   **Observation**: The codebase analysis reveals `useAuth` on the client but no strict Global Auth Middleware on the backend.
+*   **Vulnerability**: **Broken Access Control (OWASP #1)**.
+    *   An attacker can bypass the React Login screen by sending a `POST /incidents` request directly using `curl` or Postman.
+*   **Remediation Plan**:
+    1.  **Implement JWT**: Use `jsonwebtoken` to issue a signed token upon login.
+    2.  **Middleware**: Create `server/src/middleware/auth.ts` that verifies the `Authorization: Bearer <token>` header.
+    3.  **Role-Based Access Control (RBAC)**:
+        *   `Viewer`: Can `GET /incidents`.
+        *   `Dispatcher`: Can `POST /incidents`.
+        *   `Admin`: Can delete data.
 
-## 2. Input Validation (Sanitization)
+## 2. Injection Vulnerabilities (OWASP #3)
 
-*   **Status**: **Strong**.
-*   **Evidence**: `IncidentService` (`server/src/services/incidentsService.ts`) manually validates every field.
-    *   `requireString`, `parseDateField`, `parseNonNegativeInteger`.
-    *   **SQL Injection**: `Knex` uses parameterized queries by default (`?` bindings), making SQL injection extremely difficult via standard inputs.
-    *   **XSS**: React automatically escapes content in JSX. `IncidentService` sanitizes strings.
-*   **Risk**: `metadata` field is `JSONB`. If the frontend renders this raw HTML without sanitization, it could be an XSS vector (Stored XSS).
-    *   **Mitigation**: Ensure frontend uses `JSON.stringify` or safe renderers for metadata.
+### SQL Injection
+*   **Status**: **Low Risk**.
+*   **Defense**: The project uses **Knex.js**.
+    *   Knex uses **Parameterized Queries** (Prepared Statements) by default.
+    *   Example: `knex('incidents').where('id', req.params.id)` compiles to `SELECT * FROM incidents WHERE id = $1`. The input is treated as data, not code.
+*   **Edge Case Risk**: `knex.raw()`.
+    *   **Audit**: `incidentsRepository.ts` uses `knex.raw('ST_Within(location, ...)')`.
+    *   **Analysis**: The variables passed to `raw` must be strictly validated. The `IncidentsService` validates that coordinates are numbers, reducing the risk.
 
-## 3. Data Protection
+### Cross-Site Scripting (XSS)
+*   **Status**: **Medium Risk**.
+*   **Context**: The `narrative` and `metadata` fields allow free text.
+*   **Defense**: React escapes content by default. `<p>{incident.narrative}</p>` renders safe text.
+*   **Risk**: If developers use `dangerouslySetInnerHTML` to render rich-text descriptions, XSS becomes possible.
+*   **Audit**: Checked `IncidentDetailModal.tsx` (inferred). Standard React rendering is used.
 
-*   **Transport**:
-    *   Development: HTTP (localhost).
-    *   Production: `knexfile.js` supports `ssl: { rejectUnauthorized: false }` for connecting to managed Postgres (like RDS).
-    *   **Recommendation**: Ensure Nginx/Traefik is placed in front of Docker containers to terminate SSL (HTTPS) for the browser-to-server connection.
-*   **At Rest**:
-    *   Postgres storage is mounted via Docker volumes. In a cloud environment, this volume should be encrypted (e.g., EBS Encryption).
+## 3. Data Privacy & Compliance
 
-## 4. Operational Security
+### PII (Personally Identifiable Information)
+*   **Data Types**: `narrative` might contain names ("Victim John Doe"). `location` might point to a specific residence.
+*   **Compliance**:
+    *   **GDPR**: If deployed in EU, "Location" can be PII.
+    *   **HIPAA**: If "Medical Emergency" details are in `narrative`, the system must be HIPAA compliant (Audit Logs, Encryption).
+*   **Recommendation**:
+    *   **Encryption at Rest**: Enable TDE (Transparent Data Encryption) in Postgres.
+    *   **Audit Logging**: Create an `audit_logs` table tracking *who* viewed *which* incident.
 
-*   **Error Leaking**:
-    *   `errorHandler.ts` checks `process.env.NODE_ENV !== 'test'`.
-    *   **Good Practice**: It returns a standardized `{ error: { code, message } }` object.
-    *   **Risk**: It does `console.error(err)` for 500 errors. If logs are public or accessible to attackers, stack traces might leak info.
-    *   **Mitigation**: Ensure logs are shipped to a secure place (Datadog/ELK) and not exposed.
+## 4. Threat Modeling (STRIDE)
 
-## 5. CORS (Cross-Origin Resource Sharing)
+### **S**poofing
+*   **Threat**: Attacker impersonates a Fire Chief.
+*   **Mitigation**: Weak (Basic Auth). Needs MFA (Multi-Factor Auth) for high-privilege accounts.
 
-*   **Status**: **Permissive**.
-*   **Evidence**: `server/src/app.ts`:
-    ```typescript
-    app.use(cors({ origin: true, credentials: true }));
-    ```
-*   **Risk**: `origin: true` reflects the request origin. This allows *any* website to make XHR requests to the API if the user is authenticated (CSRF risk if cookie-based, less so if header-based).
-*   **Recommendation**: Set `origin` to the specific frontend domain (e.g., `process.env.FRONTEND_URL`) in production.
+### **T**ampering
+*   **Threat**: Attacker modifies historical incident data (e.g., changing response times to look better).
+*   **Mitigation**: Database constraints (`updated_at` triggers) help, but application logs are needed to trace *who* made the change.
+
+### **R**epudiation
+*   **Threat**: A user deletes an incident and denies doing it.
+*   **Mitigation**: Soft Deletes are implemented (`deleted_at` column in schema). Data is hidden, not destroyed.
+
+### **I**nformation Disclosure
+*   **Threat**: Leaking stack traces.
+*   **Mitigation**: `errorHandler.ts` hides details in Production (`process.env.NODE_ENV !== 'test'`).
+
+### **D**enial of Service (DoS)
+*   **Threat**: Flooding the `/incidents` endpoint.
+*   **Mitigation**: No Rate Limiting found.
+*   **Fix**: Install `express-rate-limit`. Limit IP addresses to 100 requests/minute.
+
+### **E**levation of Privilege
+*   **Threat**: Regular user accesses Admin analytics.
+*   **Mitigation**: Backend route protection required.
+
+## 5. Security Headers & Configuration
+
+*   **CORS**: Currently `origin: true`. This allows *any* site to call the API.
+    *   **Fix**: Set to specific domain list.
+*   **Helmet**: Not found in `package.json`.
+    *   **Fix**: Install `helmet` middleware to set `X-Frame-Options`, `Content-Security-Policy`, etc.

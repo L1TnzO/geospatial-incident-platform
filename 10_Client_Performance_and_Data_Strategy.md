@@ -1,89 +1,74 @@
 # Client-Side Performance & Data Strategy
 
-## The "Map Collapse" Problem
+## The Challenge: Visualizing "Big Data" on the Web
 
-When plotting geospatial data, a naive approach ("fetch everything, render everything") leads to catastrophic failure.
+Geospatial applications face a unique challenge: The dataset (incidents) is massive, but the viewport (screen) is small. Loading 100,000 points crashes the browser.
 
-*   **DOM Overload**: Rendering 10,000 DOM nodes (Markers) causes the browser's layout engine to freeze.
-*   **Network Congestion**: Transferring 10MB of JSON blocks the main thread during parsing.
-*   **User Experience**: A map covered in overlapping pins is unreadable ("Pin Confetti").
+## 1. The Clustering Pyramid (Frontend)
 
-This application implements a multi-layered strategy to prevent this collapse.
+**Implementation**: `client/src/workers/incident-worker.ts` using `Supercluster`.
 
-## 1. Client-Side Clustering (The Anti-Crash Mechanism)
+### Why a Web Worker?
+JavaScript is single-threaded. If we calculate clusters on the Main Thread:
+1.  User pans map.
+2.  JS loop starts (100ms).
+3.  Browser cannot repaint.
+4.  **Result**: "Jank" / Stuttering.
 
-**Implementation**: `client/src/components/map/IncidentClusterLayer.tsx` & `client/src/workers/incident-worker.ts`
+**Solution**:
+*   The Worker runs in a separate thread.
+*   The Main Thread stays free to handle Touch/Scroll events at 60fps.
+*   When the Worker finishes, it posts a message: "Here are the new markers". React updates the DOM in one batch.
 
-The application uses **Supercluster** running inside a **Web Worker** to aggregate points off the main thread.
+### Supercluster Internals
+*   **Index**: It builds a KDB-Tree (spatial index).
+*   **Zoom Levels**: It pre-calculates clusters for every zoom level (0-19).
+*   **Performance**: `load()` takes `O(N log N)`. `getClusters()` takes `O(1)` (very fast).
 
-*   **How it works**:
-    1.  **Ingestion**: Raw incident data (thousands of points) is sent to the Worker (`SET_DATA`).
-    2.  **Indexing**: The Worker builds a spatial index (KDB-Tree) using `Supercluster`.
-    3.  **Aggregation**: When the map moves/zooms, the UI sends the new Bounding Box (`bbox`) and Zoom Level to the Worker (`GET_CLUSTERS`).
-    4.  **Response**: The Worker returns a mix of "Clusters" (aggregates) and "Leaves" (individual points).
-    5.  **Rendering**: The Main Thread renders only the visible clusters/markers (e.g., 50 clusters instead of 10,000 markers).
+## 2. Data Fetching Strategy: "The Onion Model"
 
-*   **Why it's key**:
-    *   **Main Thread Freedom**: Heavy math happens in the background. The map remains interactive (pan/zoom) even while processing 50k points.
-    *   **Visual Hierarchy**: Users see "245 Incidents here" instead of a blob of color.
-    *   **Logarithmic Scaling**: The visual weight of clusters (`getClusterSize`) scales logarithmically, preventing giant bubbles from obscuring the map.
+The application uses `useIncidentsData.ts` to implement a multi-layered fetching strategy.
 
-## 2. High-Level Data Loading Optimizations
+### Layer 1: Viewport Priority
+*   **Logic**: "Load what the user sees *first*."
+*   **Mechanism**: The `useMapStore` tracks bounds. The API request sends `bbox`.
+*   **Benefit**: Time-to-First-Byte is low because the DB query is fast (Spatial Index).
 
-### A. Viewport-Based Prioritization ("Load What You See")
+### Layer 2: Background Fill
+*   **Logic**: "Load the rest while the user thinks."
+*   **Mechanism**: Once the viewport is loaded, a second query runs for the global dataset (paginated).
+*   **Benefit**: When the user zooms out, the data is already in RAM. No loading spinner.
 
-**Implementation**: `client/src/hooks/useIncidentsData.ts` (`fetchIncidentsAggregated`)
+### Layer 3: Delta Synchronization
+*   **Logic**: "Don't re-download what we already have."
+*   **Mechanism**:
+    1.  Client asks: "What is the timestamp of the latest incident?" (`HEAD /incidents`).
+    2.  Server says: `2023-10-27T10:00:00Z`.
+    3.  Client checks local IndexedDB. If matches -> Use cache.
+    4.  If different -> Fetch only `?since=...`.
 
-Instead of a simple `GET /incidents`, the hook implements a sophisticated "Phased Loading" strategy.
+## 3. Render Optimization
 
-1.  **Viewport Phase**:
-    *   Prioritizes fetching data *inside* the user's current view.
-    *   Sends `viewportBounds` (North/South/East/West) to the backend.
-    *   **Benefit**: Users see local data immediately.
+### React Query Caching
+*   **Key**: `['incidents', { typeCodes: ... }]`.
+*   **Behavior**:
+    *   If user switches to "Analytics" tab and back to "Map", the Map renders *instantly* from cache.
+    *   Background refetch happens silently.
 
-2.  **Global Phase (Background)**:
-    *   After the viewport is filled, it continues fetching the rest of the dataset in the background.
-    *   **Benefit**: When the user pans the map later, the data is already there (Instant interaction).
+### Transient State (Zustand)
+*   **Problem**: Updating React State (`useState`) triggers a re-render of the component tree.
+*   **Scenario**: Mouse hover over a map pin.
+*   **Optimization**: Zustand allows updating the "Selected ID" without re-rendering the entire Map Layout. Only the Popup component listens to that specific slice of state.
 
-3.  **Incremental Emission (`emitPartial`)**:
-    *   The hook yields results as they arrive (streaming-like behavior).
-    *   The UI updates progressively, rather than waiting for a generic "Loading..." spinner to finish for the whole dataset.
+## 4. Network Payload Optimization
 
-### B. Intelligent Caching (React Query + IDB)
+### DTOs (Data Transfer Objects)
+*   **LiteIncident**: Contains `{ id, lat, lng, type }`. Size: ~100 bytes.
+*   **FullIncident**: Contains `{ narrative, metadata, logs }`. Size: ~5KB.
+*   **Strategy**: The "List/Map" endpoint returns `LiteIncident[]`. The "Detail" endpoint returns `FullIncident`.
+*   **Impact**: Reduces bandwidth by 98% for the initial load.
 
-**Implementation**: `client/src/hooks/useIncidentsData.ts`
-
-*   **Stale-While-Revalidate**:
-    *   React Query serves cached data *instantly* while a background refetch occurs.
-    *   **Impact**: Zero "flicker" when switching tabs or filters.
-*   **Persistence (IndexedDB)**:
-    *   Uses `idb-keyval` to persist the incident cache to the browser's IndexedDB.
-    *   **Impact**: On page reload, the map populates *instantly* from local storage while the network request warms up.
-*   **Delta Sync**:
-    *   Checks `syncStatus` (Last Modified Timestamp) from the server.
-    *   If the local cache is fresh, **zero network transfer** occurs for the body.
-    *   If slight changes occurred, it requests a "Delta" (only changed rows), merging them into the large local cache.
-
-### C. Server-Side Pagination & Render Caps
-
-**Implementation**: `server/src/controllers/incidentsController.ts` & `client/src/store/incident-filters-store.ts`
-
-*   **Render Limits**:
-    *   The store enforces a hard limit (e.g., `ACTIVE_RENDER_LIMIT_MAX = 10,000`).
-    *   This protects the browser from running out of memory even if the backend *could* return 1 million rows.
-*   **Pagination (Table View)**:
-    *   The Table View (`TableView.tsx`) uses traditional server-side pagination (`page=1&pageSize=25`).
-    *   It does *not* try to load the map's dataset. It requests a lean slice of data specifically for the grid.
-
-## 3. Payload Optimization
-
-*   **Lite Incidents**:
-    *   The list endpoint returns a `LiteIncident` DTO, stripping heavy text fields (like `narrative` or full `metadata` JSON) that aren't needed for pins.
-    *   **Detail on Demand**: Only when a user clicks a pin does `useIncidentDetail` fetch the full heavy record (`GET /incidents/:id`).
-
-## Summary
-
-The system achieves high performance through a pipeline of:
-1.  **Backend**: Spatial Indexing (PostGIS) + Efficient Payload (Lite DTOs).
-2.  **Transport**: Viewport Prioritization + Delta Sync.
-3.  **Frontend**: Web Worker Clustering + Virtualization + IndexedDB Persistence.
+### GeoJSON vs Proprietary JSON
+*   **Format**: The API returns standard JSON, not GeoJSON `FeatureCollection` for the list.
+*   **Reason**: GeoJSON is verbose (`"type": "Feature", "properties": { ... }`). Flat JSON is smaller.
+*   **Client Conversion**: The frontend converts it to GeoJSON/Supercluster format on the fly. CPU is cheap; Bandwidth is expensive (on mobile).

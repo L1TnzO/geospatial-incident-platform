@@ -1,77 +1,70 @@
 # API Contract and Error Handling
 
-## 1. RESTful Design Principles
+## 1. RESTful Maturity Model
 
-The API follows a pragmatic **Resource-Oriented** design.
+The API generally follows **Level 2** of the Richardson Maturity Model.
 
-*   **Resources**:
-    *   `/incidents` (Collection)
-    *   `/incidents/:id` (Item)
-    *   `/stations`
-    *   `/infrastructure`
-*   **Verbs**:
-    *   `GET`: Read (List/Detail).
-    *   `POST`: Create (`createIncident`).
-    *   *(Inferred)* `PUT`/`PATCH`: Update.
-    *   *(Inferred)* `DELETE`: Delete.
-*   **Query Parameters**:
-    *   Filtering: `?typeCodes=FIRE&isActive=true`
-    *   Pagination: `?page=1&pageSize=25`
-    *   Sorting: `?sortBy=reportedAt&sortDirection=desc`
+*   **Level 0 (The Swamp of POX)**: Not used. We have distinct URLs.
+*   **Level 1 (Resources)**: Yes. `/incidents`, `/stations`.
+*   **Level 2 (HTTP Verbs)**: Yes. `GET`, `POST`.
+*   **Level 3 (HATEOAS)**: No. The API does not return links (`_links: { next: "..." }`). The client must know the URLs.
 
-## 2. Response Structure
+## 2. API Design Principles
 
-*   **Success (List)**:
-    ```json
-    {
-      "data": [ ... ],
-      "pagination": {
-        "page": 1,
-        "pageSize": 25,
-        "total": 120,
-        "totalPages": 5,
-        "hasNext": true
-      }
+### Naming Conventions
+*   **Plural Nouns**: `/incidents` (not `/incident`).
+*   **Kebab-case URLs**: `/api/incident-types` (Standard).
+*   **CamelCase JSON**: `{ "incidentNumber": "..." }` (Matches JavaScript conventions).
+
+### Query Parameters (Filtering)
+*   **Design**: `GET /incidents?typeCodes=FIRE,HAZMAT`.
+*   **Benefit**: Comma-separated values allow multiple selections without complex syntax (like `typeCodes[]=FIRE&typeCodes[]=HAZMAT`).
+
+### Pagination
+*   **Strategy**: Offset-based (`page`, `pageSize`).
+*   **Pros**: Simple to implement.
+*   **Cons**: Performance degrades at high offsets (`OFFSET 100000`).
+*   **Alternative**: Cursor-based (`after_id=...`). Better for infinite scroll, but harder for "Jump to Page 10".
+
+## 3. Error Handling Strategy
+
+### The Standard Error Envelope
+The backend returns a consistent JSON structure for all errors.
+
+```json
+{
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "Start Date cannot be after End Date.",
+    "details": {
+      "field": "startDate",
+      "value": "2025-01-01"
     }
-    ```
-    *   **Analysis**: Wrapping the array in `data` allows adding metadata (pagination) without breaking clients. This is a best practice.
+  }
+}
+```
 
-*   **Success (Item)**: Returns the object directly (or wrapped, depending on controller implementation).
+### HTTP Status Code Catalog
 
-## 3. Error Handling Standard
+*   **200 OK**: Success (Synchronous).
+*   **201 Created**: Resource created (`POST`).
+*   **400 Bad Request**: Validation failure. (Client error).
+*   **401 Unauthorized**: Missing Token.
+*   **403 Forbidden**: Token valid, but permission denied.
+*   **404 Not Found**: ID doesn't exist.
+*   **409 Conflict**: Unique constraint violation (e.g., Duplicate Incident Number).
+*   **429 Too Many Requests**: Rate limit exceeded (Future implementation).
+*   **500 Internal Server Error**: Bug in code / DB down.
 
-*   **Implementation**: `server/src/middleware/errorHandler.ts`
-*   **Structure**:
-    ```json
-    {
-      "error": {
-        "code": "BAD_REQUEST",
-        "message": "Field 'incidentNumber' is required.",
-        "details": { ... }
-      }
-    }
-    ```
-*   **Codes (`HttpErrorCode`)**:
-    *   `BAD_REQUEST` (400): Validation failure.
-    *   `NOT_FOUND` (404): ID not found.
-    *   `CONFLICT` (409): Duplicate Unique Key.
-    *   `INTERNAL_SERVER_ERROR` (500): Unhandled exception.
-*   **Benefit**: The frontend can switch on `error.code` (stable string) rather than parsing the English `message`.
+## 4. Input Validation (The Contract)
 
-## 4. Input/Output Contracts
+*   **Type Safety**: The API expects strict types. Sending `"casualtyCount": "five"` (string) will fail.
+*   **Sanitization**: The Service layer trims strings.
+*   **Defaults**: `isActive` defaults to `true`. This simplifies the client logic (don't need to send it explicitly).
 
-*   **Date Formats**:
-    *   Input: ISO-8601 Strings (`2023-01-01T12:00:00Z`).
-    *   Output: ISO-8601 Strings.
-    *   **Consistent**: No Unix timestamps or ambiguous formats.
-*   **Geospatial**:
-    *   Input: `location: { latitude: number, longitude: number }` (Simple for clients).
-    *   Output: `location: GeoJSON Point` (Standard for map libraries).
-    *   **Translation**: The Controller/Service layer handles the conversion from "Simple Lat/Lon" to "GeoJSON" / "PostGIS Geometry".
+## 5. Idempotency
 
-## 5. Recommendations
-
-*   **OpenAPI/Swagger**: No `swagger.json` or `swagger-ui` was found.
-    *   **Action**: Add `swagger-jsdoc` to auto-generate documentation. This is crucial for external teams integrating with the platform.
-*   **Rate Limiting**: No `express-rate-limit` found.
-    *   **Action**: Add rate limiting to prevent basic DoS attacks or accidental loops from the frontend.
+*   **Safe Methods**: `GET` is safe (read-only).
+*   **Idempotent Methods**: `PUT` (Replace) and `DELETE` should be idempotent.
+    *   **Current State**: `createIncident` (POST) is *not* idempotent. Sending it twice creates two incidents (or a 409 error).
+    *   **Recommendation**: Allow the client to send a `X-Idempotency-Key` header. The server caches the result of the first request and returns it for subsequent retries (useful for flaky mobile networks).

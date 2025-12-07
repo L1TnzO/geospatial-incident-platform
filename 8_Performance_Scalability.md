@@ -1,47 +1,66 @@
 # Performance and Scalability
 
-## 1. Database Optimization (The Core Bottleneck)
+## 1. Database Optimization
 
-*   **Spatial Indexing**:
-    *   **Evidence**: `server/db/migrations/202510010001_initial_schema.js`
-    *   **Implementation**: `CREATE INDEX idx_incidents_location ON incidents USING GIST (location)`.
-    *   **Impact**: This is the single most important performance feature. It allows `ST_Within(location, screen_bounds)` queries to run in milliseconds even with millions of rows. Without it, the map would freeze.
-*   **Temporal Indexing**:
-    *   **Evidence**: `idx_incidents_occurrence_at`.
-    *   **Impact**: Speeds up "Last 24 Hours" or "Historic Trend" queries.
-*   **Compound Indexes**:
-    *   **Evidence**: `incident_daily_metrics` has a unique constraint on `(metric_date, type_id, severity_id, station_id)`. This implicitly acts as an index for these lookups.
+PostgreSQL + PostGIS is powerful, but optimization is key for scale.
 
-## 2. Query Optimization Strategy
+### Indexing Strategy Deep Dive
+*   **Spatial Index (`GIST`)**:
+    *   **Mechanism**: The R-Tree structure recursively splits space into bounding boxes.
+    *   **Impact**: Querying "Find points in this viewport" becomes `O(log N)`.
+    *   **Maintenance**: GIST indexes can get bloated. Requires periodic `VACUUM ANALYZE`.
+*   **Covering Indexes**:
+    *   **Observation**: `incident_daily_metrics` has a unique constraint on multiple columns. This acts as a covering index for queries filtering by Date + Station.
+    *   **Result**: The DB reads from the Index Only (RAM), avoiding disk I/O to the Table Heap.
 
-*   **Aggregation Tables**:
-    *   **Evidence**: `incident_daily_metrics`, `incident_geohash_tiles`.
-    *   **Strategy**: The schema includes "Pre-calculated" tables.
-    *   **Why?**: Calculating "Total Incidents by Type for 2024" on the fly from the raw `incidents` table (1M+ rows) is slow. Querying a pre-aggregated `metrics` table (365 rows) is instant.
-    *   **Recommendation**: Ensure a Cron Job or Trigger keeps these tables in sync (Ref: `StrategicAnalyticsService` seems to calculate on the fly currently with caching; moving to materialized views would be the next step).
+### Connection Pooling
+*   **Knex Pool**: By default, Knex uses `tarn.js` for pooling.
+*   **Settings**: `min: 2, max: 10`.
+*   **Scaling Issue**: If we scale Node.js to 10 instances, we have 100 connections. Postgres creates a process per connection (heavy).
+*   **Solution**: Use **PgBouncer** in production to multiplex thousands of client connections into a small pool of DB connections.
 
-## 3. Caching Strategy
+## 2. Caching Layers
 
-*   **Application-Level Caching**:
-    *   **File**: `server/src/services/strategicService.ts`.
-    *   **Mechanism**: In-memory `Map<string, CacheEntry>`. `STRATEGIC_CACHE_TTL_MS = 5 * 60 * 1000` (5 mins).
-    *   **Impact**: Expensive aggregations (Trends, Heatmaps) are computed once and served instantly for subsequent requests.
-    *   **Scalability Limit**: This is **Local Memory**. If you scale the backend to 5 replicas (Kubernetes), each has its own cache.
-    *   **Future Scale**: Replace `Map` with **Redis** to share cache across instances.
+### Tier 1: Browser Cache (HTTP)
+*   **Static Assets**: Vite hashes filenames (`index.a1b2.js`). These can be cached forever (`Cache-Control: max-age=31536000`).
+*   **API Responses**: Currently `no-cache`. Could add `ETag` support to return `304 Not Modified` for polling.
 
-## 4. Frontend Optimization
+### Tier 2: Application Cache (In-Memory)
+*   **Implementation**: `StrategicService` uses a `Map`.
+*   **Pros**: Ultra-fast (nanoseconds).
+*   **Cons**:
+    *   **Memory Leaks**: If the Map grows unbounded. (Current code uses TTL cleanups).
+    *   **Inconsistency**: In a cluster, Server A might have stale stats vs Server B.
+*   **Future**: Move to Redis.
 
-*   **Virtualization**:
-    *   **Table View**: If `TableView` renders 1000 rows, the DOM will lag.
-    *   **Solution**: `tanstack/react-query` handles pagination (`useIncidentsTableData`). The UI likely renders only the current page (25 rows), preventing DOM overload.
-*   **Map Clustering**:
-    *   **Evidence**: `supercluster` dependency in `client/package.json`.
-    *   **Impact**: When zoomed out, rendering 10,000 markers crashes the browser. Clustering groups them into single "bubble" markers, keeping the DOM light.
-*   **Bundle Size**:
-    *   **Tool**: `Vite`.
-    *   **Strategy**: Tree-shaking is automatic. Dynamic imports (`React.lazy`) should be used for heavy routes like `StrategicPage`.
+### Tier 3: Client State (React Query)
+*   **Stale-While-Revalidate**: The user sees stale data instantly while the network updates it.
+*   **Optimistic Updates**: When creating an incident, we can update the cache *before* the server responds, making the UI feel "instant".
 
-## 5. Horizontal Scalability
+## 3. Frontend Rendering Optimization
 
-*   **Statelessness**: The backend appears stateless (tokens likely sent per request, cache is transient). This means you can run 10 instances behind a Load Balancer (Nginx/AWS ALB) without sticky sessions.
-*   **Database Limits**: Postgres is vertical scaling. To scale writes, you'd eventually need Read Replicas (for the heavy `StrategicService` reads) and a Primary for writes (`createIncident`).
+### Map Clustering
+*   **The Problem**: 50,000 Markers = 50,000 DOM Nodes. Chrome crashes at ~5,000.
+*   **The Solution**: Supercluster (KDB-Tree).
+*   **Web Worker**: Moving this logic off-thread is the single biggest performance win. It allows the map to pan at 60fps even while calculating clusters.
+
+### Virtualization
+*   **List View**: If the user scrolls through 10,000 incidents, rendering `<li>` for each is slow.
+*   **Strategy**: Use `react-window`. Only render the 20 items currently on screen.
+
+### Code Splitting
+*   **Routes**: `StrategicPage` imports heavy charting libraries (`Recharts`).
+*   **Optimization**: Use `React.lazy(() => import('./pages/StrategicPage'))`. This removes 200KB from the initial bundle load.
+
+## 4. Horizontal Scalability Strategy
+
+### Backend (Stateless)
+*   **Session State**: Currently relies on JWT (stateless). This is good.
+*   **Scaling**: Can deploy N replicas behind a Load Balancer.
+*   **Bottleneck**: The Database.
+
+### Database (Stateful)
+*   **Read Replicas**: `StrategicService` (Analytics) does heavy READ operations.
+    *   **Strategy**: Configure Knex to send SELECT queries to a Read Replica, keeping the Primary free for WRITEs (`createIncident`).
+*   **Sharding**:
+    *   **Geo-Sharding**: Partition data by Region (e.g., "North", "South"). PostGIS handles this well.
