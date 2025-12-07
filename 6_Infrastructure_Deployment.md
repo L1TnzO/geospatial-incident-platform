@@ -2,52 +2,43 @@
 
 ## Environment Configuration
 
-*   **Docker:** The project uses `docker-compose.yml` to define the entire stack.
-    *   **Services:**
-        *   `db`: `postgis/postgis:15-3.4` (PostgreSQL with geospatial extensions).
-        *   `backend`: `node:20-alpine` (Custom build context `server/`).
-        *   `frontend`: `node:20-alpine` (Custom build context `client/`).
-        *   `pgadmin`: `dpage/pgadmin4:latest` (Database management UI).
-*   **Environment Variables:**
-    *   Managed via `.env` files. The project relies on `.env.example` templates in `infra/docker/` (e.g., `.env.backend.example`, `.env.postgis.example`).
-*   **CI/CD:** `GitHub Actions` is present (implied by `.github` folder in file list and badge in README).
+*   **Docker Compose**: The source of truth (`docker-compose.yml`).
+    *   **Orchestration**: Defines the relationship between `backend` (depends_on `db`), `frontend`, and `db`.
+    *   **Networking**: Uses an internal bridge network `internal`.
+    *   **Persistence**: Volumes `db_data` ensure data survives container restarts.
 
-## Inferred Deployment Instructions (Spin up from scratch)
+*   **Makefile**: The Operations Manual.
+    *   **Automation**: Encapsulates complex Docker commands into simple verbs.
+    *   **Key Commands**:
+        *   `make compose-up`: Spawns the stack.
+        *   `make db-reset`: Nukes and rebuilds the DB (Migrate Down -> Up -> Seed). Critical for dev iteration.
+        *   `make data-generate`: Uses a Python script (`tools/data_generator`) to populate the DB with realistic dummy data. This is huge for testing performance ("What happens with 10k incidents?").
+        *   `make frontend-fix-vps`: A "hotfix" script to patch the frontend config with the server's public IP, useful for quick demos.
 
-To deploy this project on a fresh server (e.g., an Ubuntu VM):
+## Deployment Strategy (Inferred)
 
-1.  **Prerequisites:**
-    *   Install **Docker** and **Docker Compose**.
-    *   Install **Git**.
+1.  **Containerization**: The app is fully containerized (`node:20-alpine`). Deployment is likely "Ship the Container".
+2.  **Environment Variables**:
+    *   **Production**: Secrets (DB passwords) are injected via `.env` files (referenced in `docker-compose.yml`).
+    *   **Configuration**: `VITE_API_BASE_URL` allows the frontend build to point to different backends (staging vs prod).
+3.  **Data Lifecycle**:
+    *   **Migrations**: Run on startup (via `npm run migrate:up`).
+    *   **Seeding**: Manual or initial run (`npm run db:seed`).
 
-2.  **Clone Repository:**
-    ```bash
-    git clone https://github.com/OWNER/REPOSITORY.git
-    cd geospatial-incident-platform
-    ```
+## Deployment Instructions (Detailed)
 
-3.  **Environment Setup:**
-    *   The project requires several `.env` files.
-    *   Copy the example templates:
-        ```bash
-        cp infra/docker/.env.backend.example infra/docker/.env.backend
-        cp infra/docker/.env.frontend.example infra/docker/.env.frontend
-        cp infra/docker/.env.postgis.example infra/docker/.env.postgis
-        cp infra/docker/.env.pgadmin.example infra/docker/.env.pgadmin
-        ```
-    *   *Critical:* Edit these files to set secure passwords and keys for production.
-
-4.  **Launch via Make (or Docker Compose):**
-    *   The project includes a `Makefile` for convenience.
-    *   Run: `make compose-up`
-    *   *Alternative:* `docker compose up -d --build`
-
-5.  **Database Initialization:**
-    *   The `backend` service is configured to run migrations automatically on startup?
-    *   *Verification:* Looking at `server/package.json`, there are scripts like `migrate:latest`. The `docker-compose` command for backend is `npm install && npm run dev`. In a production dockerfile (not fully visible but inferred), the entrypoint would likely run `npm run migrate:latest` before starting the server.
-    *   *Manual Fallback:* `docker compose exec backend npm run migrate:latest` followed by `npm run db:seed`.
-
-6.  **Access:**
-    *   Frontend: `http://<server-ip>:3000`
-    *   Backend API: `http://<server-ip>:4000`
-    *   PostAdmin: `http://<server-ip>:5050`
+1.  **Provision Server**: Ubuntu 22.04 LTS (2 CPU, 4GB RAM minimum for PostGIS).
+2.  **Install Engine**: `apt install docker.io docker-compose-v2 make`.
+3.  **Clone Source**: `git clone ...`.
+4.  **Configure Secrets**:
+    *   `cp infra/docker/.env.backend.example infra/docker/.env.backend`
+    *   `vim infra/docker/.env.backend` -> Set `POSTGRES_PASSWORD`.
+5.  **Build & Launch**:
+    *   `make compose-up`
+    *   *Wait for build to complete (approx 5 mins).*
+6.  **Initialize Data**:
+    *   `make db-init` (Runs migrations).
+    *   *(Optional)* `make db-load-data` (Loads bulk geospatial data).
+7.  **Verify**:
+    *   `make db-api-check` (Curls the health endpoint).
+    *   Visit `http://<IP>:3000`.

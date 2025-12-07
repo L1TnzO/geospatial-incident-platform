@@ -2,66 +2,75 @@
 
 ## Star Functions/Classes
 
-### 1. `IncidentService.createIncident`
+### 1. `IncidentService.createIncident` (Transactional Write)
 **Location:** `server/src/services/incidentsService.ts`
 
-This is the heart of the system, responsible for ingesting new emergency incidents. It acts as the gatekeeper, ensuring data integrity before persistence.
+This function is the "Gatekeeper" of the system. It ensures that no invalid or logically inconsistent data enters the database.
 
 **Line-by-Line Explanation (Pseudocode):**
-1.  **Input Parsing**: The function accepts a raw payload (`CreateIncidentRequest`). It rigorously parses and validates every field:
-    *   `incidentNumber` must match a specific pattern (letters, digits, separators).
-    *   Dates (`occurrenceAt`, `reportedAt`, etc.) are parsed to ISO-8601.
-    *   Strings are trimmed; numbers are checked for non-negativity.
-    *   Geospatial coordinates (`latitude`, `longitude`) are validated for range.
-2.  **Logical Validation**: It enforces temporal logic rules:
-    *   `reportedAt` cannot be before `occurrenceAt`.
-    *   `dispatchAt` cannot be before `reportedAt`.
-    *   `arrivalAt` cannot be before `dispatchAt`.
-    *   `resolvedAt` cannot be before `arrivalAt`.
-3.  **Status Derivation**: If the user didn't explicitly set `isActive`, it derives it: if the status is `RESOLVED` or `CANCELLED`, `isActive` becomes `false`.
-4.  **Persistence Call**: It constructs a clean `CreateIncidentInput` object and calls `repository.createIncident`.
-5.  **Error Handling**: It catches errors. If it's a "Unique Violation" (code 23505), it throws a 409 Conflict (Incident exists). If it's a lookup error (e.g., invalid Station Code), it throws a 400 Bad Request.
+1.  **Validation**:
+    *   **Syntax**: Checks if `incidentNumber` matches regex (e.g., `INC-2023-001`).
+    *   **Temporal Logic**: Ensures `reportedAt` >= `occurrenceAt`, `arrivalAt` >= `dispatchAt`. This prevents "Time Travel" bugs.
+    *   **Geospatial**: Validates Lat/Lon bounds (-90 to 90, -180 to 180).
+2.  **Status Logic**:
+    *   If `status` is `RESOLVED` or `CANCELLED`, it forces `isActive = false`.
+3.  **Persistence (Delegate to Repository)**:
+    *   Calls `repository.createIncident`.
+    *   **Error Handling**: Catches specific DB errors (Duplicate Key `23505`) and converts them to `HttpError.conflict` (409), ensuring the API user gets a clean error message, not a raw SQL dump.
+4.  **Cache Invalidation**:
+    *   Calls `this.clearCaches()`. This is critical. Since `IncidentService` caches metadata (stats), a new insert makes those stats stale. This line ensures the next dashboard load gets fresh data.
 
-### 2. `IncidentRepository.createIncident`
-**Location:** `server/src/db/repositories/incidentsRepository.ts`
+### 2. `StrategicAnalyticsService.getMonthlyTrend` (Complex Read/Aggregation)
+**Location:** `server/src/services/strategicService.ts`
 
-This class handles the raw database interaction, including transaction management and foreign key resolution.
+This function powers the executive dashboard. It's "Star" material because it handles **caching**, **temporal alignment**, and **derived metrics** (Month-over-Month growth).
 
 **Line-by-Line Explanation (Pseudocode):**
-1.  **Transaction Start**: It begins a database transaction to ensure atomicity.
-2.  **Reference Resolution**: It calls `resolveIncidentReferences`. This helper looks up the integer `ID`s for text codes provided in the API (e.g., converts `FIRE_STRUCTURE` to ID `5`). If a required code (Type, Severity, Status) is missing, it throws an error. Optional codes (Source, Weather, Station) return `null` if missing.
-3.  **Insert with Geospatial Magic**: It executes the SQL `INSERT`.
-    *   Critically, it converts the lat/lon into a PostGIS geometry: `ST_SetSRID(ST_Point(?, ?), 4326)`. This enables future spatial queries.
-    *   `metadata` is cast to JSONB.
-4.  **Return & Fetch**: It returns the new ID. Then, it immediately calls `getIncidentDetail` to fetch the fully populated object (joining types, severities, etc.) to return to the client.
+1.  **Input Parsing**: Determines the time window (e.g., "Last 12 Months"). Defaults to 12 if not provided.
+2.  **Cache Check**: Generates a cache key based on filters (`strategic:monthly:type=FIRE...`). If data is in memory and fresh (`< 5 mins`), returns it immediately.
+3.  **Data Fetching**:
+    *   Calculates the "Fetch Range". Note: It fetches *more* data than requested (e.g., previous year) to calculate trends.
+    *   Calls `repository.getIncidentCountsByReportedMonth`.
+4.  **Algorithm - Series Generation**:
+    *   Iterates month-by-month from Start to End.
+    *   **Gap Filling**: If the DB returns no data for "Feb", the loop ensures "Feb" is present in the output with `count: 0`.
+    *   **Calculations**:
+        *   `MoM (Month-over-Month)`: `(Current - Previous) / Previous`.
+        *   `YoY (Year-over-Year)`: Looks back 12 indexes to compare with the same month last year.
+5.  **Cache Set**: Stores the expensive result in memory for 5 minutes.
+6.  **Return**: Returns a rich object with the series and summary totals.
 
 ## Data Flow: "Creating an Incident"
 
-**Scenario:** A dispatcher enters a new fire incident via the Frontend.
-
-1.  **Frontend Entry (`CreateIncidentPage`)**: The user fills out the form. The component validates inputs locally.
-2.  **Service Call (`client/src/services/api-client.ts`)**: The frontend calls `apiClient.incidents.create(payload)`. This sends a `POST /incidents` request.
-3.  **Backend Route (`server/src/routes/incidents.ts` -> `server/src/controllers/incidentsController.ts`)**: The Express router receives the request and directs it to the controller.
-4.  **Service Processing (`server/src/services/incidentsService.ts`)**: The `IncidentService` receives the request body. It validates dates, checks logical constraints (arrival > dispatch), and sanitizes strings.
-5.  **Repository Logic (`server/src/db/repositories/incidentsRepository.ts`)**:
-    *   The repository resolves the "codes" (e.g., "HIGH", "OPEN") to their database primary keys (IDs) by querying lookup tables (`incident_severities`, `incident_statuses`).
-    *   It creates a PostGIS point from the coordinates.
-    *   It inserts the record into the `incidents` table.
-6.  **Database Storage (`PostgreSQL`)**: The data is committed. Triggers automatically update the `updated_at` timestamp.
-7.  **Response**: The full incident object is returned up the chain (Repo -> Service -> Controller -> Frontend).
-8.  **Frontend Update**: The React Query cache is invalidated or updated, causing the **Map** and **Table** to refresh and show the new incident immediately.
+1.  **Frontend**: User submits form. `api-client.ts` POSTs to `/api/incidents`.
+2.  **Controller**: `incidentsController.ts` receives request.
+3.  **Service**: `incidentsService.ts` validates data.
+4.  **Repository**: `incidentsRepository.ts`
+    *   **Lookup Resolution**: Converts "FIRE" (string) -> `type_id` (int).
+    *   **Geometry Creation**: `ST_SetSRID(ST_Point(lon, lat), 4326)`.
+    *   **Insert**: SQL `INSERT INTO incidents ...`.
+5.  **Database**: PostGIS stores the point. Triggers update `updated_at`.
+6.  **Return Path**: The full object (with joined names) is returned.
 
 ## Database Deep Dive
 
-The database is a relational PostgreSQL instance heavily utilizing **PostGIS**.
+**Schema Analysis (`server/db/migrations/202510010001_initial_schema.js`):**
 
-*   **Key Tables**:
-    *   `incidents`: The central fact table. Contains `location` (Geometry), foreign keys to lookups, and timestamps.
-    *   `stations`: Represents fire/police stations. Also has `location` (Geometry) and `response_zone_id`.
-    *   `response_zones`: Defines polygon boundaries for service areas (`MultiPolygon`).
-*   **Data Integrity**:
-    *   **Foreign Keys**: Strict relationships enforce validity (e.g., an incident must have a valid `type_id`).
-    *   **Check Constraints**:
-        *   `chk_incident_temporal`: Ensures time travel isn't possible (e.g., occurrence <= reported).
-        *   `incidents_casualty_non_negative`: Prevents negative casualty counts.
-*   **Geospatial Indexing**: `GIST` indexes are applied to `incidents.location` and `stations.location`, making spatial queries (like "find incidents in this viewport") extremely fast.
+*   **Core Table: `incidents`**
+    *   `id`: BigInt Primary Key.
+    *   `location`: `geometry(Point, 4326)`. **Critical**: Uses SRID 4326 (WGS 84 - Lat/Lon).
+    *   **Foreign Keys**: `type_id`, `severity_id`, `status_id`. These normalize the data, ensuring data quality (no free-text "Fire" vs "fire").
+    *   **JSONB**: `metadata`. Allows storing flexible, unstructured data (e.g., "Commander Name", "Specific Apparatus Used") without changing the schema.
+    *   **Constraints**:
+        *   `chk_incident_temporal`: Database-level enforcement of time logic. Even if the Service layer fails, the DB will reject impossible timelines.
+
+*   **Indexes (Performance)**:
+    *   `idx_incidents_location`: **GIST Index**. Essential for "Map View" queries (`ST_Within`). Without this, map loading would scan the whole table (O(N)). With it, it's Logarithmic (O(log N)).
+    *   `idx_incidents_occurrence_at`: B-Tree Index. Essential for "Dashboard Timeline" filtering.
+    *   `idx_incidents_geohash`: Text Index. Used for clustering/heatmap optimizations.
+
+*   **Complex Queries (Knex)**:
+    *   **Hotspots (`getIncidentHotspotAggregates`)**:
+        *   Uses `ST_MakeEnvelope` to create a dynamic grid.
+        *   Uses `GROUP BY` on calculated grid cells (`floor(x/size)`, `floor(y/size)`).
+        *   This creates a server-side heatmap, sending only aggregated squares to the frontend (Massive performance gain over sending 10k points).

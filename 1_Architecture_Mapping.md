@@ -4,52 +4,82 @@
 
 ```
 /
-├── client/                     # Frontend Application (React + Vite)
+├── client/                     # Frontend Application (React + Vite + TypeScript)
 │   ├── src/
-│   │   ├── components/         # Reusable UI components (e.g., IncidentDetailModal, MapView)
-│   │   ├── hooks/              # Custom React hooks (e.g., useAuth, useIncidentsData)
-│   │   ├── pages/              # Route-level components (e.g., DashboardPage, StrategicPage)
-│   │   ├── services/           # API clients and data fetching logic (e.g., api-client.ts)
-│   │   ├── store/              # Global state management using Zustand (e.g., incident-detail-store.ts)
-│   │   ├── utils/              # Helper functions (e.g., formatters, validators)
-│   │   ├── App.tsx             # Main application component and routing configuration
-│   │   └── main.tsx            # Application entry point mounting the React root
-├── server/                     # Backend Application (Node.js + Express)
-│   ├── db/                     # Database handling
-│   │   ├── migrations/         # Knex migration files defining DB schema
-│   │   └── repositories/       # Data Access Object (DAO) layer interacting with the DB
+│   │   ├── components/         # Reusable UI components (Modular architecture)
+│   │   │   ├── ui/             # ShadcnUI generic components (Button, Input, etc.)
+│   │   │   └── ...             # Feature-specific components (IncidentDetailModal, MapView)
+│   │   ├── hooks/              # Custom React hooks (Encapsulates logic)
+│   │   │   ├── useAuth.ts      # Auth state abstraction
+│   │   │   ├── useIncidentsData.ts # React Query wrappers for Incident data
+│   │   │   └── ...
+│   │   ├── pages/              # Route-level components (Page Controller)
+│   │   ├── services/           # API layer (Separated from Components)
+│   │   │   ├── api-client.ts   # Axios/Fetch instance & type-safe request methods
+│   │   │   └── strategic-service.ts # Complex analytics data fetching
+│   │   ├── store/              # Global state management (Zustand)
+│   │   │   ├── incident-filters-store.ts # Global search/filter state
+│   │   │   └── incident-detail-store.ts  # Modal/Selection state
+│   │   ├── utils/              # Pure functions (Formatters, Validators)
+│   │   ├── App.tsx             # Main Router & Provider Composition
+│   │   └── main.tsx            # Entry Point (DOM Rendering)
+│   ├── tests/                  # Frontend Testing
+│   │   └── e2e/                # Playwright End-to-End tests
+├── server/                     # Backend Application (Node.js + Express + TypeScript)
+│   ├── db/                     # Database Layer
+│   │   ├── migrations/         # Knex Schema Definitions (Version Control for DB)
+│   │   ├── repositories/       # Data Access Objects (SQL Abstraction Layer)
+│   │   └── seeds/              # Initial Data Population
 │   ├── src/
-│   │   ├── config/             # Configuration files (env variables, pagination settings)
-│   │   ├── controllers/        # Request handlers (Input validation -> Call Service -> Send Response)
-│   │   ├── middleware/         # Express middleware (Error handling, Auth, Logging)
-│   │   ├── routes/             # API route definitions
-│   │   ├── services/           # Business logic layer (Core application rules)
-│   │   ├── app.ts              # Express application setup
-│   │   └── index.ts            # Server entry point (starts HTTP server)
-├── infra/                      # Infrastructure and Deployment configuration
-│   └── docker/                 # Docker environment variable templates
-├── docker-compose.yml          # Container orchestration for local development
-└── README.md                   # Project documentation
+│   │   ├── config/             # Environment & App Configuration
+│   │   │   ├── env.ts          # Type-safe Env Var parsing
+│   │   │   └── pagination.ts   # Shared constants
+│   │   ├── controllers/        # HTTP Interface Layer (Req/Res handling)
+│   │   ├── middleware/         # Cross-Cutting Concerns (Auth, Error Handling)
+│   │   │   ├── errorHandler.ts # Centralized Error Response logic
+│   │   │   └── ...
+│   │   ├── routes/             # API Endpoint Definitions
+│   │   ├── services/           # Business Logic Layer (The "Core")
+│   │   │   ├── incidentsService.ts # Incident lifecycle management
+│   │   │   ├── strategicService.ts # Complex Analytical Calculations
+│   │   │   └── ...
+│   │   ├── app.ts              # Express App Configuration (Middleware wiring)
+│   │   └── index.ts            # Server Entry Point (Port listening)
+│   └── tests/                  # Backend Testing (Jest)
+│       ├── unit/               # Service isolation tests
+│       └── db/                 # Integration tests with real DB
+├── infra/                      # Infrastructure as Code
+│   └── docker/                 # Environment Templates (.env.example)
+├── tools/                      # Dev Tools
+│   └── data_generator/         # Python script for generating bulk mock data
+├── docker-compose.yml          # Container Orchestration (Local Dev)
+├── Makefile                    # Task Automation (Shortcuts for complex commands)
+└── README.md                   # Project Documentation
 ```
 
 ## Layer Identification
 
-The application follows a **Monorepo** structure separating Frontend and Backend, with the Backend following a **Layered Architecture** (Controller-Service-Repository).
+The application implements a strict **N-Tier Layered Architecture** within a **Monorepo**.
 
-*   **Frontend**: `client/`
-    *   **Presentation Layer**: `components/`, `pages/`
-    *   **State Management**: `store/` (Zustand)
-    *   **Data Access**: `services/` (Axios/Fetch wrappers)
-*   **Backend**: `server/`
-    *   **Interface Layer (Controllers)**: `server/src/controllers/` (Handles HTTP requests)
-    *   **Business Logic Layer (Services)**: `server/src/services/` (Contains core business rules)
-    *   **Data Access Layer (Repositories)**: `server/db/repositories/` (Direct database interactions using Knex)
-    *   **Database**: PostgreSQL with PostGIS extension (defined in `docker-compose.yml` and managed via `server/db/migrations/`).
-*   **External Services**: None explicitly visible in the core logic scan (no Stripe, Twilio, etc.), but `leaflet` is used on the frontend for map rendering (OpenStreetMap).
+*   **Frontend (Presentation Layer)**: `client/`
+    *   **View**: `pages/` and `components/` handle rendering.
+    *   **ViewModel/State**: `store/` (Zustand) and `hooks/` bridge the UI and Logic.
+    *   **Data Source**: `services/` abstracts the HTTP communication.
+*   **Backend (Application Layers)**: `server/`
+    *   **Controller Layer**: `controllers/` - Accepts HTTP requests, validates inputs, calls Services.
+    *   **Service Layer**: `services/` - Contains the "Domain Logic". It is framework-agnostic (doesn't know about Express/HTTP). It handles complex rules (e.g., `StrategicAnalyticsService` calculation logic).
+    *   **Data Access Layer (Repository)**: `repositories/` - Isolates SQL logic. Uses `knex` to talk to Postgres.
+*   **Data Layer**:
+    *   **PostgreSQL**: Relational storage.
+    *   **PostGIS**: Spatial engine (Geometry types, Spatial Indexes).
+    *   **Schema Management**: `knex migrate` ensures schema versioning.
 
 ## Entry Points
 
 *   **Frontend**: `client/src/main.tsx`
-    *   This file bootstraps the React application, renders the `App` component into the DOM, and imports global styles.
+    *   Mounts the React tree into `#root`.
+    *   Initializes Global Styles (`index.css`).
 *   **Backend**: `server/src/index.ts`
-    *   This file imports the configured Express app from `app.ts`, starts the HTTP server, and listens on the configured port.
+    *   Loads Environment Variables (`config/env`).
+    *   Imports the Express App from `app.ts`.
+    *   Starts the `http.Server`.

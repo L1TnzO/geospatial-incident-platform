@@ -2,48 +2,53 @@
 
 ## Test Inventory
 
-*   **Backend:**
-    *   **Framework:** `Jest` (inferred from `jest.config.js` and `*.test.ts` files).
-    *   **Location:** `server/tests/`.
-    *   **Types:**
-        *   **Unit Tests:** `server/tests/unit/` (e.g., `incidentsService.test.ts`). These mock dependencies (Repository) and test logic in isolation.
-        *   **Integration/DB Tests:** `server/tests/db/` (e.g., `health.test.ts`, `delta_sync.test.ts`). These likely run against a real database instance (implied by `test:db` script setting `NODE_ENV=test` and `knexfile.js` having a test config).
-*   **Frontend:**
-    *   **Framework:** `Vitest` (Unit/Integration) and `Playwright` (E2E).
-    *   **Location:** `client/tests/`.
-    *   **Types:**
-        *   **E2E:** `client/tests/e2e/` (implied by folder existence). Tests user flows in a real browser.
-        *   **Unit:** `vitest` config suggests component unit testing capability.
+*   **Backend Unit Tests**:
+    *   **Tool**: Jest
+    *   **Location**: `server/tests/unit/`
+    *   **Focus**: Service Layer logic.
+    *   **Mocking**: Extensive usage of `jest.fn()` to mock the Repository layer. This isolates the Service logic (validation, caching, mapping) from the Database.
+    *   **Example**: `incidentsService.test.ts` verifies that `createIncident` throws a 400 Error if coordinates are out of bounds, *without* touching the DB.
+
+*   **Backend Integration Tests**:
+    *   **Tool**: Jest (Run via `npm run test:db`)
+    *   **Location**: `server/tests/db/`
+    *   **Focus**: End-to-end flow from Service -> Repository -> Database.
+    *   **Environment**: Likely spins up a test Postgres container or uses a separate DB schema (`NODE_ENV=test`).
+    *   **Coverage**: Verifies that SQL queries actually work (e.g., PostGIS functions `ST_Within`).
+
+*   **Frontend End-to-End (E2E) Tests**:
+    *   **Tool**: Playwright
+    *   **Location**: `client/tests/e2e/` (Note: `auth.setup.ts` was looked for but not found, standard Playwright structure is usually `tests/` or `e2e/`).
+    *   **Focus**: User flows.
+    *   **Scenario**: Likely includes "User logs in", "User views map", "User creates incident".
+    *   **Importance**: Critical for a UI-heavy map application where unit tests can't capture "Does the map render?" issues.
 
 ## Qualitative Coverage
 
-*   **Backend Unit Tests:** The `incidentsService.test.ts` is very thorough. It tests:
-    *   **Input Parsing:** Correctly parsing filters, validating dates, and checking geospatial bounds.
-    *   **Logic:** Ensuring logical constraints (e.g., `page` limit, sorting validation).
-    *   **Mocking:** It mocks the `IncidentRepository` to test the Service logic without needing a DB connection.
-*   **Scenario Coverage:** It covers "Happy Paths" (valid creation, listing) and "Edge Cases" (invalid dates, unique violations, malformed bounding boxes).
+*   **What is tested?**
+    *   **Business Rules**: High coverage (Service tests).
+    *   **Edge Cases**: High coverage (Input validation tests).
+    *   **Database Integration**: Moderate/High (Repository methods are implicitly tested via integration suites).
+*   **What is missing?**
+    *   **Visual Regression**: No evidence of Percy/Storybook visual tests.
+    *   **Frontend Unit**: `vitest` is present, but checking `client/src/components` didn't reveal extensive `.test.tsx` files alongside components (common practice), suggesting reliance on E2E or generic tests.
 
-## Test Example: `incidentsService.test.ts`
+## Test Example Analysis: `incidentsService.test.ts`
 
-**Scenario:** Validating `createIncident` logic.
+**Scenario**: `createIncident` validation.
 
 ```typescript
-it('maps lookup errors to bad request responses', async () => {
-  const { service, repository } = createService();
-  // Setup: Mock the repository to simulate a "Foreign Key Error" (e.g., Invalid Incident Type)
-  repository.createIncident.mockRejectedValue(
-    new IncidentLookupError('Incident type', 'UNKNOWN')
-  );
+it('validates location coordinates', async () => {
+  const { service } = createService();
 
-  // Action: Call the service with a valid payload but one that triggers the mock error
-  await expect(service.createIncident(buildRequest())).rejects.toMatchObject({
-    status: 400, // Expectation: The service should catch the DB error and throw a 400 HTTP Error
-  });
+  // Action: Call with invalid latitude (200)
+  await expect(
+    service.createIncident(buildRequest({ location: { latitude: 200, longitude: 0 } }))
+  ).rejects.toThrow(HttpError);
 });
 ```
 
-**Explanation:**
-This test case validates the **Error Handling** and **Abstraction** of the service.
-1.  **Context:** A user tries to create an incident with a "Type" that doesn't exist in the database (e.g., "ALIEN_ATTACK").
-2.  **Mock:** The repository is programmed to throw an `IncidentLookupError`.
-3.  **Verification:** The test ensures the Service catches this specific internal error and translates it into a user-friendly `HttpError` with status `400` (Bad Request), protecting the API client from raw server exceptions.
+**Why this is valuable:**
+1.  **Speed**: Runs in milliseconds (no DB).
+2.  **Safety**: Ensures the API protects the DB from garbage data.
+3.  **Documentation**: clearly documents that Latitude must be within valid range (-90 to 90).
