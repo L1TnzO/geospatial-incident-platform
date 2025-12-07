@@ -17,7 +17,7 @@ import {
   Info,
   Layers,
   Mountain,
-  Plus,
+
   RefreshCw,
   Menu,
   ZoomIn,
@@ -358,7 +358,7 @@ export function MapView({
   const zoom = useMapStore((state) => state.zoom);
   const resetView = useMapStore((state) => state.resetView);
   const hasUserAdjusted = useMapStore((state) => state.hasUserAdjusted);
-  const openCreateDrawer = useIncidentCreateStore((state) => state.open);
+
 
   const {
     baseLayer,
@@ -678,19 +678,7 @@ export function MapView({
 
           <div className={`flex flex-col gap-1 ${isControlPanelExpanded ? 'w-full' : ''}`}>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`justify-start h-9 rounded-lg text-white hover:bg-white/10 ${isControlPanelExpanded ? 'w-full px-2' : 'w-9 p-0'
-                }`}
-              onClick={openCreateDrawer}
-              aria-label="Create Incident"
-            >
-              <Plus className="h-5 w-5 shrink-0" />
-              {isControlPanelExpanded && (
-                <span className="ml-3 text-sm font-medium">Create Incident</span>
-              )}
-            </Button>
+
 
             <Button
               variant="ghost"
@@ -831,7 +819,7 @@ export function MapView({
 
               <div className="pt-2 border-t border-white/15">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-white/60 mb-1">
-                  Severidades
+                  Severity
                 </p>
                 <div className="grid gap-2 text-xs text-white/85">
                   {severityLegend.map(([label, color]) => (
@@ -853,18 +841,7 @@ export function MapView({
         </Card>
       </div>
 
-      {!isDesktop && (
-        <div className="absolute bottom-6 right-4 z-[1000]">
-          <Button
-            size="icon"
-            className="h-14 w-14 rounded-full shadow-lg"
-            onClick={() => useIncidentCreateStore.getState().open()}
-            aria-label="Create new incident"
-          >
-            <Plus className="h-6 w-6" />
-          </Button>
-        </div>
-      )}
+
     </div>
   );
 }
