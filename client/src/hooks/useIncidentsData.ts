@@ -721,7 +721,6 @@ export const useIncidentsData = (params: FetchIncidentsParams): IncidentsDataRes
     },
     staleTime: 5 * 60_000, // 5 minutes
     // gcTime: default (24h) is fine, no need to override
-    placeholderData: (previousData: AggregatedIncidentResult | undefined) => previousData,
   });
 
   const { data, isFetching: queryIsFetching, refetch } = query;

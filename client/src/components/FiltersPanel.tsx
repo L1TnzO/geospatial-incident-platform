@@ -198,8 +198,15 @@ export function FiltersPanel() {
     draft.startDate,
     draft.endDate,
     draft.isActive,
+    draft.typeCodes,
+    draft.severityCodes,
+    draft.statusCodes,
     storeStartDateInput,
     storeEndDateInput,
+    isActive,
+    typeCodes,
+    severityCodes,
+    statusCodes,
   ]);
 
 

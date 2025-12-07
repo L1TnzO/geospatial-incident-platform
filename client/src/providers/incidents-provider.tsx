@@ -78,13 +78,7 @@ export function IncidentsProvider({ children }: { children: ReactNode }) {
         const currentIncidents = incidentsData.incidents;
 
         // Simple check to avoid processing if reference is same (handled by dependency array)
-        // But also check if length and content (shallowly) are same to avoid loop if reference changes but content is same
-        const isSame =
-            currentIncidents === lastIncidentsRef.current ||
-            (currentIncidents.length === lastIncidentsRef.current.length &&
-                currentIncidents[0]?.id === lastIncidentsRef.current[0]?.id);
-
-        if (isSame && currentIncidents.length > 0) return;
+        // if (currentIncidents === lastIncidentsRef.current && currentIncidents.length > 0) return;
 
         lastIncidentsRef.current = currentIncidents;
 
