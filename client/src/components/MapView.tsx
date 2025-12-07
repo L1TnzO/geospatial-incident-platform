@@ -74,7 +74,9 @@ interface MapViewProps {
     highlightedZone?: PriorityScoreGroup | null;
   };
   useStrategicPreferences?: boolean;
+  worker?: Worker | null;
 }
+
 
 const roundCoordinate = (value: number): number => Math.round(value * 1_000_000) / 1_000_000;
 
@@ -197,8 +199,7 @@ const MapAutoFocuser = () => {
           map.setView([lat, lng], 16, { animate: true });
           setStoreView([lat, lng], 16); // Actualizamos el store global también
         }, 100);
-
-        hasFocusedRef.current = incidentId;
+        hasFocusedRef.current = incidentId ?? null;
       }
     }
   }, [map, selectedIncident, setStoreView]);
@@ -278,8 +279,6 @@ const MapViewportTracker = () => {
       if (isUserGestureEvent(event)) markUserAdjusted();
     },
     mousedown: () => markUserAdjusted(),
-    touchstart: () => markUserAdjusted(),
-    wheel: () => markUserAdjusted(),
     moveend: updateStoreFromMap,
     zoomend: updateStoreFromMap,
   });
@@ -352,7 +351,9 @@ export function MapView({
   infrastructureError,
   strategicOverlays,
   useStrategicPreferences = false,
+  worker,
 }: MapViewProps) {
+
   const mapRef = useRef<LeafletMap | null>(null);
   const center = useMapStore((state) => state.center);
   const zoom = useMapStore((state) => state.zoom);
@@ -561,7 +562,7 @@ export function MapView({
 
         <MapResizeHandler />
         {showIncidents && (
-          <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} />
+          <IncidentClusterLayer incidents={incidents} onIncidentClick={onIncidentClick} worker={worker} />
         )}
         <StationLayer stations={fireStations} isVisible={showStations} />
         <ObsoleteInfrastructureLayer infrastructure={infrastructure} isVisible={showInfrastructure} />

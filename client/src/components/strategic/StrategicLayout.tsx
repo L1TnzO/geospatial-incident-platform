@@ -3,17 +3,21 @@ import { subYears, startOfDay, endOfDay } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useMapPreferencesStore } from '../../store/map-preferences-store';
 import { useMapStore } from '../../store/map-store';
+import { HISTORICAL_RENDER_LIMIT_MAX } from '../../store/incident-filters-store';
 import { useStrategicHotspots } from '../../hooks/useStrategicHotspots';
 import { useStrategicCoverage } from '../../hooks/useStrategicCoverage';
 import { useStrategicResponseTimes } from '../../hooks/useStrategicResponseTimes';
 import { useStrategicPriorityZones } from '../../hooks/useStrategicPriorityZones';
+import { useLocalWorker } from '../../hooks/useLocalWorker'; // Import new hook
 
 import { useStrategicTimeOfDay } from '../../hooks/useStrategicTimeOfDay';
 import { useStrategicZoneFrequency } from '../../hooks/useStrategicZoneFrequency';
 import { useStrategicStationVolume } from '../../hooks/useStrategicStationVolume';
 import { useStrategicProjections } from '../../hooks/useStrategicProjections';
 import { useIncidentsData } from '../../hooks/useIncidentsData';
+
 import { useStationsData } from '../../hooks/useStationsData';
+import { useInfrastructureData } from '../../hooks/useInfrastructureData';
 
 import { ResponseTimeChart } from './ResponseTimeChart';
 import { PriorityZonesPanel } from './PriorityZonesPanel';
@@ -87,16 +91,24 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
   // The Delta Sync mechanism in useIncidentsData will still ensure we get the latest updates.
   const mapFilters = useMemo(() => {
     const now = new Date();
+    // Explicitly destructure to remove isActive property so it doesn't leak into the spread
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { isActive: _ignore, ...cleanFilters } = filters;
+
     return {
-      ...filters,
+      ...cleanFilters,
       startDate: subYears(startOfDay(now), 1).toISOString(),
       endDate: endOfDay(now).toISOString(),
       isActive: undefined, // Force ALL incidents (active + inactive)
+      renderLimit: HISTORICAL_RENDER_LIMIT_MAX, // Explicitly request high limit to override default
+      _context: 'strategic-map', // Force independent cache key to prevent collision with main map
     };
   }, [filters]); // Re-fetch only if filters object changes
 
+
   const incidentsData = useIncidentsData(mapFilters);
   const stationsQuery = useStationsData({ isActive: true });
+  const infrastructureQuery = useInfrastructureData();
 
   const incidents = incidentsData.incidents;
   const fireStations = stationsQuery.stations || [];
@@ -192,6 +204,8 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
       },
     });
   }, [incidents, worker, filters.startDate, filters.endDate]);
+  // Independent worker for strategic map to prevent global filter leakage
+  const localWorker = useLocalWorker(incidents);
 
   return (
     <div className={`p-6 ${className || ''}`}>
@@ -274,6 +288,9 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
               counts={mapCounts}
               stationsLoading={stationsQuery.isLoading}
               stationsError={stationsQuery.error}
+              infrastructure={infrastructureQuery.infrastructure}
+              infrastructureLoading={infrastructureQuery.isLoading}
+              infrastructureError={infrastructureQuery.error}
               useStrategicPreferences={true}
               strategicOverlays={{
                 hotspots: showHotspots ? hotspotsQuery.data?.cells || [] : [],
@@ -281,7 +298,7 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
                 priorityZones: showPriorityZones ? priorityZonesQuery.data?.groups || [] : [],
                 highlightedZone,
               }}
-              worker={worker}
+              worker={localWorker} // Pass injected worker
             />
           </div>
         )}

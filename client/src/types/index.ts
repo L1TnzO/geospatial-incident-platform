@@ -1,5 +1,7 @@
 export interface Incident {
   id: string;
+  incidentNumber?: string; // Add optional incidentNumber
+  title?: string; // Add optional title
   type: string;
   typeCode?: string;
   severity: string;
@@ -60,7 +62,8 @@ export interface FireStation {
       lat: number;
       lng: number;
     };
-  }
+  };
+}
 
 export interface ObsoleteInfrastructure {
   id: string;
