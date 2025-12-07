@@ -23,6 +23,8 @@ const createService = () => {
     getIncidentMetadata: jest.fn<Promise<Omit<IncidentMetadata, 'limits'>>, []>(),
     findIncidentSummary: jest.fn<Promise<IncidentSearchResult | null>, [string]>(),
     createIncident: jest.fn<Promise<IncidentDetail>, [unknown]>(),
+    getSyncStatus: jest.fn<Promise<{ lastModified: string; count: number }>, []>(),
+    getChangesSince: jest.fn<Promise<IncidentListItem[]>, [string]>(),
   };
 
   return {
