@@ -229,7 +229,7 @@ function AppRoutes() {
             element={
               !mobile && user ? (
                 <div className="flex-1 flex overflow-hidden relative">
-                  <main className="flex-1 overflow-y-auto relative z-0">
+                  <main className="flex-1 overflow-y-auto relative bg-background">
                     <StrategicPage />
                   </main>
                 </div>

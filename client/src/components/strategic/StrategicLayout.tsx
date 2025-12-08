@@ -200,8 +200,8 @@ export function StrategicLayout({ hideMap = false, className }: StrategicLayoutP
       <div className="max-w-[1600px] mx-auto space-y-6">
         {/* Header with refresh */}
         {/* Sticky Controls Layer */}
-        <div className="sticky top-0 z-50 flex justify-end pointer-events-none -mt-6 pt-6 pb-2">
-          <div className="pointer-events-auto bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-xl border shadow-sm">
+        <div className="sticky top-0 z-[60] flex justify-end -mt-6 pt-6 pb-2">
+          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2 rounded-xl border shadow-sm">
             <div className="flex items-center gap-4">
               <Select value={timeRange.startsWith('custom') ? 'custom' : timeRange} onValueChange={(val: string) => setTimeRange(val as any)}>
                 <SelectTrigger className="w-[180px]">
