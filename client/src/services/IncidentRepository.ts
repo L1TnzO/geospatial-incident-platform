@@ -39,6 +39,13 @@ class IncidentRepository {
         );
     }
 
+    public async upsertIncident(incident: LiteIncident): Promise<void> {
+        this.incidents.set(incident.id, incident);
+        this.notify();
+        // Persist optimistically to IDB
+        await set(DB_KEY_INCIDENTS, Array.from(this.incidents.values()));
+    }
+
     public getQuery(filters: {
         startDate?: string;
         endDate?: string;
@@ -136,8 +143,7 @@ class IncidentRepository {
                 if (!merged) {
                     // Full Fetch (Historical Limit)
                     // We must paginate because the server limits page size (likely 1000)
-                    const now = new Date();
-                    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
 
                     let page = 1;
                     const pageSize = 1000; // Safe limit below server max
@@ -148,8 +154,6 @@ class IncidentRepository {
                         console.log(`[IncidentRepository] Full Sync: Fetching page ${page}`);
                         try {
                             const response: any = await apiClient.incidents.mapList({
-                                startDate: oneYearAgo.toISOString(),
-                                endDate: now.toISOString(),
                                 pageSize,
                                 page
                             });

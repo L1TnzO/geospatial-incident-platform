@@ -17,10 +17,10 @@ export const useCreateIncident = () => {
         const store = useIncidentDetailStore.getState();
         store.cacheIncidentDetail(mapped.id, mapped);
         store.openIncident(mapped);
-      }
 
-      // Sync the repository to fetch the new incident (likely via Delta)
-      void incidentRepository.sync();
+        // Optimistically update the repository
+        void incidentRepository.upsertIncident(mapped);
+      }
 
       void queryClient.invalidateQueries({ queryKey: queryKeys.incidents.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.incidents.metadata });
