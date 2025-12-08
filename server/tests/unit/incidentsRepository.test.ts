@@ -32,6 +32,7 @@ const createMockDb = () => {
     from: jest.fn().mockReturnThis(),
     whereNotNull: jest.fn().mockReturnThis(),
     stream: jest.fn(),
+    delete: jest.fn().mockReturnThis(),
     then: jest.fn().mockImplementation((callback) => Promise.resolve([]).then(callback)),
   };
 
@@ -41,7 +42,7 @@ const createMockDb = () => {
 
   const db: any = jest.fn(() => queryBuilder);
   db.raw = jest.fn((sql) => sql);
-  db.fn = { now: jest.fn() };
+  db.fn = { now: jest.fn().mockReturnValue('NOW()') };
   db.transaction = jest.fn((callback) => callback(db));
   db.with = jest.fn().mockReturnValue(queryBuilder); // Mock db.with()
 
@@ -49,7 +50,7 @@ const createMockDb = () => {
 };
 
 describe('IncidentRepository', () => {
-  // ... existing tests ...
+  // Existing tests ...
   describe('getIncidentDetail', () => {
     it('fetches incident detail and maps it correctly', async () => {
       const { db, queryBuilder } = createMockDb();
@@ -241,7 +242,6 @@ describe('IncidentRepository', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].incidentCount).toBe(10);
-      // Since we mocked db.with to return queryBuilder, and queryBuilder.then returns mockRows, this should work.
     });
   });
 
@@ -317,5 +317,239 @@ describe('IncidentRepository', () => {
         expect(result).toHaveLength(1);
         expect((result[0] as any).rawScore).toBe(100);
       });
+  });
+
+  // NEW TESTS FOR MISSING METHODS
+
+  describe('listIncidentsForMap', () => {
+    it('lists map incidents', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRow = {
+        incidentNumber: 'INC-001',
+        title: 'Test',
+        occurrenceAt: '2025-01-01T00:00:00Z',
+        reportedAt: '2025-01-01T00:05:00Z',
+        isActive: true,
+        typeCode: 'FIRE',
+        severityCode: 'HIGH',
+        statusCode: 'REPORTED',
+        locationGeoJson: { type: 'Point', coordinates: [0, 0] },
+      };
+      queryBuilder.count.mockResolvedValue([{ total: '1' }]);
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve([mockRow]).then(resolve));
+
+      const result = await repository.listIncidentsForMap({});
+      expect(result.data).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+  });
+
+  describe('getSyncStatus', () => {
+    it('returns sync status', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      queryBuilder.first.mockResolvedValue({ lastModified: '2025-01-01', count: '100' });
+
+      const status = await repository.getSyncStatus();
+      expect(status.count).toBe(100);
+      expect(status.lastModified).toBe('2025-01-01T00:00:00.000Z');
+    });
+  });
+
+  describe('getChangesSince', () => {
+    it('returns changed incidents', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRow = {
+        incidentNumber: 'INC-001',
+        title: 'Test',
+        occurrenceAt: '2025-01-01T00:00:00Z',
+        reportedAt: '2025-01-01T00:05:00Z',
+        isActive: true,
+        typeCode: 'FIRE',
+        severityCode: 'HIGH',
+        statusCode: 'REPORTED',
+        locationGeoJson: { type: 'Point', coordinates: [0, 0] },
+      };
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve([mockRow]).then(resolve));
+
+      const result = await repository.getChangesSince('2025-01-01');
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('deleteIncident', () => {
+    it('deletes incident (soft delete)', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      queryBuilder.update.mockResolvedValue(1);
+
+      await repository.deleteIncident('INC-001');
+      expect(queryBuilder.update).toHaveBeenCalledWith(expect.objectContaining({ deleted_at: expect.anything() }));
+    });
+
+    it('throws if incident not found', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      queryBuilder.update.mockResolvedValue(0);
+
+      await expect(repository.deleteIncident('INC-404')).rejects.toThrow();
+    });
+  });
+
+  describe('findIncidentSummary', () => {
+    it('finds incident summary', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRow = {
+        incidentNumber: 'INC-001',
+        title: 'Test',
+        occurrenceAt: '2025-01-01T00:00:00Z',
+        reportedAt: '2025-01-01T00:05:00Z',
+        isActive: true,
+        typeCode: 'FIRE',
+        severityCode: 'HIGH',
+        statusCode: 'REPORTED',
+        locationGeoJson: { type: 'Point', coordinates: [0, 0] },
+      };
+      queryBuilder.first.mockResolvedValue(mockRow);
+
+      const result = await repository.findIncidentSummary('INC-001');
+      expect(result).not.toBeNull();
+      expect(result?.incidentNumber).toBe('INC-001');
+    });
+  });
+
+  describe('getIncidentCountsByType', () => {
+    it('counts by type', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ typeCode: 'FIRE', typeName: 'Fire', total: '10' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getIncidentCountsByType({});
+      expect(result).toHaveLength(1);
+      expect(result[0].count).toBe(10);
+    });
+  });
+
+  describe('getSeverityDistribution', () => {
+    it('returns severity distribution', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ severityCode: 'HIGH', severityName: 'High', total: '5' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getSeverityDistribution({});
+      expect(result).toHaveLength(1);
+      expect(result[0].count).toBe(5);
+    });
+  });
+
+  describe('getIncidentCountsByReportedMonth', () => {
+    it('returns monthly counts', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ bucketMonth: '2025-01-01T00:00:00Z', total: '10' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getIncidentCountsByReportedMonth({}, { start: '2025-01-01', end: '2025-02-01' });
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('getIncidentCountsByReportedQuarter', () => {
+    it('returns quarterly counts', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ bucketQuarter: '2025-01-01T00:00:00Z', year: 2025, quarter: 1, total: '20' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getIncidentCountsByReportedQuarter({}, { start: '2025-01-01', end: '2025-04-01' });
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('getIncidentTypeTimeline', () => {
+    it('returns timeline', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ bucketMonth: '2025-01-01T00:00:00Z', typeCode: 'FIRE', typeName: 'Fire', total: '5' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getIncidentTypeTimeline({}, { start: '2025-01-01', end: '2025-02-01' });
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('listRecentIncidents', () => {
+    it('lists recent incidents', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRow = {
+        incidentNumber: 'INC-001',
+        title: 'Test',
+        occurrenceAt: '2025-01-01T00:00:00Z',
+        reportedAt: '2025-01-01T00:05:00Z',
+        isActive: true,
+        typeCode: 'FIRE',
+        severityCode: 'HIGH',
+        statusCode: 'REPORTED',
+        locationGeoJson: { type: 'Point', coordinates: [0, 0] },
+      };
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve([mockRow]).then(resolve));
+
+      const result = await repository.listRecentIncidents({});
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('getZoneFrequency', () => {
+    it('returns zone frequency', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ zoneName: 'Zone 1', count: '10' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getZoneFrequency({});
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('getStationIncidentCounts', () => {
+    it('returns station counts', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ stationCode: 'ST1', stationName: 'S1', count: '15' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getStationIncidentCounts({});
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('getMostFrequentIncidentTypesByDistrict', () => {
+    it('returns district frequencies', async () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockRows = [{ district: 'D1', typeName: 'Fire', count: '5' }];
+      queryBuilder.then.mockImplementation((resolve: any) => Promise.resolve(mockRows).then(resolve));
+
+      const result = await repository.getMostFrequentIncidentTypesByDistrict({});
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('createIncidentExportStream', () => {
+    it('returns a stream', () => {
+      const { db, queryBuilder } = createMockDb();
+      const repository = new IncidentRepository(db);
+      const mockStream = { pipe: jest.fn().mockReturnThis(), on: jest.fn() };
+      queryBuilder.stream.mockReturnValue(mockStream);
+
+      const stream = repository.createIncidentExportStream({}, { limit: 10 });
+      expect(stream).toBeDefined();
+    });
   });
 });
