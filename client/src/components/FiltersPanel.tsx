@@ -79,8 +79,8 @@ export function FiltersPanel() {
 
   const { user } = useAuth();
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const isMobileLayout = !isDesktop || isMobile() || !user;
-
+  // Restriction applies ONLY to guests, not just small screens
+  const isGuestRestriction = !user;
 
 
   const metadataQuery = useIncidentMetadataQuery();
@@ -93,7 +93,7 @@ export function FiltersPanel() {
       statusCodes,
       isActive,
       renderLimit,
-    }, isMobileLayout),
+    }, isGuestRestriction),
   );
 
   useEffect(() => {
@@ -106,16 +106,16 @@ export function FiltersPanel() {
         statusCodes,
         isActive,
         renderLimit,
-      }, isMobileLayout),
+      }, isGuestRestriction),
     );
-  }, [startDate, endDate, typeCodes, severityCodes, statusCodes, isActive, renderLimit, isMobileLayout]);
+  }, [startDate, endDate, typeCodes, severityCodes, statusCodes, isActive, renderLimit, isGuestRestriction]);
 
-  // Force isActive to true on mobile layout
+  // Force isActive to true ONLY for guests
   useEffect(() => {
-    if (isMobileLayout && !isActive) {
+    if (isGuestRestriction && !isActive) {
       setFilters({ isActive: true });
     }
-  }, [isMobileLayout, isActive, setFilters]);
+  }, [isGuestRestriction, isActive, setFilters]);
 
   const metadata = metadataQuery.data;
   const typeOptions = metadata?.types ?? [];
@@ -179,7 +179,7 @@ export function FiltersPanel() {
         statusCodes: undefined,
         isActive: true,
         renderLimit: DEFAULT_ACTIVE_RENDER_LIMIT,
-      }, isMobileLayout),
+      }, isGuestRestriction),
     );
   };
 
@@ -247,7 +247,7 @@ export function FiltersPanel() {
           )}
         </div>
 
-        {!isMobileLayout && (
+        {!isGuestRestriction && (
           <div className="space-y-2">
             <Label className="flex items-center justify-between">
               Active incidents
