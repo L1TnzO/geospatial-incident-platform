@@ -156,7 +156,11 @@ class IncidentRepository {
 
                             if (response?.data && response.data.length > 0) {
                                 const mapped = response.data.map(mapIncidentToUi).filter((i): i is LiteIncident => i !== null);
+
+                                // Progressive rendering: Update and notify immediately
+                                mapped.forEach(inc => this.incidents.set(inc.id, inc));
                                 allIncidents.push(...mapped);
+                                this.notify();
 
                                 // Check pagination info if available, or infer from result size
                                 if (response.pagination) {
