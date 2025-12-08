@@ -18,12 +18,12 @@ Esta guía explica cómo configurar el despliegue automático de la aplicación 
 
 Para que el flujo de trabajo (`.github/workflows/deploy.yml`) funcione, debes configurar los siguientes secretos en tu repositorio de GitHub (Settings > Secrets and variables > Actions):
 
-| Nombre del Secreto | Descripción | Ejemplo |
-|-------------------|-------------|---------|
-| `VPS_APP_HOST` | Dirección IP o Hostname del VPS 1 (App) | `200.13.4.201` |
-| `VPS_DB_HOST` | Dirección IP o Hostname del VPS 2 (DB) | `200.13.4.202` |
-| `VPS_APP_USER` | Usuario SSH para el VPS 1 (App) | `ubuntu` |
-| `VPS_DB_USER` | Usuario SSH para el VPS 2 (DB) | `root` |
+| Nombre del Secreto    | Descripción                                       | Ejemplo                             |
+| --------------------- | ------------------------------------------------- | ----------------------------------- |
+| `VPS_APP_HOST`        | Dirección IP o Hostname del VPS 1 (App)           | `200.13.4.201`                      |
+| `VPS_DB_HOST`         | Dirección IP o Hostname del VPS 2 (DB)            | `200.13.4.202`                      |
+| `VPS_APP_USER`        | Usuario SSH para el VPS 1 (App)                   | `ubuntu`                            |
+| `VPS_DB_USER`         | Usuario SSH para el VPS 2 (DB)                    | `root`                              |
 | `VPS_SSH_PRIVATE_KEY` | Clave privada SSH para acceder a ambos servidores | `-----BEGIN OPENSSH PRIVATE KEY...` |
 
 > **Nota:** Asegúrate de que la clave pública correspondiente a `VPS_SSH_PRIVATE_KEY` esté agregada al archivo `~/.ssh/authorized_keys` en **ambos** servidores.
@@ -33,15 +33,17 @@ Para que el flujo de trabajo (`.github/workflows/deploy.yml`) funcione, debes co
 El archivo `deploy.yml` realiza las siguientes acciones automáticamente al hacer push a `main` o `master`:
 
 ### 1. Job: Deploy Database (VPS 2)
+
 1.  Copia los archivos necesarios al VPS 2.
 2.  Configura las variables de entorno (`.env.postgis`).
 3.  Levanta el contenedor de base de datos (`docker compose up -d db`).
 4.  Ejecuta migraciones (utilizando un contenedor temporal de backend).
 5.  Ejecuta el script `tools/bulk_load/auto_deploy_db.sh`:
-    -   Verifica si la base de datos tiene datos.
-    -   Si está vacía, genera datos sintéticos y los carga masivamente.
+    - Verifica si la base de datos tiene datos.
+    - Si está vacía, genera datos sintéticos y los carga masivamente.
 
 ### 2. Job: Deploy App (VPS 1)
+
 1.  Se ejecuta solo si el despliegue de base de datos fue exitoso.
 2.  Copia los archivos al VPS 1.
 3.  Configura las variables de entorno (`.env.backend`, `.env.frontend`).
@@ -54,6 +56,7 @@ El archivo `deploy.yml` realiza las siguientes acciones automáticamente al hace
 Aunque el script intenta crear los archivos `.env` basándose en los ejemplos, se recomienda configurar manualmente los archivos `.env` en los servidores si necesitas contraseñas específicas o configuraciones de producción diferentes a las de ejemplo.
 
 Ubicaciones de archivos `.env` en el servidor (dentro de `~/geospatial-incident-platform/infra/docker/`):
+
 - `.env.postgis` (VPS 2)
 - `.env.backend` (VPS 1)
 - `.env.frontend` (VPS 1)
@@ -61,19 +64,20 @@ Ubicaciones de archivos `.env` en el servidor (dentro de `~/geospatial-incident-
 ## Solución de Problemas
 
 - **Error de Conexión SSH**: Verifica que la clave pública esté en ambos servidores y que el usuario `VPS_USER` tenga permisos.
-- **Base de Datos no accesible**: Asegúrate de que el puerto 5432 esté abierto en el firewall del VPS 2 y acepte conexiones desde el IP del VPS 1.
+- **Base de Datos no accesible**: Asegúrate de que el puerto 5434 esté abierto en el firewall del VPS 2 y acepte conexiones desde el IP del VPS 1.
 - **Datos no cargados**: Revisa los logs del paso "Deploy and Initialize DB" en GitHub Actions. El script `auto_deploy_db.sh` solo carga datos si la tabla `incidents` está vacía.
-POSTGRES_USER=gis_prod
-POSTGRES_PASSWORD=TU_PASSWORD_SEGURO_AQUI
-POSTGRES_DB=gis_production
-POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.utf8
-```
+  POSTGRES_USER=gis_prod
+  POSTGRES_PASSWORD=TU_PASSWORD_SEGURO_AQUI
+  POSTGRES_DB=gis_production
+  POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.utf8
+
+````
 
 Crear archivo para el backend:
 
 ```bash
 nano infra/docker/.env.backend
-```
+````
 
 Contenido sugerido para `.env.backend`:
 
@@ -115,6 +119,7 @@ cat ~/.ssh/vps_deploy_key
 ```
 
 Copia **TODO** el contenido de la clave privada, incluyendo:
+
 - `-----BEGIN OPENSSH PRIVATE KEY-----`
 - Todo el contenido del medio
 - `-----END OPENSSH PRIVATE KEY-----`
@@ -122,6 +127,7 @@ Copia **TODO** el contenido de la clave privada, incluyendo:
 ### 2. Configurar GitHub Secrets
 
 Ve a tu repositorio en GitHub:
+
 1. Click en **Settings** (Configuración)
 2. En el menú lateral, click en **Secrets and variables** > **Actions**
 3. Click en **New repository secret**
@@ -129,20 +135,24 @@ Ve a tu repositorio en GitHub:
 Crea los siguientes secrets:
 
 #### Secret 1: VPS_SSH_PRIVATE_KEY
+
 - **Name:** `VPS_SSH_PRIVATE_KEY`
 - **Value:** Pega el contenido completo de la clave privada (incluye BEGIN y END)
 
 #### Secret 2: VPS_HOST
+
 - **Name:** `VPS_HOST`
 - **Value:** `200.13.4.202`
 
 #### Secret 3: VPS_USER
+
 - **Name:** `VPS_USER`
 - **Value:** `hito3`
 
 ### 3. Verificar Secrets Configurados
 
 Deberías tener estos tres secrets:
+
 - ✅ VPS_SSH_PRIVATE_KEY
 - ✅ VPS_HOST
 - ✅ VPS_USER
@@ -152,6 +162,7 @@ Deberías tener estos tres secrets:
 ### Despliegue Automático
 
 El despliegue se ejecuta automáticamente cuando:
+
 - Haces push a la rama `master`
 - O ejecutas manualmente el workflow desde GitHub Actions
 
@@ -168,7 +179,7 @@ El despliegue se ejecuta automáticamente cuando:
 
 El workflow ejecuta las siguientes fases:
 
-1. **Test**: 
+1. **Test**:
    - Ejecuta linters
    - Ejecuta tests del servidor
    - Ejecuta tests del cliente
@@ -382,6 +393,7 @@ sudo journalctl -u docker -f
 ## Soporte
 
 Para problemas o preguntas:
+
 - Revisar logs en GitHub Actions
 - Revisar logs en el VPS
 - Consultar documentación de Docker Compose

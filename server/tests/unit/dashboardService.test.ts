@@ -77,21 +77,21 @@ describe('DashboardService', () => {
     });
 
     it('compares with previous year if requested', async () => {
-        (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
-        (incidentRepository.countIncidentsByReportedRange as jest.Mock).mockResolvedValue(100);
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+      (incidentRepository.countIncidentsByReportedRange as jest.Mock).mockResolvedValue(100);
 
-        await service.getLast24HoursKpi({ compare: 'year' }, false, mockNow);
+      await service.getLast24HoursKpi({ compare: 'year' }, false, mockNow);
 
-        const calls = (incidentRepository.countIncidentsByReportedRange as jest.Mock).mock.calls;
-        const previousCall = calls[1];
-        const previousRange = previousCall[1];
+      const calls = (incidentRepository.countIncidentsByReportedRange as jest.Mock).mock.calls;
+      const previousCall = calls[1];
+      const previousRange = previousCall[1];
 
-        const expectedPrevStart = new Date(mockNow.getTime() - 24 * 60 * 60 * 1000);
-        expectedPrevStart.setFullYear(expectedPrevStart.getFullYear() - 1);
+      const expectedPrevStart = new Date(mockNow.getTime() - 24 * 60 * 60 * 1000);
+      expectedPrevStart.setFullYear(expectedPrevStart.getFullYear() - 1);
 
-        // previousRange.start is string, need to compare dates
-        expect(new Date(previousRange.start).toISOString()).toBe(expectedPrevStart.toISOString());
-      });
+      // previousRange.start is string, need to compare dates
+      expect(new Date(previousRange.start).toISOString()).toBe(expectedPrevStart.toISOString());
+    });
   });
 
   describe('getIncidentsByType', () => {
@@ -117,10 +117,10 @@ describe('DashboardService', () => {
 
       await service.getIncidentsByType({}, false, mockNow);
 
-      expect(incidentRepository.getIncidentCountsByType).toHaveBeenCalledWith(
-        expect.anything(),
-        { start: filters.startDate, end: filters.endDate }
-      );
+      expect(incidentRepository.getIncidentCountsByType).toHaveBeenCalledWith(expect.anything(), {
+        start: filters.startDate,
+        end: filters.endDate,
+      });
     });
   });
 
@@ -143,20 +143,20 @@ describe('DashboardService', () => {
     });
 
     it('uses hourly bucketing for short ranges', async () => {
-        const filters = { startDate: '2025-01-02T00:00:00Z', endDate: '2025-01-02T12:00:00Z' };
-        (incidentService.buildFilterOptions as jest.Mock).mockReturnValue(filters);
+      const filters = { startDate: '2025-01-02T00:00:00Z', endDate: '2025-01-02T12:00:00Z' };
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue(filters);
 
-        // Mock getIncidentCountsByReportedHour for current range
-        (incidentRepository.getIncidentCountsByReportedHour as jest.Mock)
-          .mockResolvedValueOnce([{ date: '2025-01-02T01:00:00.000Z', count: 5 }])
-          .mockResolvedValueOnce([]); // for previous range
+      // Mock getIncidentCountsByReportedHour for current range
+      (incidentRepository.getIncidentCountsByReportedHour as jest.Mock)
+        .mockResolvedValueOnce([{ date: '2025-01-02T01:00:00.000Z', count: 5 }])
+        .mockResolvedValueOnce([]); // for previous range
 
-        (incidentRepository.countIncidentsByReportedRange as jest.Mock).mockResolvedValue(0);
+      (incidentRepository.countIncidentsByReportedRange as jest.Mock).mockResolvedValue(0);
 
-        await service.getDailyTrend({}, false, mockNow);
+      await service.getDailyTrend({}, false, mockNow);
 
-        expect(incidentRepository.getIncidentCountsByReportedHour).toHaveBeenCalled();
-      });
+      expect(incidentRepository.getIncidentCountsByReportedHour).toHaveBeenCalled();
+    });
   });
 
   describe('getSeverityDistribution', () => {
@@ -176,33 +176,192 @@ describe('DashboardService', () => {
   });
 
   describe('prepareIncidentsExport', () => {
-      it('creates export stream with correct metadata', async () => {
-          (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
-          (incidentRepository.countIncidents as jest.Mock).mockResolvedValue(100);
+    it('creates export stream with correct metadata', async () => {
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+      (incidentRepository.countIncidents as jest.Mock).mockResolvedValue(100);
 
-          const mockStream = { pipe: jest.fn().mockReturnThis(), on: jest.fn() };
-          (incidentRepository.createIncidentExportStream as jest.Mock).mockReturnValue(mockStream);
+      const mockStream = { pipe: jest.fn().mockReturnThis(), on: jest.fn() };
+      (incidentRepository.createIncidentExportStream as jest.Mock).mockReturnValue(mockStream);
 
-          const result = await service.prepareIncidentsExport({ limit: '100' }, mockNow);
+      const result = await service.prepareIncidentsExport({ limit: '100' }, mockNow);
 
-          expect(result.total).toBe(100);
-          expect(result.filename).toContain('incidents-export-');
-          expect(incidentRepository.createIncidentExportStream).toHaveBeenCalled();
+      expect(result.total).toBe(100);
+      expect(result.filename).toContain('incidents-export-');
+      expect(incidentRepository.createIncidentExportStream).toHaveBeenCalled();
+    });
+
+    it('throws if limit exceeded', async () => {
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+      (incidentRepository.countIncidents as jest.Mock).mockResolvedValue(6000);
+
+      await expect(service.prepareIncidentsExport({ limit: '5000' }, mockNow)).rejects.toThrow(
+        HttpError
+      );
+    });
+
+    it('throws on invalid columns', async () => {
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+
+      await expect(
+        service.prepareIncidentsExport({ includeColumns: 'invalid' }, mockNow)
+      ).rejects.toThrow(HttpError);
+    });
+
+    it('exercises all column accessors and csv formatting', async () => {
+      // Mock stream with robust definition
+      const mockOn = jest.fn();
+      const mockStream = {
+        pipe: jest.fn(),
+        on: mockOn,
+        pause: jest.fn(),
+        resume: jest.fn(),
+      };
+      // When pipe is called, return self to simulate chaining/throttling result (simplified)
+      (mockStream.pipe as jest.Mock).mockReturnValue(mockStream);
+
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+      (incidentRepository.countIncidents as jest.Mock).mockResolvedValue(1);
+      (incidentRepository.createIncidentExportStream as jest.Mock).mockReturnValue(mockStream);
+
+      const fullItem: any = {
+        incidentNumber: 'INC-"001"', // Quote test
+        title: 'Test\nIncident', // Newline test
+        occurrenceAt: '2023-01-01T00:00:00Z',
+        reportedAt: '2023-01-01T00:00:00Z',
+        dispatchAt: '2023-01-01T00:05:00Z',
+        arrivalAt: '2023-01-01T00:10:00Z',
+        resolvedAt: '2023-01-01T01:00:00Z',
+        type: { code: 'FIRE', name: 'Fire' },
+        severity: { code: 'HIGH', name: 'High', priority: 1 },
+        status: { code: 'OPEN', name: 'Open' },
+        isActive: true,
+        casualtyCount: 2,
+        responderInjuries: 1,
+        estimatedDamageAmount: '1000',
+        primaryStation: { stationCode: 'ST-01', name: 'Station 1' },
+        source: { code: 'PHONE' },
+        weather: { code: 'CLEAR' },
+        location: { geometry: { coordinates: [-123.456789, 45.678901] } },
+      };
+
+      const knownKeys = [
+        'incidentnumber',
+        'title',
+        'occurrenceat',
+        'reportedat',
+        'dispatchat',
+        'arrivalat',
+        'resolvedat',
+        'typecode',
+        'typename',
+        'severitycode',
+        'severityname',
+        'severitypriority',
+        'statuscode',
+        'statusname',
+        'isactive',
+        'casualtycount',
+        'responderinjuries',
+        'estimateddamage',
+        'primarystationcode',
+        'primarystationname',
+        'sourcecode',
+        'weathercode',
+        'longitude',
+        'latitude',
+      ];
+      const includeColumns = knownKeys.join(',');
+
+      const result = await service.prepareIncidentsExport({ includeColumns }, mockNow);
+
+      // Verify accessors
+      result.selectedColumns.forEach((col) => {
+        expect(col.accessor(fullItem)).toBeDefined();
       });
 
-      it('throws if limit exceeded', async () => {
-          (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
-          (incidentRepository.countIncidents as jest.Mock).mockResolvedValue(6000);
+      // Trigger data flow to test csvEscape and stream writing
+      const dataHandler = mockOn.mock.calls.find((call) => call[0] === 'data')?.[1];
+      expect(dataHandler).toBeDefined();
 
-          await expect(service.prepareIncidentsExport({ limit: '5000' }, mockNow))
-            .rejects.toThrow(HttpError);
+      // Mock the csvStream write to inspect output if needed, but PassThrough works in memory too.
+      // We can collect data from result.stream
+      const chunks: string[] = [];
+      result.stream.on('data', (chunk) => chunks.push(chunk.toString()));
+
+      // Simulate data event
+      dataHandler(fullItem);
+
+      // Wait a tick for stream? It's synchronous usually for PassThrough
+      // Simulate data event
+      dataHandler(fullItem);
+
+      // Wait for stream events to propagate
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(chunks.length).toBeGreaterThan(0);
+      const csvContent = chunks.join('');
+      // Check for escaped quote
+      expect(csvContent).toContain('"INC-""001"""');
+      // Check for quoted newline
+      expect(csvContent).toContain('"Test\nIncident"');
+
+      // Test null/empty item safety
+      const emptyItem: any = {
+        incidentNumber: 'INC-002',
+        title: 'Empty',
+        occurrenceAt: '',
+        reportedAt: '',
+        type: { code: '', name: '' },
+        severity: { code: '', name: '', priority: 0 },
+        status: { code: '', name: '' },
+        isActive: false, // Should be 'false' string
+        casualtyCount: 0,
+        responderInjuries: 0,
+        location: { geometry: { coordinates: [] } },
+      };
+
+      dataHandler(emptyItem);
+      const finalCsv = chunks.join('');
+      expect(finalCsv).toContain(',false,'); // Boolean formatting
+    });
+  });
+
+  describe('Utility/Edge Cases', () => {
+    it('getDailyTrend uses previous year for comparison', async () => {
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+      // Start/End provided implies explicit range
+      (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({
+        startDate: '2023-01-01T00:00:00Z',
+        endDate: '2023-01-31T00:00:00Z',
       });
 
-      it('throws on invalid columns', async () => {
-          (incidentService.buildFilterOptions as jest.Mock).mockReturnValue({});
+      (incidentRepository.getIncidentCountsByReportedDay as jest.Mock).mockResolvedValue([]);
+      (incidentRepository.countIncidentsByReportedRange as jest.Mock).mockResolvedValue(0);
 
-          await expect(service.prepareIncidentsExport({ includeColumns: 'invalid' }, mockNow))
-            .rejects.toThrow(HttpError);
-      });
+      await service.getDailyTrend({ compare: 'year' }, false, mockNow);
+
+      // Verify the previous range calculation (should be 2022)
+      const calls = (incidentRepository.countIncidentsByReportedRange as jest.Mock).mock.calls;
+      // The second call (or first if optimize check order?)
+      // getDailyTrend calls countIncidentsByReportedRange for "previousTotal"
+      const prevRangeArg = calls[0][1];
+      expect(prevRangeArg.start).toContain('2022');
+    });
+
+    it('accessors handle coordinate formatting correctly', async () => {
+      // Indirectly test formatCoordinate
+      const knownKeys = ['longitude'];
+      const result = await service.prepareIncidentsExport(
+        { includeColumns: knownKeys.join(',') },
+        mockNow
+      );
+      const accessor = result.selectedColumns[0].accessor;
+
+      const item: any = { location: { geometry: { coordinates: [123.456789123] } } };
+      expect(accessor(item)).toBe('123.456789');
+
+      const itemNaN: any = { location: { geometry: { coordinates: [NaN] } } };
+      expect(accessor(itemNaN)).toBe('');
+    });
   });
 });

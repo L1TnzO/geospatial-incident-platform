@@ -31,7 +31,7 @@ envSearchOrder.forEach((filePath) => {
 
 const buildConnectionConfig = () => {
   const connectionString =
-    process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/postgres';
+    process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5434/postgres';
 
   const sslSetting = process.env.DATABASE_SSL;
   if (!sslSetting || sslSetting === 'false') {

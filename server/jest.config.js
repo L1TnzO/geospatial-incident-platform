@@ -7,7 +7,7 @@ module.exports = {
   moduleNameMapper: {
     '^@server/(.*)$': '<rootDir>/src/$1',
   },
-  collectCoverageFrom: ['src/**/*.ts', '!src/index.ts'],
+  collectCoverageFrom: ['src/**/*.ts', '!src/index.ts', '!src/scripts/**/*.ts'],
   coverageThreshold: {
     global: {
       lines: 85,

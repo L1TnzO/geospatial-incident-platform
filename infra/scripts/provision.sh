@@ -67,7 +67,7 @@ if command -v ufw &> /dev/null; then
     sudo ufw allow 443/tcp     # HTTPS
     sudo ufw allow 3000/tcp    # Frontend
     sudo ufw allow 4000/tcp    # Backend
-    sudo ufw allow 5432/tcp    # Postgres (Cuidado: idealmente restringir a IP de App)
+    sudo ufw allow 5434/tcp    # Postgres (Cuidado: idealmente restringir a IP de App)
 fi
 
 # Configurar límites de sistema para PostgreSQL

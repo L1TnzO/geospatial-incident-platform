@@ -45,7 +45,7 @@ Docker Compose definitions live at the repository root and spin up PostGIS, back
 1. Copy `.env.example` to `.env` and adjust the environment file paths if you duplicate any of the templates in `infra/docker/`.
 2. Copy each `infra/docker/.env.*.example` to a matching `.env.*` file and update secrets/tokens.
 3. Run `make compose-up` (or `docker compose up --build`) to start the stack, then visit:
-   - PostGIS: `localhost:5432`
+   - PostGIS: `localhost:5434`
    - Backend placeholder: `localhost:4000`
    - Frontend placeholder: `localhost:5173`
    - pgAdmin (optional profile): `localhost:5050`

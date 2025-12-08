@@ -7,7 +7,7 @@ Usage: load_data.sh [--data-dir PATH] [--database-url URL] [--skip-validation]
 
 Options:
   --data-dir PATH       Directory containing stations.csv, incidents.csv, etc. (default: data/bulk_load_batch)
-  --database-url URL    PostgreSQL connection string (default: postgres://gis_dev:gis_dev_password@localhost:5432/gis)
+  --database-url URL    PostgreSQL connection string (default: postgres://gis_dev:gis_dev_password@localhost:5434/gis)
   --skip-validation     Load data but skip validation queries.
   -h, --help            Show this message and exit.
 
@@ -22,7 +22,7 @@ EOF
 }
 
 DATA_DIR="data/bulk_load_batch"
-DATABASE_URL="postgres://gis_dev:gis_dev_password@localhost:5432/gis"
+DATABASE_URL="postgres://gis_dev:gis_dev_password@localhost:5434/gis"
 RUN_VALIDATIONS=true
 
 while [[ $# -gt 0 ]]; do
