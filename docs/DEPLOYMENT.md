@@ -85,11 +85,11 @@ Contenido sugerido para `.env.backend`:
 NODE_ENV=production
 PORT=4000
 DATABASE_HOST=db
-DATABASE_PORT=5432
+DATABASE_PORT=5434
 DATABASE_NAME=gis_production
 DATABASE_USER=gis_prod
 DATABASE_PASSWORD=TU_PASSWORD_SEGURO_AQUI
-DATABASE_URL=postgresql://gis_prod:TU_PASSWORD_SEGURO_AQUI@db:5432/gis_production
+DATABASE_URL=postgresql://gis_prod:TU_PASSWORD_SEGURO_AQUI@db:5434/gis_production
 JWT_SECRET=TU_JWT_SECRET_SEGURO_AQUI
 CORS_ORIGIN=http://200.13.4.202:3000,http://localhost:3000
 ```
