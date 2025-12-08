@@ -30,27 +30,45 @@ envSearchOrder.forEach((filePath) => {
 });
 
 const buildConnectionConfig = () => {
+  if (
+    process.env.DATABASE_HOST &&
+    process.env.DATABASE_PORT &&
+    process.env.DATABASE_USER &&
+    process.env.DATABASE_PASSWORD &&
+    process.env.DATABASE_NAME
+  ) {
+    return {
+      host: process.env.DATABASE_HOST,
+      port: Number(process.env.DATABASE_PORT),
+      user: process.env.DATABASE_USER,
+      password: process.env.DATABASE_PASSWORD,
+      database: process.env.DATABASE_NAME,
+      ssl: getSslConfig(),
+    };
+  }
+
   const connectionString =
     process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5434/postgres';
 
-  const sslSetting = process.env.DATABASE_SSL;
-  if (!sslSetting || sslSetting === 'false') {
-    return connectionString;
-  }
-
-  const sslConfig =
-    sslSetting === 'true' || sslSetting === 'require'
-      ? { rejectUnauthorized: false }
-      : sslSetting === 'no-verify'
-        ? { rejectUnauthorized: false }
-        : sslSetting === 'ca'
-          ? { ca: process.env.DATABASE_SSL_CA }
-          : undefined;
-
   return {
     connectionString,
-    ssl: sslConfig ?? true,
+    ssl: getSslConfig() ?? true,
   };
+};
+
+const getSslConfig = () => {
+  const sslSetting = process.env.DATABASE_SSL;
+  if (!sslSetting || sslSetting === 'false') {
+    return undefined; // No SSL by default if not set or false
+  }
+
+  return sslSetting === 'true' || sslSetting === 'require'
+    ? { rejectUnauthorized: false }
+    : sslSetting === 'no-verify'
+      ? { rejectUnauthorized: false }
+      : sslSetting === 'ca'
+        ? { ca: process.env.DATABASE_SSL_CA }
+        : { rejectUnauthorized: false }; // Default fallback for enabled SSL
 };
 
 const baseConfig = {
