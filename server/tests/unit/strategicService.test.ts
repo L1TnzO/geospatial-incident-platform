@@ -18,6 +18,14 @@ const createService = (
       getResponseTimeMetrics: jest.Mock;
       getPriorityScores: jest.Mock;
       getStationCoverageBuffers: jest.Mock;
+      getIncidentCountsByReportedHour: jest.Mock;
+      getIncidentCountsByReportedDay: jest.Mock;
+      countIncidentsByReportedRange: jest.Mock;
+      getIncidentCountsByHourOfDay: jest.Mock;
+      getZoneFrequency: jest.Mock;
+      getStationIncidentCounts: jest.Mock;
+      getIncidentMetadata: jest.Mock;
+      getMostFrequentIncidentTypesByDistrict: jest.Mock;
     }>;
     incidentSvc?: Partial<{
       buildFilterOptions: jest.Mock;
@@ -33,6 +41,14 @@ const createService = (
     getResponseTimeMetrics: jest.fn().mockResolvedValue([]),
     getPriorityScores: jest.fn().mockResolvedValue([]),
     getStationCoverageBuffers: jest.fn().mockResolvedValue([]),
+    getIncidentCountsByReportedHour: jest.fn().mockResolvedValue([]),
+    getIncidentCountsByReportedDay: jest.fn().mockResolvedValue([]),
+    countIncidentsByReportedRange: jest.fn().mockResolvedValue(0),
+    getIncidentCountsByHourOfDay: jest.fn().mockResolvedValue([]),
+    getZoneFrequency: jest.fn().mockResolvedValue([]),
+    getStationIncidentCounts: jest.fn().mockResolvedValue([]),
+    getIncidentMetadata: jest.fn().mockResolvedValue({ reportedRange: {} }),
+    getMostFrequentIncidentTypesByDistrict: jest.fn().mockResolvedValue([]),
     ...(overrides.repository ?? {}),
   };
 
@@ -67,6 +83,7 @@ describe('StrategicAnalyticsService', () => {
     jest.useRealTimers();
   });
 
+  // Existing tests ...
   it('rejects invalid months window', async () => {
     const { service } = createService();
     await expect(service.getMonthlyTrend({ months: '0' })).rejects.toThrow(HttpError);
@@ -436,5 +453,150 @@ describe('StrategicAnalyticsService', () => {
   it('rejects invalid priority score decay', async () => {
     const { service } = createService();
     await expect(service.getPriorityScores({ decayHalfLifeDays: '0' })).rejects.toThrow(HttpError);
+  });
+
+  // NEW TESTS to cover remaining gaps
+
+  it('getDailyTrend computes hourly trend for short ranges', async () => {
+    const { service, repository, incidentSvc } = createService({
+        repository: {
+            getIncidentCountsByReportedHour: jest.fn().mockResolvedValue([
+                { date: '2025-01-15T10:00:00Z', count: 5 }
+            ]),
+        }
+    });
+
+    // We must ensure the filter options return start/end within 48 hours to trigger hourly mode
+    (incidentSvc.buildFilterOptions as jest.Mock).mockReturnValue({
+        startDate: '2025-01-15T00:00:00Z',
+        endDate: '2025-01-15T12:00:00Z'
+    });
+
+    const result = await service.getDailyTrend({
+        startDate: '2025-01-15T00:00:00Z',
+        endDate: '2025-01-15T12:00:00Z'
+    });
+
+    expect(repository.getIncidentCountsByReportedHour).toHaveBeenCalled();
+    expect(result.points.length).toBeGreaterThan(0);
+  });
+
+  it('getDailyTrend uses previous year for comparison', async () => {
+      const { service, repository } = createService();
+      await service.getDailyTrend({ compare: 'year' });
+      // We assume default date range (30 days). From 2025-01-15, prev year start should be around 2023-12-17
+      expect(repository.countIncidentsByReportedRange).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({ start: expect.stringContaining('2023') })
+      );
+  });
+
+  it('getTimeOfDayDistribution aggregates correctly', async () => {
+      const { service, repository } = createService({
+          repository: {
+              getIncidentCountsByHourOfDay: jest.fn().mockResolvedValue([
+                  { hour: 8, count: 10 }, // Morning
+                  { hour: 14, count: 20 }, // Afternoon
+                  { hour: 22, count: 5 }, // Night
+              ])
+          }
+      });
+
+      const result = await service.getTimeOfDayDistribution({});
+      expect(result.morning).toBe(10);
+      expect(result.afternoon).toBe(20);
+      expect(result.night).toBe(5);
+      expect(result.total).toBe(35);
+  });
+
+  it('getZoneFrequency computes percentages', async () => {
+      const { service } = createService({
+          repository: {
+              getZoneFrequency: jest.fn().mockResolvedValue([
+                  { zoneName: 'Zone A', count: 10 },
+                  { zoneName: 'Zone B', count: 30 }
+              ])
+          }
+      });
+
+      const result = await service.getZoneFrequency({});
+      expect(result.total).toBe(40);
+      expect(result.zones[0].percentage).toBe(25);
+      expect(result.zones[1].percentage).toBe(75);
+  });
+
+  it('getStationIncidentCounts computes percentages', async () => {
+      const { service } = createService({
+          repository: {
+              getStationIncidentCounts: jest.fn().mockResolvedValue([
+                  { stationCode: 'S1', stationName: 'Station 1', count: 20 },
+                  { stationCode: 'S2', stationName: 'Station 2', count: 80 }
+              ])
+          }
+      });
+
+      const result = await service.getStationIncidentCounts({});
+      expect(result.total).toBe(100);
+      expect(result.stations[0].percentage).toBe(20);
+      expect(result.stations[1].percentage).toBe(80);
+  });
+
+  it('getDistrictFrequentIncidentTypes finds max type', async () => {
+      const { service } = createService({
+          repository: {
+              getMostFrequentIncidentTypesByDistrict: jest.fn().mockResolvedValue([
+                  { district: 'D1', typeName: 'Fire', count: 10 },
+                  { district: 'D1', typeName: 'Medical', count: 5 },
+                  { district: 'D2', typeName: 'Medical', count: 8 }
+              ])
+          }
+      });
+
+      const result = await service.getDistrictFrequentIncidentTypes({});
+      expect(result.items).toHaveLength(2);
+      const d1 = result.items.find(i => i.district === 'D1');
+      expect(d1?.mostFrequentType).toBe('Fire');
+      expect(d1?.count).toBe(10);
+  });
+
+  it('getIncidentProjection handles insufficient data gracefully', async () => {
+      const { service, repository } = createService({
+          repository: {
+              getIncidentMetadata: jest.fn().mockResolvedValue({ reportedRange: { start: '2025-01-01', end: '2025-02-01' } }),
+              getIncidentCountsByReportedMonth: jest.fn().mockResolvedValue([])
+          }
+      });
+
+      const result = await service.getIncidentProjection({});
+      // totalMonths depends on how we iterate points. If range is small, points might be small.
+      // But we expect at least no crash and valid structure.
+      expect(result.periods).toHaveLength(5);
+  });
+
+  it('getIncidentProjection projects with seasonality', async () => {
+      // Mock 2 years of data to trigger seasonality
+      const rows = [];
+      const startDate = new Date('2023-01-01T00:00:00Z');
+      for(let i=0; i<24; i++) {
+          const date = new Date(startDate);
+          date.setUTCMonth(date.getUTCMonth() + i);
+          rows.push({
+              periodStart: date.toISOString(),
+              count: 100 + (i * 5) // Slight upward trend
+          });
+      }
+
+      const { service } = createService({
+          repository: {
+              getIncidentMetadata: jest.fn().mockResolvedValue({
+                  reportedRange: { start: '2023-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z' }
+              }),
+              getIncidentCountsByReportedMonth: jest.fn().mockResolvedValue(rows)
+          }
+      });
+
+      const result = await service.getIncidentProjection({});
+      expect(result.metadata.seasonalityDetected).toBe(true);
+      expect(result.periods[0].projectedCount).toBeGreaterThan(0);
   });
 });
